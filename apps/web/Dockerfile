@@ -18,6 +18,9 @@ RUN pnpm --filter @rt-finance/shared build && pnpm --filter @rt-finance/web buil
 
 # ---------- runtime ----------
 FROM nginx:1.27-alpine AS runner
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# template: o entrypoint da imagem substitui as variáveis por env ao subir
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV API_UPSTREAM=api:3333 \
+    NGINX_RESOLVER=127.0.0.11
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

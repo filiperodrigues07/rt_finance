@@ -70,6 +70,8 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    environment:
+      API_UPSTREAM: "api:3333" # nginx faz proxy de /api → serviço api
     ports:
       - "${WEB_PORT:-8088}:80"
 

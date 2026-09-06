@@ -258,7 +258,9 @@ Passo a passo (DNS, TLS, migrations, backups): [`docs/05-deploy.md`](docs/05-dep
 **Antes de subir, siga o [`SECURITY.md`](SECURITY.md)** — rotacionar chaves, segredos
 JWT fortes, `AUTH_COOKIE_SECURE=true`, `WEB_ORIGIN` real, backup do Postgres.
 
-Alternativa Fly.io: `fly/*.toml`.
+**Fly.io** — 4 apps (`api` · `web` · `evolution` · Postgres) + Upstash Redis (plano
+Free) para a sessão do WhatsApp. Configs em [`fly/`](fly/), runbook completo em
+[`docs/05-deploy.md`](docs/05-deploy.md#1-flyio--passo-a-passo).
 
 ---
 

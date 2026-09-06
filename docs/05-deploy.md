@@ -15,7 +15,8 @@ Serve o painel e a API no mesmo domínio; Postgres e Evolution ficam numa rede
 interna. Você coloca um proxy TLS (Caddy/Traefik/nginx do host) na frente.
 
 **Arquivos:** `docker-compose.prod.yml`, `apps/api/Dockerfile`, `apps/web/Dockerfile`,
-`apps/web/nginx.conf`, `deploy/init-evolution-db.sql`, `.env.prod.example`.
+`apps/web/nginx.conf.template`, `deploy/init-evolution-db.sql`, `.env.prod.example`.
+Inclui `redis` (cache da sessão do Baileys) — sobe junto.
 
 ```bash
 # 1. no servidor, com Docker + Docker Compose instalados
@@ -68,160 +69,136 @@ docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U rtfinance 
 
 ---
 
-## 1. Topologia de produção
+## 1. Fly.io — passo a passo
 
-```mermaid
-flowchart LR
-    subgraph Fly["Fly.io (região gru — São Paulo)"]
-        API["rt-finance-api<br/>NestJS + jobs (pg-boss)<br/>:8080"]
-        WEB["rt-finance-web<br/>nginx estático<br/>:80"]
-        EVO["rt-finance-evolution<br/>Evolution API<br/>volume: /evolution/instances"]
-        PG[("Managed Postgres<br/>rt-finance-db")]
-    end
-    Meta["WhatsApp (Meta)"]
-    User["Navegador"]
+Quatro apps na região `gru`: **api** (NestJS), **web** (nginx → proxy `/api`),
+**evolution** (WhatsApp) e um **Postgres** (`fly postgres`, unmanaged). O cache da
+sessão do Baileys usa **Upstash Redis** (plano Free) via `fly redis create`.
 
-    User -->|HTTPS| WEB
-    WEB -->|"/api → proxy"| API
-    User -->|"HTTPS (opcional, direto)"| API
-    Meta <-->|WhatsApp Web multi-device| EVO
-    EVO -->|"webhook https://rt-finance-api.fly.dev/whatsapp/webhook"| API
-    API -->|"REST + EVOLUTION_API_KEY"| EVO
-    API --> PG
-```
+Topologia: o navegador só fala com `rt-finance-web.fly.dev`; o nginx encaminha
+`/api/*` para `rt-finance-api.internal:8080` pela rede privada. API ↔ Evolution ↔
+Postgres ↔ Redis, tudo por `*.internal` / `.flycast`.
 
-| App Fly | Conteúdo | Escala | Volume |
-|---|---|---|---|
-| `rt-finance-api` | API NestJS + worker de jobs no mesmo processo (ETAPA 6 decide separar) | 1 instância (256–512 MB) | — |
-| `rt-finance-web` | build Vite servido por nginx; proxy `/api` → API | 1 instância (shared-cpu-1x, 256 MB) | — |
-| `rt-finance-evolution` | Evolution API oficial (imagem Docker deles) | **1 instância fixa** (não escalar; sessão única) | **sim** — `instances/` e store da sessão; sem volume, re-parear QR a cada deploy |
-| `rt-finance-db` | Fly Managed Postgres | plano básico | gerenciado |
+Arquivos: [`fly/api.fly.toml`](../fly/api.fly.toml), [`fly/web.fly.toml`](../fly/web.fly.toml),
+[`fly/evolution.fly.toml`](../fly/evolution.fly.toml). Rode tudo **da raiz do repo**.
 
-Alternativa ao `rt-finance-web`: publicar o build em **Cloudflare Pages** e apontar
-`VITE_API_URL` para `https://rt-finance-api.fly.dev`. Decisão na ETAPA 3.
-
----
-
-## 2. Segredos (Fly)
-
-Nunca no repositório. `fly secrets set` por app:
+### 1.1 Pré-requisitos
 
 ```bash
-# rt-finance-api
-fly secrets set -a rt-finance-api \
-  DATABASE_URL="postgres://...gerado pelo Fly..." \
-  JWT_ACCESS_SECRET="$(openssl rand -base64 48)" \
-  JWT_REFRESH_SECRET="$(openssl rand -base64 48)" \
+# instalar flyctl e logar (https://fly.io/docs/flyctl/install/)
+fly auth login
+fly auth whoami
+```
+
+### 1.2 Criar os apps (sem deployar ainda)
+
+```bash
+fly apps create rt-finance-api
+fly apps create rt-finance-web
+fly apps create rt-finance-evolution
+```
+
+### 1.3 Postgres
+
+```bash
+fly postgres create --name rt-finance-db --region gru \
+  --vm-size shared-cpu-1x --volume-size 3 --initial-cluster-size 1
+
+# cria a DATABASE_URL como secret em rt-finance-api (banco: rt_finance_api)
+fly postgres attach rt-finance-db --app rt-finance-api
+
+# 2º banco, para a Evolution
+fly postgres connect --app rt-finance-db
+  CREATE DATABASE evolution;
+  \q
+```
+
+Anote a connection string do cluster (`fly postgres ...` mostra usuário/senha, ou
+`fly secrets list --app rt-finance-db`). A URI da Evolution fica:
+`postgres://<user>:<pass>@rt-finance-db.internal:5432/evolution`.
+
+### 1.4 Redis (Upstash, plano Free)
+
+```bash
+fly redis create           # nome: rt-finance-redis · região gru · plano Free · eviction ON
+fly redis status rt-finance-redis    # copie a "Private URL" (redis://default:...@fly-...upstash.io:6379)
+```
+
+### 1.5 Segredos
+
+```bash
+API_EVO_KEY="$(openssl rand -hex 24)"
+WEBHOOK_TOKEN="$(openssl rand -hex 24)"
+
+fly secrets set --app rt-finance-api \
+  JWT_ACCESS_SECRET="$(openssl rand -hex 32)" \
+  JWT_REFRESH_SECRET="$(openssl rand -hex 32)" \
   NVIDIA_API_KEY="nvapi-..." \
-  NVIDIA_MODEL="<modelo definido na ETAPA 5>" \
-  EVOLUTION_BASE_URL="http://rt-finance-evolution.internal:8080" \
-  EVOLUTION_API_KEY="$(openssl rand -hex 24)" \
-  EVOLUTION_INSTANCE="rtfinance" \
-  WHATSAPP_WEBHOOK_TOKEN="$(openssl rand -hex 24)" \
-  WHATSAPP_ALLOWLIST="+55XXXXXXXXXXX,+55YYYYYYYYYYY" \
-  API_PUBLIC_URL="https://rt-finance-api.fly.dev" \
-  WEB_ORIGIN="https://rt-finance-web.fly.dev"
+  GROQ_API_KEY="gsk_..." \
+  EVOLUTION_API_KEY="$API_EVO_KEY" \
+  WHATSAPP_WEBHOOK_TOKEN="$WEBHOOK_TOKEN" \
+  WHATSAPP_ALLOWLIST=""
+# DATABASE_URL já veio do `postgres attach`
 
-# rt-finance-evolution
-fly secrets set -a rt-finance-evolution \
-  AUTHENTICATION_API_KEY="<mesmo valor de EVOLUTION_API_KEY acima>" \
-  DATABASE_ENABLED="false"   # sessão em arquivo no volume; simples p/ 1 número
+fly secrets set --app rt-finance-evolution \
+  AUTHENTICATION_API_KEY="$API_EVO_KEY" \
+  DATABASE_CONNECTION_URI="postgres://<user>:<pass>@rt-finance-db.internal:5432/evolution" \
+  CACHE_REDIS_URI="redis://default:<pass>@fly-rt-finance-redis.upstash.io:6379"
 ```
 
-Comunicação API ↔ Evolution usa a **rede privada** do Fly (`*.internal`), não a
-internet pública. O webhook aponta para o hostname público da API (a Evolution precisa
-resolver DNS externo mesmo estando no Fly — usar `API_PUBLIC_URL`).
+> Sem Groq, `GROQ_API_KEY` fica de fora e o bot só recusa áudios com um aviso.
+> Sem Redis, edite `fly/evolution.fly.toml`: `CACHE_REDIS_ENABLED="false"` +
+> `CACHE_LOCAL_ENABLED="true"` (a sessão fica no volume — funciona, só é menos robusto).
 
----
+### 1.6 Deploy
 
-## 3. Pipeline de deploy
-
-1. `pnpm install && pnpm build` (Turbo) — valida tipos e build de `shared`, `api`, `web`.
-2. `pnpm --filter @rt-finance/api prisma migrate deploy` — aplica migrations pendentes
-   (rodar como **release_command** no `api.fly.toml`, antes de trocar as instâncias).
-3. `fly deploy -c fly/api.fly.toml`
-4. `fly deploy -c fly/web.fly.toml`
-5. Evolution: `fly deploy -c fly/evolution.fly.toml` (raro; só em upgrade de versão).
-
-`release_command` no `api.fly.toml`:
-
-```toml
-[deploy]
-  release_command = "node apps/api/dist/prisma-migrate-deploy.js"  # wrapper de `prisma migrate deploy`
+```bash
+fly deploy --config fly/evolution.fly.toml    # cria o volume evolution_data na 1ª vez
+fly deploy --config fly/api.fly.toml          # release_command roda `prisma migrate deploy`
+fly deploy --config fly/web.fly.toml
 ```
 
-Health checks: `GET /health` (API), `GET /` (web).
+### 1.7 Primeiro household + WhatsApp
 
----
-
-## 4. Primeira configuração da Evolution API
-
-1. Subir `rt-finance-evolution` com o volume montado.
-2. Criar a instância: `POST {EVOLUTION_BASE_URL}/instance/create`
-   `{ "instanceName": "rtfinance", "integration": "WHATSAPP-BAILEYS" }`
-   (header `apikey: EVOLUTION_API_KEY`).
-3. Configurar o webhook da instância para
-   `https://rt-finance-api.fly.dev/whatsapp/webhook`, evento `MESSAGES_UPSERT`,
-   com o header/token `WHATSAPP_WEBHOOK_TOKEN`.
-4. Obter o QR code (`GET /instance/connect/rtfinance`) e parear com o WhatsApp do casal
-   (aparelho dedicado ou linha secundária — o número **não** deve ser usado no app
-   normal simultaneamente sem multi-device).
-5. Confirmar `state: open`. O volume mantém a sessão entre restarts.
-
-> Os nomes exatos de rota/campo da Evolution API são verificados na ETAPA 4 contra a
-> documentação da versão fixada da imagem — não assumir sem checar.
-
----
-
-## 5. Desenvolvimento local (`docker-compose.yml`)
-
-```yaml
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: rtfinance
-      POSTGRES_PASSWORD: rtfinance
-      POSTGRES_DB: rtfinance
-    ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
-
-  evolution:
-    image: atendai/evolution-api:v2.x        # versão exata fixada na ETAPA 4
-    environment:
-      AUTHENTICATION_API_KEY: dev-evolution-key
-      DATABASE_ENABLED: "false"
-    ports: ["8080:8080"]
-    volumes: ["evolution_instances:/evolution/instances"]
-
-volumes:
-  pgdata:
-  evolution_instances:
+```bash
+# cria o household inicial + super-admin (uma vez)
+fly ssh console --app rt-finance-api --command "pnpm --filter @rt-finance/api db:seed"
 ```
 
-Fluxo local: `docker compose up -d` → `prisma migrate dev` → `prisma db seed` →
-`pnpm dev`. Para testar o webhook sem expor a máquina, usar um túnel
-(`cloudflared tunnel` ou similar) apontando para `http://localhost:3333`.
+Login em `https://rt-finance-web.fly.dev` com `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD`
+(defina-os como secrets antes do seed, ou use os defaults do `seed.ts`).
+Depois: **Configurações → WhatsApp → Conectar / Gerar QR** e escaneie com o celular do
+bot. O `whatsapp-health.service` religa a sessão sozinho se cair.
+
+### 1.8 Atualizações
+
+```bash
+git pull
+fly deploy --config fly/api.fly.toml
+fly deploy --config fly/web.fly.toml
+# evolution: só quando trocar a versão da imagem no fly/evolution.fly.toml
+```
+
+Health checks: `GET /health` (api), `GET /` (web).
 
 ---
 
-## 6. Backups
+## 2. Backups
 
-- Job `backup.job.ts` (pg-boss, cron `BACKUP_CRON`): `pg_dump` → objeto comprimido em
-  storage (Fly Volumes / S3-compatível / Backblaze B2), retenção `BACKUP_RETENTION_DAYS`.
-- Somado aos snapshots automáticos do Managed Postgres do Fly.
-- Restore documentado: `pg_restore` num banco limpo + `prisma migrate deploy`.
+- **Compose:** `pg_dump` no cron do host (exemplo na seção 0).
+- **Fly:** `fly postgres` faz snapshots automáticos do volume; para dump lógico:
+  `fly postgres connect --app rt-finance-db` + `pg_dump`. Guarde fora do Fly.
+- Restore: banco limpo → `pg_restore` → `prisma migrate deploy`.
 
 ---
 
-## 7. Checklist de produção (ETAPA 7)
+## 3. Checklist de produção
 
-- [ ] `env.schema.ts` falha o boot se faltar segredo obrigatório.
-- [ ] Rate limit no webhook e em `/auth/*`.
-- [ ] `AUTH_COOKIE_SECURE=true`, `SameSite=Lax`, domínio correto.
-- [ ] CORS restrito a `WEB_ORIGIN`.
-- [ ] Logs sem PII sensível (mascarar telefone/valores em nível `info`).
-- [ ] `release_command` roda migrations antes do cutover.
-- [ ] Volume da Evolution com snapshot.
-- [ ] Sentry (ou equivalente) ligado com `SENTRY_DSN`.
-- [ ] Alerta de erro no job de fechamento de fatura (crítico).
+- [ ] `env.schema.ts` recusa o boot com config insegura em `NODE_ENV=production`.
+- [ ] `NVIDIA_API_KEY` e `GROQ_API_KEY` rotacionadas (as de dev foram expostas em chat).
+- [ ] Segredos JWT ≥ 32 chars aleatórios; `AUTH_COOKIE_SECURE=true`.
+- [ ] `WEB_ORIGIN` / `AUTH_COOKIE_DOMAIN` = domínio real do painel.
+- [ ] `WHATSAPP_ALLOWLIST` vazio (autorização vem dos telefones dos membros).
+- [ ] Rate limit ativo em `/auth/*` e no webhook.
+- [ ] Backup do Postgres agendado e testado (restore).
+- [ ] Volume da Evolution com snapshot; Redis com eviction ligada.

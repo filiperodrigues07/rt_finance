@@ -1,12 +1,18 @@
-# RT Finance — Web (nginx estático). Deploy: fly deploy -c fly/web.fly.toml
+# RT Finance — Painel web (SPA + nginx que faz proxy de /api → API).
+#   fly deploy --config fly/web.fly.toml
 app = "rt-finance-web"
 primary_region = "gru"
 
 [build]
   dockerfile = "../apps/web/Dockerfile"
 
+[env]
+  # nginx faz proxy de /api/* para a API pela rede privada da Fly
+  API_UPSTREAM = "rt-finance-api.internal:8080"
+  NGINX_RESOLVER = "[fdaa::3]:53"
+
 [http_service]
-  internal_port = 8080
+  internal_port = 80
   force_https = true
   auto_stop_machines = "suspend"
   auto_start_machines = true

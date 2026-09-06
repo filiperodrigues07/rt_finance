@@ -1,5 +1,6 @@
-# RT Finance — Evolution API (WhatsApp). Deploy: fly deploy -c fly/evolution.fly.toml
-# Imagem oficial; NÃO escalar (sessão única). Volume obrigatório para a sessão.
+# RT Finance — Evolution API (WhatsApp, Baileys). Imagem oficial.
+#   fly deploy --config fly/evolution.fly.toml
+# NÃO escalar além de 1 máquina (sessão única por número). Volume + Redis obrigatórios.
 app = "rt-finance-evolution"
 primary_region = "gru"
 
@@ -7,13 +8,32 @@ primary_region = "gru"
   image = "evoapicloud/evolution-api:v2.3.1"
 
 [env]
-  # sessão em arquivo no volume (simples para 1 número); ative DATABASE_ENABLED se quiser persistir no Postgres
-  DATABASE_ENABLED = "false"
+  SERVER_URL = "https://rt-finance-evolution.fly.dev"
+  # sessão do Baileys: metadados no Postgres, chaves no Redis (evita corromper em restart)
+  DATABASE_ENABLED = "true"
+  DATABASE_PROVIDER = "postgresql"
+  DATABASE_CONNECTION_CLIENT_NAME = "evolution_rtfinance"
+  DATABASE_SAVE_DATA_INSTANCE = "true"
+  DATABASE_SAVE_DATA_NEW_MESSAGE = "false"
+  DATABASE_SAVE_MESSAGE_UPDATE = "false"
+  DATABASE_SAVE_DATA_CONTACTS = "false"
+  DATABASE_SAVE_DATA_CHATS = "false"
+  CACHE_REDIS_ENABLED = "true"
+  CACHE_REDIS_PREFIX_KEY = "evrt"
+  CACHE_REDIS_SAVE_INSTANCES = "true"
+  CACHE_LOCAL_ENABLED = "false"
   CONFIG_SESSION_PHONE_CLIENT = "RT Finance"
+  # versão do WhatsApp Web fixada — revisar a cada poucos meses
+  CONFIG_SESSION_PHONE_VERSION = "2.3000.1023204200"
+  QRCODE_LIMIT = "30"
   LOG_LEVEL = "ERROR"
   DEL_INSTANCE = "false"
 
-# Segredo: fly secrets set -a rt-finance-evolution AUTHENTICATION_API_KEY=<mesmo EVOLUTION_API_KEY da API>
+# Segredos — fly secrets set --app rt-finance-evolution \
+#   AUTHENTICATION_API_KEY=...      (mesma EVOLUTION_API_KEY da API)
+#   DATABASE_CONNECTION_URI=postgres://<user>:<pass>@rt-finance-db.internal:5432/evolution
+#   CACHE_REDIS_URI=redis://default:<pass>@<upstash-host>:6379   (de `fly redis status`)
+# Sem Redis (fallback): trocar no [env] CACHE_REDIS_ENABLED="false" e CACHE_LOCAL_ENABLED="true".
 
 [mounts]
   source = "evolution_data"
