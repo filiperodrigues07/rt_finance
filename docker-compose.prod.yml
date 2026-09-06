@@ -1,0 +1,119 @@
+# RT Finance — produção (VPS). Sobe API + painel + PostgreSQL + Evolution numa rede
+# interna; só o `web` (nginx) fica exposto. Coloque um proxy TLS na frente (Caddy,
+# Traefik ou o nginx do host) apontando 443 -> web:80.
+#
+#   cp .env.prod.example .env.prod   # e preencha
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Antes de subir, revise o SECURITY.md (rotacionar NVIDIA_API_KEY, segredos JWT,
+# AUTH_COOKIE_SECURE=true, WEB_ORIGIN real, etc.).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-rtfinance}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?obrigatório}"
+      POSTGRES_DB: "${POSTGRES_DB:-rtfinance}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/init-evolution-db.sql:/docker-entrypoint-initdb.d/10-evolution.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rtfinance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: "3333"
+      API_PUBLIC_URL: "${API_PUBLIC_URL:?obrigatório}"
+      WEB_ORIGIN: "${WEB_ORIGIN:?obrigatório}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-rtfinance}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rtfinance}?schema=public"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?obrigatório}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?obrigatório}"
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_DOMAIN: "${AUTH_COOKIE_DOMAIN:?obrigatório}"
+      AI_PROVIDER: "${AI_PROVIDER:-nvidia}"
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY}"
+      NVIDIA_MODEL: "${NVIDIA_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      WHATSAPP_PROVIDER: evolution
+      EVOLUTION_BASE_URL: "http://evolution:8080"
+      EVOLUTION_API_KEY: "${EVOLUTION_API_KEY:?obrigatório}"
+      EVOLUTION_INSTANCE: "${EVOLUTION_INSTANCE:-rtfinance}"
+      WHATSAPP_WEBHOOK_TOKEN: "${WHATSAPP_WEBHOOK_TOKEN:?obrigatório}"
+      WHATSAPP_ALLOWLIST: "${WHATSAPP_ALLOWLIST:-}"
+      AI_CONFIRM_THRESHOLD_CENTS: "${AI_CONFIRM_THRESHOLD_CENTS:-500000}"
+      LOG_LEVEL: info
+      # usados só pelo `db:seed` (primeiro household / super-admin)
+      SEED_HOUSEHOLD_NAME: "${SEED_HOUSEHOLD_NAME:-Casa RT}"
+      SEED_OWNER_NAME: "${SEED_OWNER_NAME:-Filipe}"
+      SEED_OWNER_EMAIL: "${SEED_OWNER_EMAIL:-filipe@rtfinance.local}"
+      SEED_OWNER_PASSWORD: "${SEED_OWNER_PASSWORD:-rtfinance123}"
+      SEED_PARTNER_NAME: "${SEED_PARTNER_NAME:-Julia}"
+      SEED_PARTNER_EMAIL: "${SEED_PARTNER_EMAIL:-julia@rtfinance.local}"
+      SEED_PARTNER_PASSWORD: "${SEED_PARTNER_PASSWORD:-rtfinance123}"
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8088}:80"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SERVER_URL: "${API_PUBLIC_URL}"
+      AUTHENTICATION_API_KEY: "${EVOLUTION_API_KEY}"
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: "postgresql://${POSTGRES_USER:-rtfinance}:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=public"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_rtfinance
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      # cache da sessão do Baileys no Redis — evita corrupção de chave em restart
+      # (principal causa do "aguardando esta mensagem" / ter que reparear).
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379/1"
+      CACHE_REDIS_PREFIX_KEY: "evrt"
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: "RT Finance"
+      # versão do WhatsApp Web fixada — socket é rejeitado com versão velha.
+      # Revisar a cada poucos meses (última conhecida boa: set/2025).
+      CONFIG_SESSION_PHONE_VERSION: "2.3000.1023204200"
+      QRCODE_LIMIT: "30"
+      LOG_LEVEL: "WARN"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  pgdata:
+  evolution_instances:
+  redisdata:

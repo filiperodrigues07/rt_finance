@@ -1,0 +1,54 @@
+# RT Finance — API (NestJS). Deploy: fly deploy -c fly/api.fly.toml
+app = "rt-finance-api"
+primary_region = "gru"
+
+[build]
+  dockerfile = "../apps/api/Dockerfile"
+
+[deploy]
+  # WORKDIR da imagem é /app/apps/api
+  release_command = "node_modules/.bin/prisma migrate deploy"
+  strategy = "rolling"
+
+[env]
+  NODE_ENV = "production"
+  API_PORT = "8080"
+  APP_TIMEZONE = "America/Sao_Paulo"
+  APP_DEFAULT_CURRENCY = "BRL"
+  JOBS_ENABLED = "true"
+  AUTH_COOKIE_SECURE = "true"
+  # API_PUBLIC_URL / WEB_ORIGIN definidos aqui após criar os apps:
+  API_PUBLIC_URL = "https://rt-finance-api.fly.dev"
+  WEB_ORIGIN = "https://rt-finance-web.fly.dev"
+  EVOLUTION_BASE_URL = "http://rt-finance-evolution.internal:8080"
+  EVOLUTION_INSTANCE = "rtfinance"
+  AI_PROVIDER = "nvidia"
+  NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+  NVIDIA_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+
+# Segredos (fly secrets set -a rt-finance-api ...):
+#   DATABASE_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET,
+#   NVIDIA_API_KEY, EVOLUTION_API_KEY, WHATSAPP_WEBHOOK_TOKEN, WHATSAPP_ALLOWLIST
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

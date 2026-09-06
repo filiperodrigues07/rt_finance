@@ -1,0 +1,168 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   RT Finance — design tokens
+   Neutros quase-preto/branco + um acento colorido (hue: azul ou rosa).
+   Modo (claro/escuro) via classe .dark; cor via [data-hue] no <html>.
+   ============================================================ */
+:root {
+  /* light — branco + grafite */
+  --bg: 250 250 251;
+  --surface: 255 255 255;
+  --surface-2: 244 245 247;
+  --border: 226 228 232;
+  --muted: 100 104 112;
+  --fg: 20 22 28;
+  --accent: 37 99 235; /* azul (padrão) */
+  --accent-fg: 255 255 255;
+  --positive: 22 122 74;
+  --negative: 190 50 50;
+  --warning: 176 120 30;
+
+  --radius: 0.625rem;
+  --shadow-card: 0 1px 2px rgb(15 18 25 / 0.05);
+}
+
+.dark {
+  /* dark (padrão) — quase preto + acento claro */
+  --bg: 9 10 13;
+  --surface: 16 18 23;
+  --surface-2: 24 27 33;
+  --border: 38 42 50;
+  --muted: 148 152 160;
+  --fg: 232 234 238;
+  --accent: 96 165 250; /* azul claro */
+  --accent-fg: 9 10 13;
+  --positive: 110 200 150;
+  --negative: 240 130 120;
+  --warning: 220 180 110;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+/* --- HUE: só o acento muda (azul do Filipe / rosa da Julia) --- */
+html:not(.dark)[data-hue="blue"] {
+  --accent: 37 99 235;
+}
+html.dark[data-hue="blue"] {
+  --accent: 96 165 250;
+}
+html:not(.dark)[data-hue="pink"] {
+  --accent: 219 39 119;
+}
+html.dark[data-hue="pink"] {
+  --accent: 244 114 182;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* serif só para títulos editoriais (ex.: headline do login) — nunca para números */
+.font-display {
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* números: sans, tabulares, sem ambiguidade */
+.tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* scrollbar discreta */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 999px;
+  border: 3px solid rgb(var(--bg));
+}
+::selection {
+  background: rgb(var(--accent) / 0.25);
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-border bg-surface;
+    box-shadow: var(--shadow-card);
+  }
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg;
+    outline: none;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .input::placeholder {
+    color: rgb(var(--muted));
+  }
+  .input:focus {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 2px rgb(var(--accent) / 0.2);
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-surface-2;
+  }
+  .hairline {
+    @apply border-t border-border;
+  }
+}
+
+/* animação de entrada — respeitando reduced-motion */
+@keyframes rt-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: rt-fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .animate-in {
+    animation: none;
+  }
+}
+
+/* safe-area helpers (iOS notch / home indicator) */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}

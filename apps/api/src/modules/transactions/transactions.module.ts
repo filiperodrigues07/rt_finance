@@ -1,0 +1,14 @@
+import { Module } from "@nestjs/common";
+import { TransactionsController } from "./transactions.controller";
+import { TransactionsService } from "./transactions.service";
+import { TransactionAttachmentsService } from "./transaction-attachments.service";
+import { InvoicesModule } from "../invoices/invoices.module";
+import { HintsModule } from "../hints/hints.module";
+
+@Module({
+  imports: [InvoicesModule, HintsModule],
+  controllers: [TransactionsController],
+  providers: [TransactionsService, TransactionAttachmentsService],
+  exports: [TransactionsService],
+})
+export class TransactionsModule {}

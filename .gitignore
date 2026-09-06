@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+.output/
+*.log
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# prisma
+apps/api/prisma/*.db
+
+# editors / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# vite
+apps/web/dist/

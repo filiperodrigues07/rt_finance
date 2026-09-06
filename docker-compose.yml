@@ -1,0 +1,93 @@
+# Ambiente de desenvolvimento local do RT Finance.
+#
+#   docker compose up -d                       -> só o PostgreSQL (para quem NÃO tem um)
+#   docker compose --profile whatsapp up -d    -> + Evolution API (WhatsApp)
+#
+# Se você já tem um PostgreSQL local (ex.: o instalador oficial do Windows), NÃO precisa
+# do serviço `postgres` daqui — deixe o DATABASE_URL da API apontando para o seu, e rode
+# apenas a Evolution:  docker compose --profile whatsapp up -d evolution
+#
+# Requer Docker Desktop. Em produção tudo isso é gerenciado pelo Fly.io (docs/05-deploy.md).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rtfinance-postgres
+    restart: unless-stopped
+    profiles: ["db"]
+    environment:
+      POSTGRES_USER: rtfinance
+      POSTGRES_PASSWORD: rtfinance
+      POSTGRES_DB: rtfinance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rtfinance -d rtfinance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Cache do Baileys (chaves de criptografia da sessão). Guardar no Redis em vez do
+  # arquivo local evita corrupção de chave em restart — principal causa do
+  # "aguardando esta mensagem" / ter que reparear.
+  redis:
+    image: redis:7-alpine
+    container_name: rtfinance-redis
+    restart: unless-stopped
+    profiles: ["whatsapp"]
+    command: ["redis-server", "--save", "\"\"", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+  # WhatsApp (Evolution API v2). Imagem oficial atual: evoapicloud/evolution-api
+  # (o antigo atendai/evolution-api saiu do ar). Versão fixada de propósito.
+  # A Evolution v2 precisa de um PostgreSQL próprio — aqui aponta para o Postgres do
+  # HOST (host.docker.internal), banco `evolution`, separado do banco do RT Finance.
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    container_name: rtfinance-evolution
+    restart: unless-stopped
+    profiles: ["whatsapp"]
+    depends_on:
+      - redis
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: dev-evolution-key
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: "postgresql://evolution:evolution@host.docker.internal:5432/evolution?schema=public"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_rtfinance
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      # cache da sessão no Redis (serviço `redis` na mesma rede do compose)
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379/1"
+      CACHE_REDIS_PREFIX_KEY: "evrt"
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: "RT Finance"
+      CONFIG_SESSION_PHONE_NAME: "Chrome"
+      # versão do WhatsApp Web fixada — socket é rejeitado com versão velha.
+      # Revisar a cada poucos meses (última conhecida boa: set/2025).
+      CONFIG_SESSION_PHONE_VERSION: "2.3000.1023204200"
+      QRCODE_LIMIT: "30"
+      LOG_LEVEL: "INFO"
+      LOG_BAILEYS: "warn"
+      DEL_INSTANCE: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  pgdata:
+  evolution_instances:

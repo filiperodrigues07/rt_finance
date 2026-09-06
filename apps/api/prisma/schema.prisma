@@ -1,0 +1,725 @@
+// RT Finance — schema Prisma. Ver docs/02-banco-de-dados.md para as regras de negócio.
+// Convenções: dinheiro em centavos (Int); competência em @db.Date; timestamps em UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== ENUMS =====================
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  CLEARED
+  CANCELED
+}
+
+enum TransactionSource {
+  MANUAL
+  WHATSAPP
+  RECURRING
+  IMPORT
+}
+
+enum CategoryKind {
+  EXPENSE
+  INCOME
+  BOTH
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CASH
+  WALLET
+}
+
+enum CardStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InvoiceStatus {
+  OPEN
+  CLOSED
+  PAID
+  OVERDUE
+}
+
+enum InstallmentStatus {
+  SCHEDULED
+  BILLED
+  PAID
+  CANCELED
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ARCHIVED
+}
+
+enum NotificationType {
+  INVOICE_DUE
+  BILL_DUE
+  BUDGET_THRESHOLD
+  BUDGET_EXCEEDED
+  GOAL_MILESTONE
+  WEEKLY_SUMMARY
+}
+
+enum NotificationChannel {
+  WEB
+  WHATSAPP
+  BOTH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  READ
+  DISMISSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  DOCUMENT
+  INTERACTIVE
+  OTHER
+}
+
+enum AiConversationState {
+  IDLE
+  AWAITING_CONFIRMATION
+  AWAITING_EDIT
+}
+
+enum AiChannel {
+  WHATSAPP
+  WEB
+}
+
+enum ImportSource {
+  OFX_BANK
+  OFX_CARD
+  PDF_BANK
+  PDF_CARD
+  IMG_BANK
+  IMG_CARD
+}
+
+enum AttachmentKind {
+  BOLETO
+  RECEIPT
+  OTHER
+}
+
+enum ImportStatus {
+  PARSING
+  REVIEW
+  COMMITTED
+  FAILED
+  DISCARDED
+}
+
+enum ImportRowState {
+  AUTO_COMMITTED
+  NEEDS_REVIEW
+  COMMITTED
+  SKIPPED
+  DUPLICATE
+}
+
+// ===================== TENANT / USUÁRIOS =====================
+model Household {
+  id               String   @id @default(cuid())
+  name             String
+  timezone         String   @default("America/Sao_Paulo")
+  currency         String   @default("BRL")
+  whatsappInstance String?  @unique
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  members           HouseholdMember[]
+  categories        Category[]
+  accounts          Account[]
+  creditCards       CreditCard[]
+  transactions      Transaction[]
+  installmentPlans  InstallmentPlan[]
+  recurringExpenses RecurringExpense[]
+  budgets           Budget[]
+  goals             FinancialGoal[]
+  notifications     Notification[]
+  notifPreferences  NotificationPreference[]
+  whatsappMessages  WhatsappMessage[]
+  aiConversations   AiConversation[]
+  settings          Setting[]
+  auditLogs         AuditLog[]
+  importBatches     ImportBatch[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  phoneE164    String?  @unique
+  avatarColor  String   @default("#3B82F6")
+  avatarUrl    String?  @db.Text
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+
+  memberships HouseholdMember[]
+  sessions    Session[]
+}
+
+model HouseholdMember {
+  id          String     @id @default(cuid())
+  householdId String
+  userId      String
+  role        MemberRole @default(MEMBER)
+  displayName String
+  color       String     @default("#3B82F6")
+  joinedAt    DateTime   @default(now()) @db.Timestamptz(6)
+
+  household          Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]      @relation("TxMember")
+  createdTx         Transaction[]      @relation("TxCreatedBy")
+  installmentPlans  InstallmentPlan[]
+  recurringExpenses RecurringExpense[]
+  goalContributions GoalContribution[]
+  budgets           Budget[]
+  aiConversations   AiConversation[]
+
+  @@unique([householdId, userId])
+  @@index([householdId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  familyId  String
+  userAgent String?
+  ip        String?
+  expiresAt DateTime  @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+// ===================== CATEGORIAS / CONTAS =====================
+model Category {
+  id          String       @id @default(cuid())
+  householdId String
+  name        String
+  icon        String       @default("📦")
+  color       String       @default("#64748B")
+  kind        CategoryKind  @default(EXPENSE)
+  parentId    String?
+  isSystem    Boolean      @default(false)
+  archivedAt  DateTime?    @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(6)
+
+  household        Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  parent           Category?          @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Category[]         @relation("CategoryTree")
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+  recurring        RecurringExpense[]
+  budgets          Budget[]
+
+  @@unique([householdId, name])
+  @@index([householdId, kind])
+}
+
+model Account {
+  id                  String      @id @default(cuid())
+  householdId         String
+  name                String
+  type                AccountType @default(CHECKING)
+  openingBalanceCents Int         @default(0)
+  archivedAt          DateTime?   @db.Timestamptz(6)
+  createdAt           DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime    @updatedAt @db.Timestamptz(6)
+
+  household     Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+
+  @@unique([householdId, name])
+  @@index([householdId])
+}
+
+// ===================== CARTÕES / FATURAS =====================
+model CreditCard {
+  id          String     @id @default(cuid())
+  householdId String
+  name        String
+  bank        String?
+  brand       String?
+  last4       String?
+  limitCents  Int        @default(0)
+  closingDay  Int
+  dueDay      Int
+  color       String     @default("#8B5CF6")
+  icon        String     @default("💳")
+  status      CardStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+
+  household         Household           @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  invoices         CreditCardInvoice[]
+  installmentPlans InstallmentPlan[]
+  transactions     Transaction[]
+
+  @@unique([householdId, name])
+  @@index([householdId, status])
+}
+
+model CreditCardInvoice {
+  id                   String        @id @default(cuid())
+  creditCardId         String
+  referenceMonth       DateTime      @db.Date
+  closingDate          DateTime      @db.Date
+  dueDate              DateTime      @db.Date
+  status               InvoiceStatus @default(OPEN)
+  totalCents           Int           @default(0)
+  paidAt               DateTime?     @db.Timestamptz(6)
+  paymentTransactionId String?       @unique
+  createdAt            DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime      @updatedAt @db.Timestamptz(6)
+
+  creditCard         CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  paymentTransaction Transaction?  @relation("InvoicePayment", fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  transactions       Transaction[] @relation("InvoiceItems")
+  installments       Installment[]
+
+  @@unique([creditCardId, referenceMonth])
+  @@index([creditCardId, status])
+  @@index([dueDate])
+}
+
+// ===================== RAZÃO (CORE) =====================
+model Transaction {
+  id                 String            @id @default(cuid())
+  householdId        String
+  type               TransactionType
+  amountCents        Int
+  description        String
+  date               DateTime          @db.Date
+  dueDate            DateTime?         @db.Date
+  paidAt             DateTime?         @db.Timestamptz(6)
+  status             TransactionStatus @default(CONFIRMED)
+  source             TransactionSource @default(MANUAL)
+  notes              String?
+  externalRef        String?
+  transferGroupId    String?
+  categoryId         String?
+  accountId          String?
+  creditCardId       String?
+  invoiceId          String?
+  installmentId      String?           @unique
+  recurringExpenseId String?
+  memberId           String
+  createdById        String
+  createdAt          DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @db.Timestamptz(6)
+
+  household        Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category         Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  account          Account?           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  creditCard       CreditCard?        @relation(fields: [creditCardId], references: [id], onDelete: Restrict)
+  invoice          CreditCardInvoice? @relation("InvoiceItems", fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoicePaymentOf CreditCardInvoice? @relation("InvoicePayment")
+  installment      Installment?       @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  recurringExpense RecurringExpense?  @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+  member           HouseholdMember    @relation("TxMember", fields: [memberId], references: [id], onDelete: Restrict)
+  createdBy        HouseholdMember    @relation("TxCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  recurringRun     RecurringRun?
+  goalContribution GoalContribution?
+  attachments      TransactionAttachment[]
+
+  @@index([householdId, date])
+  @@index([householdId, categoryId, date])
+  @@index([householdId, memberId, date])
+  @@index([householdId, status, dueDate])
+  @@index([creditCardId, date])
+  @@index([invoiceId])
+  @@index([transferGroupId])
+}
+
+// ===================== PARCELAMENTOS =====================
+model InstallmentPlan {
+  id               String   @id @default(cuid())
+  householdId      String
+  creditCardId     String
+  categoryId       String?
+  memberId         String
+  description      String
+  totalCents       Int
+  installmentCount Int
+  purchaseDate     DateTime @db.Date
+  firstDueDate     DateTime @db.Date
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  household    Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  creditCard   CreditCard      @relation(fields: [creditCardId], references: [id], onDelete: Restrict)
+  category     Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  member       HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  installments Installment[]
+
+  @@index([householdId])
+  @@index([creditCardId])
+}
+
+model Installment {
+  id            String            @id @default(cuid())
+  planId        String
+  number        Int
+  amountCents   Int
+  dueDate       DateTime          @db.Date
+  status        InstallmentStatus @default(SCHEDULED)
+  invoiceId     String?
+  transactionId String?           @unique
+  createdAt     DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(6)
+
+  plan        InstallmentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  invoice     CreditCardInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  transaction Transaction?
+
+  @@unique([planId, number])
+  @@index([dueDate])
+  @@index([invoiceId])
+}
+
+// ===================== CONTAS FIXAS / RECORRÊNCIAS (ETAPA 6) =====================
+model RecurringExpense {
+  id                String              @id @default(cuid())
+  householdId       String
+  categoryId        String
+  memberId          String
+  name              String
+  amountCents       Int?
+  frequency         RecurrenceFrequency @default(MONTHLY)
+  interval          Int                 @default(1)
+  dayOfMonth        Int?
+  weekday           Int?
+  autoPost          Boolean             @default(true)
+  accountId         String?
+  creditCardId      String?
+  startDate         DateTime            @db.Date
+  endDate           DateTime?           @db.Date
+  lastGeneratedDate DateTime?           @db.Date
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(6)
+
+  household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  member       HouseholdMember  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  runs         RecurringRun[]
+  transactions Transaction[]
+
+  @@index([householdId, active])
+}
+
+model RecurringRun {
+  id                 String   @id @default(cuid())
+  recurringExpenseId String
+  period             DateTime @db.Date
+  transactionId      String?  @unique
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+
+  recurringExpense RecurringExpense @relation(fields: [recurringExpenseId], references: [id], onDelete: Cascade)
+  transaction      Transaction?     @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([recurringExpenseId, period])
+}
+
+// ===================== ORÇAMENTOS (ETAPA 6) =====================
+model Budget {
+  id          String   @id @default(cuid())
+  householdId String
+  categoryId  String
+  memberId    String?
+  month       DateTime @db.Date
+  amountCents Int
+  rollover    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  household Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  category  Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  member    HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, categoryId, month, memberId])
+  @@index([householdId, month])
+}
+
+// ===================== METAS (ETAPA 6) =====================
+model FinancialGoal {
+  id           String     @id @default(cuid())
+  householdId  String
+  name         String
+  targetCents  Int
+  currentCents Int        @default(0)
+  deadline     DateTime?  @db.Date
+  icon         String     @default("🎯")
+  color        String     @default("#10B981")
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
+
+  household     Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
+
+  @@index([householdId, status])
+}
+
+model GoalContribution {
+  id            String   @id @default(cuid())
+  goalId        String
+  memberId      String
+  amountCents   Int
+  date          DateTime @db.Date
+  note          String?
+  transactionId String?  @unique
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  goal        FinancialGoal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  member      HouseholdMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  transaction Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([goalId])
+}
+
+// ===================== NOTIFICAÇÕES (ETAPA 6) =====================
+model Notification {
+  id           String              @id @default(cuid())
+  householdId  String
+  userId       String?
+  type         NotificationType
+  title        String
+  body         String
+  data         Json?
+  channel      NotificationChannel @default(BOTH)
+  status       NotificationStatus  @default(PENDING)
+  scheduledFor DateTime?           @db.Timestamptz(6)
+  sentAt       DateTime?           @db.Timestamptz(6)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, status])
+  @@index([scheduledFor])
+}
+
+model NotificationPreference {
+  id               String           @id @default(cuid())
+  householdId      String
+  type             NotificationType
+  enabled          Boolean          @default(true)
+  channelWeb       Boolean          @default(true)
+  channelWhatsapp  Boolean          @default(true)
+  thresholdPercent Int?
+  leadDays         Int?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, type])
+}
+
+// ===================== WHATSAPP / IA (ETAPAS 4-5) =====================
+model WhatsappMessage {
+  id                String           @id @default(cuid())
+  householdId       String?
+  userId            String?
+  providerMessageId String           @unique
+  direction         MessageDirection
+  fromPhone         String
+  toPhone           String
+  type              MessageType      @default(TEXT)
+  text              String?
+  mediaUrl          String?
+  rawPayload        Json
+  status            String?
+  createdAt         DateTime         @default(now()) @db.Timestamptz(6)
+
+  household      Household?     @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  aiInteraction  AiInteraction?
+
+  @@index([householdId, createdAt])
+  @@index([fromPhone, createdAt])
+}
+
+model AiConversation {
+  id               String              @id @default(cuid())
+  householdId      String
+  memberId         String
+  channel          AiChannel           @default(WHATSAPP)
+  state            AiConversationState @default(IDLE)
+  lastIntent       String?
+  pendingAction    Json?
+  pendingExpiresAt DateTime?           @db.Timestamptz(6)
+  updatedAt        DateTime            @updatedAt @db.Timestamptz(6)
+  createdAt        DateTime            @default(now()) @db.Timestamptz(6)
+
+  household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member       HouseholdMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  interactions AiInteraction[]
+
+  @@unique([memberId, channel])
+  @@index([state, pendingExpiresAt])
+}
+
+model AiInteraction {
+  id               String   @id @default(cuid())
+  conversationId   String
+  messageId        String?  @unique
+  provider         String
+  model            String
+  promptTokens     Int?
+  completionTokens Int?
+  latencyMs        Int?
+  intent           String?
+  confidence       Float?
+  rawResponse      Json?
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation AiConversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      WhatsappMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+}
+
+// ===================== CONFIG / AUDITORIA =====================
+model Setting {
+  id          String   @id @default(cuid())
+  householdId String
+  key         String
+  value       Json
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, key])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  householdId String
+  actorUserId String?
+  action      String
+  entity      String
+  entityId    String
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, createdAt])
+  @@index([entity, entityId])
+}
+
+// ===================== IMPORTAÇÃO (OFX / PDF) =====================
+model ImportBatch {
+  id             String       @id @default(cuid())
+  householdId    String
+  createdById    String
+  source         ImportSource
+  fileName       String
+  accountId      String?
+  creditCardId   String?
+  status         ImportStatus @default(PARSING)
+  rowCount       Int          @default(0)
+  autoCount      Int          @default(0)
+  reviewCount    Int          @default(0)
+  committedCount Int          @default(0)
+  totalCents     Int          @default(0)
+  aiModel        String?
+  error          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  household Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  rows      ImportRow[]
+
+  @@index([householdId, status])
+}
+
+model ImportRow {
+  id                  String          @id @default(cuid())
+  batchId             String
+  postedDate          DateTime        @db.Date
+  description         String
+  rawText             String?
+  amountCents         Int
+  type                TransactionType
+  fitid               String?
+  suggestedCategoryId String?
+  categoryId          String?
+  memberId            String?
+  state               ImportRowState  @default(NEEDS_REVIEW)
+  confidence          Float           @default(0)
+  duplicateTxnId      String?
+  transactionId       String?
+  createdAt           DateTime        @default(now()) @db.Timestamptz(6)
+
+  batch ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+}
+
+// ===================== ANEXOS (boleto / comprovante) =====================
+model TransactionAttachment {
+  id            String         @id @default(cuid())
+  transactionId String
+  kind          AttachmentKind
+  fileName      String
+  mimeType      String
+  sizeBytes     Int
+  data          Bytes
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+}

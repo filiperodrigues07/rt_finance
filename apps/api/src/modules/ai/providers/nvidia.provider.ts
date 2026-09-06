@@ -1,0 +1,126 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ENV, type Env } from "../../../config/env.schema";
+import { AIService, type InterpretContext, type InterpretOutput } from "../ai.types";
+import { buildSystemPrompt } from "../prompts";
+import { parseAiResult } from "../intent-parser";
+
+interface ChatCompletion {
+  choices: { message: { content: string } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+/**
+ * Provider NVIDIA NIM (endpoint OpenAI-compatível: POST {base}/chat/completions).
+ * Modelo padrão: nvidia/nemotron-3-super-120b-a12b (bom em JSON estruturado, ~3-8s).
+ * A chave nunca sai do backend.
+ */
+@Injectable()
+export class NvidiaProvider extends AIService {
+  private readonly logger = new Logger(NvidiaProvider.name);
+
+  constructor(@Inject(ENV) private readonly env: Env) {
+    super();
+  }
+
+  private async chatOnce(system: string, user: string): Promise<ChatCompletion> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.env.AI_REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${this.env.NVIDIA_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: {
+          authorization: `Bearer ${this.env.NVIDIA_API_KEY}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: this.env.NVIDIA_MODEL,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: this.env.AI_TEMPERATURE,
+          max_tokens: this.env.AI_MAX_TOKENS,
+          response_format: { type: "json_object" },
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        const retryable = res.status === 429 || res.status >= 500;
+        this.logger.warn(`NVIDIA API ${res.status}: ${text.slice(0, 200)}`);
+        const e = new Error(`NVIDIA API ${res.status}`) as Error & { retryable?: boolean };
+        e.retryable = retryable;
+        throw e;
+      }
+      return JSON.parse(text) as ChatCompletion;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Uma retentativa com backoff em 429/5xx/timeout. */
+  private async chat(system: string, user: string): Promise<ChatCompletion> {
+    try {
+      return await this.chatOnce(system, user);
+    } catch (err) {
+      const e = err as Error & { retryable?: boolean; name?: string };
+      if (e.retryable || e.name === "AbortError") {
+        await new Promise((r) => setTimeout(r, 1500));
+        return this.chatOnce(system, user);
+      }
+      throw err;
+    }
+  }
+
+  async interpret(text: string, ctx: InterpretContext): Promise<InterpretOutput> {
+    const system = buildSystemPrompt(ctx);
+    const t0 = Date.now();
+
+    let completion: ChatCompletion;
+    try {
+      completion = await this.chat(system, text);
+    } catch (err) {
+      this.logger.error(`NVIDIA indisponível: ${(err as Error).message}`);
+      return {
+        result: {
+          kind: "unknown",
+          reason: "serviço de IA indisponível no momento",
+        },
+        meta: { provider: "nvidia", model: this.env.NVIDIA_MODEL, latencyMs: Date.now() - t0 },
+      };
+    }
+
+    let content = completion.choices[0]?.message.content ?? "";
+    let parsed = parseAiResult(content);
+
+    // 1 tentativa de reparo se o JSON não bater no schema
+    if (!parsed.ok) {
+      this.logger.warn(`parse falhou (${parsed.error}); tentando reparo`);
+      try {
+        completion = await this.chat(
+          `${system}\n\nA resposta anterior era inválida (${parsed.error}). Reenvie APENAS o JSON corrigido.`,
+          text,
+        );
+        content = completion.choices[0]?.message.content ?? "";
+        parsed = parseAiResult(content);
+      } catch (err) {
+        this.logger.warn(`reparo falhou: ${(err as Error).message}`);
+      }
+    }
+
+    const latencyMs = Date.now() - t0;
+    const meta = {
+      provider: "nvidia",
+      model: this.env.NVIDIA_MODEL,
+      promptTokens: completion.usage?.prompt_tokens,
+      completionTokens: completion.usage?.completion_tokens,
+      latencyMs,
+      raw: content,
+    };
+
+    if (!parsed.ok || !parsed.value) {
+      return { result: { kind: "unknown", reason: `interpretação inválida: ${parsed.error}` }, meta };
+    }
+    return { result: parsed.value, meta };
+  }
+}

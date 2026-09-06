@@ -1,0 +1,108 @@
+import type { ReactNode } from "react";
+import { cn } from "@/lib/cn";
+
+/** KPI / número grande — sans, tabular, legível. */
+export function Stat({
+  label,
+  value,
+  hint,
+  icon,
+  tone,
+  className,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  hint?: ReactNode;
+  icon?: ReactNode;
+  tone?: "positive" | "negative" | "muted";
+  className?: string;
+}) {
+  return (
+    <div className={cn("card p-4", className)}>
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted">
+        {icon}
+        {label}
+      </div>
+      <div
+        className={cn(
+          "tnum mt-2 text-2xl font-semibold tracking-tight",
+          tone === "positive" && "text-positive",
+          tone === "negative" && "text-negative",
+          tone === "muted" && "text-muted",
+        )}
+      >
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 text-[11px] text-muted">{hint}</div>}
+    </div>
+  );
+}
+
+/** Barra de progresso simples (0–100+). */
+export function Progress({
+  percent,
+  color,
+  className,
+}: {
+  percent: number;
+  color?: string;
+  className?: string;
+}) {
+  const over = percent > 100;
+  return (
+    <div className={cn("h-1.5 overflow-hidden rounded-full bg-surface-2", className)}>
+      <div
+        className="h-full rounded-full transition-[width] duration-500"
+        style={{
+          width: `${Math.min(percent, 100)}%`,
+          background: over ? "rgb(var(--negative))" : (color ?? "rgb(var(--accent))"),
+        }}
+      />
+    </div>
+  );
+}
+
+/** Bullet chart de orçamento: gasto vs teto, com marcador de meta. */
+export function BulletBudget({
+  spent,
+  budget,
+  color,
+}: {
+  spent: number;
+  budget: number;
+  color?: string;
+}) {
+  const pct = budget > 0 ? (spent / budget) * 100 : 0;
+  return (
+    <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${Math.min(pct, 100)}%`,
+          background: pct > 100 ? "rgb(var(--negative))" : pct >= 80 ? "rgb(var(--warning))" : (color ?? "rgb(var(--accent))"),
+        }}
+      />
+      <span className="absolute inset-y-0 right-0 w-px bg-fg/40" />
+    </div>
+  );
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}

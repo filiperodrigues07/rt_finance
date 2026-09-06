@@ -1,0 +1,31 @@
+# RT Finance — Evolution API (WhatsApp). Deploy: fly deploy -c fly/evolution.fly.toml
+# Imagem oficial; NÃO escalar (sessão única). Volume obrigatório para a sessão.
+app = "rt-finance-evolution"
+primary_region = "gru"
+
+[build]
+  image = "evoapicloud/evolution-api:v2.3.1"
+
+[env]
+  # sessão em arquivo no volume (simples para 1 número); ative DATABASE_ENABLED se quiser persistir no Postgres
+  DATABASE_ENABLED = "false"
+  CONFIG_SESSION_PHONE_CLIENT = "RT Finance"
+  LOG_LEVEL = "ERROR"
+  DEL_INSTANCE = "false"
+
+# Segredo: fly secrets set -a rt-finance-evolution AUTHENTICATION_API_KEY=<mesmo EVOLUTION_API_KEY da API>
+
+[mounts]
+  source = "evolution_data"
+  destination = "/evolution/instances"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

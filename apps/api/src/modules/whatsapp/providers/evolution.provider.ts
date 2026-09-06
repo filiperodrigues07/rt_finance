@@ -1,0 +1,194 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ENV, type Env } from "../../../config/env.schema";
+import { digits, toE164BR } from "../phone";
+import { WhatsAppService, type InboundMessage, type SendResult } from "../whatsapp.types";
+
+/**
+ * Provider da Evolution API (self-hosted, v2.x — atendai/evolution-api).
+ * Rotas/campos conferidos contra a doc da v2; se trocar a versão da imagem, revisar aqui.
+ *   - envio texto:  POST {base}/message/sendText/{instance}   body { number, text }
+ *   - envio mídia:  POST {base}/message/sendMedia/{instance}   body { number, mediatype, media, caption }
+ *   - entrada:      webhook evento "messages.upsert" com { data: { key, message, pushName, ... } }
+ * Autenticação da API: header "apikey". Autenticação do webhook: token compartilhado nosso.
+ */
+@Injectable()
+export class EvolutionProvider extends WhatsAppService {
+  private readonly logger = new Logger(EvolutionProvider.name);
+
+  constructor(@Inject(ENV) private readonly env: Env) {
+    super();
+  }
+
+  private get base(): string {
+    const b = this.env.EVOLUTION_BASE_URL;
+    if (!b) throw new Error("EVOLUTION_BASE_URL não configurado");
+    return b.replace(/\/$/, "");
+  }
+
+  private async call<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${this.base}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: this.env.EVOLUTION_API_KEY ?? "",
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    const json = text ? (JSON.parse(text) as unknown) : undefined;
+    if (!res.ok) {
+      this.logger.error({ status: res.status, json }, "Evolution API respondeu erro");
+      throw new Error(`Evolution API ${res.status}`);
+    }
+    return json as T;
+  }
+
+  private inst(instance?: string): string {
+    return instance || this.env.EVOLUTION_INSTANCE;
+  }
+
+  async sendText(toPhone: string, text: string, instance?: string): Promise<SendResult> {
+    const json = await this.call<{ key?: { id?: string } }>(
+      `/message/sendText/${this.inst(instance)}`,
+      { number: digits(toPhone), text },
+    );
+    return { providerMessageId: json.key?.id ?? `out_${Date.now()}` };
+  }
+
+  async sendImage(
+    toPhone: string,
+    png: Buffer,
+    caption?: string,
+    instance?: string,
+  ): Promise<SendResult> {
+    const json = await this.call<{ key?: { id?: string } }>(
+      `/message/sendMedia/${this.inst(instance)}`,
+      {
+        number: digits(toPhone),
+        mediatype: "image",
+        mimetype: "image/png",
+        media: png.toString("base64"),
+        fileName: "rt-finance.png",
+        caption: caption ?? "",
+      },
+    );
+    return { providerMessageId: json.key?.id ?? `out_${Date.now()}` };
+  }
+
+  async fetchAudio(
+    raw: unknown,
+    instance?: string,
+  ): Promise<{ base64: string; mimetype: string } | null> {
+    const item = raw as Record<string, any> | undefined;
+    const key = item?.key;
+    if (!key) return null;
+    try {
+      const json = await this.call<{ base64?: string; mimetype?: string; media?: string }>(
+        `/chat/getBase64FromMediaMessage/${this.inst(instance)}`,
+        { message: { key }, convertToMp4: false },
+      );
+      const base64 = json.base64 ?? json.media ?? null;
+      if (!base64) return null;
+      return { base64, mimetype: json.mimetype ?? "audio/ogg" };
+    } catch (err) {
+      this.logger.warn(`falha ao baixar áudio: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  verifyWebhook(
+    headers: Record<string, unknown>,
+    query: Record<string, unknown>,
+  ): boolean {
+    const expected = this.env.WHATSAPP_WEBHOOK_TOKEN;
+    if (!expected) {
+      // Sem token configurado: só liberamos fora de produção.
+      return this.env.NODE_ENV !== "production";
+    }
+    const header = String(
+      headers["x-webhook-token"] ??
+        headers["x-hub-signature-256"] ??
+        (typeof headers["authorization"] === "string"
+          ? (headers["authorization"] as string).replace(/^Bearer\s+/i, "")
+          : ""),
+    );
+    const q = String(query["token"] ?? "");
+    return header === expected || q === expected;
+  }
+
+  parseInbound(payload: unknown): InboundMessage[] {
+    const root = payload as Record<string, unknown> | undefined;
+    if (!root) return [];
+
+    const event = String(root["event"] ?? "").toLowerCase().replace(/_/g, ".");
+    if (event && event !== "messages.upsert") return [];
+
+    const data = root["data"];
+    const items = Array.isArray(data) ? data : data ? [data] : [];
+    const out: InboundMessage[] = [];
+
+    // nome da instância que recebeu (Evolution manda em vários lugares conforme a versão)
+    const rootInstance =
+      (typeof root["instance"] === "string" && root["instance"]) ||
+      (typeof root["instanceName"] === "string" && (root["instanceName"] as string)) ||
+      null;
+
+    for (const item of items) {
+      const m = item as Record<string, any>;
+      const key = m?.key ?? {};
+      if (key.fromMe) continue;
+      const remoteJid = String(key.remoteJid ?? "");
+      if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast")) continue;
+
+      // WhatsApp novo entrega a 1ª mensagem com um ID mascarado "…@lid".
+      // O número real vem em senderPn / participantPn / previousRemoteJid.
+      const candidates = [
+        key.senderPn,
+        key.participantPn,
+        m?.senderPn,
+        !remoteJid.endsWith("@lid") ? remoteJid : null,
+        !String(key.previousRemoteJid ?? "").endsWith("@lid") ? key.previousRemoteJid : null,
+        key.participant,
+      ];
+      const jid = String(candidates.find((c) => typeof c === "string" && c && !String(c).endsWith("@lid")) ?? remoteJid);
+      if (!jid || jid.endsWith("@lid")) {
+        this.logger.warn(`mensagem sem número identificável (remoteJid=${remoteJid}); ignorada`);
+        continue;
+      }
+
+      const msg = m?.message ?? {};
+      let text: string | null = null;
+      let type: InboundMessage["type"] = "OTHER";
+      if (typeof msg.conversation === "string") {
+        text = msg.conversation;
+        type = "TEXT";
+      } else if (typeof msg?.extendedTextMessage?.text === "string") {
+        text = msg.extendedTextMessage.text;
+        type = "TEXT";
+      } else if (msg?.imageMessage) {
+        text = msg.imageMessage.caption ?? null;
+        type = "IMAGE";
+      } else if (msg?.audioMessage) {
+        type = "AUDIO";
+      } else if (msg?.documentMessage) {
+        type = "DOCUMENT";
+      }
+
+      const tsRaw = Number(m?.messageTimestamp ?? 0);
+      const timestamp = tsRaw > 0 ? new Date(tsRaw * 1000) : new Date();
+
+      out.push({
+        providerMessageId: String(key.id ?? `in_${timestamp.getTime()}`),
+        fromPhone: toE164BR(jid),
+        toPhone: root["sender"] ? toE164BR(String(root["sender"])) : "",
+        text: text?.trim() ?? null,
+        type,
+        timestamp,
+        pushName: typeof m?.pushName === "string" ? m.pushName : null,
+        instance: (typeof m?.instance === "string" && m.instance) || rootInstance,
+        raw: item,
+      });
+    }
+    return out;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "@rt-finance/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src/**/*", "prisma/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

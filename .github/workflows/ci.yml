@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rtfinance
+          POSTGRES_PASSWORD: rtfinance
+          POSTGRES_DB: rtfinance_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U rtfinance" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://rtfinance:rtfinance@localhost:5432/rtfinance_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-0000000000000000
+      JWT_REFRESH_SECRET: ci-refresh-secret-0000000000000000
+      AI_PROVIDER: mock
+      WHATSAPP_PROVIDER: console
+      JOBS_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @rt-finance/shared build
+
+      - name: Prisma validate + generate
+        run: |
+          pnpm --filter @rt-finance/api exec prisma validate
+          pnpm --filter @rt-finance/api exec prisma generate
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Unit tests
+        run: |
+          pnpm --filter @rt-finance/shared test
+          pnpm --filter @rt-finance/api test
+
+      - name: DB migrate (test)
+        run: pnpm --filter @rt-finance/api exec prisma migrate deploy
+
+      - name: Integration tests
+        run: pnpm --filter @rt-finance/api test:int
+
+      - name: Build all
+        run: pnpm build
