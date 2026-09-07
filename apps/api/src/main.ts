@@ -53,7 +53,8 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("api", { exclude: ["health"] });
   app.enableShutdownHooks();
 
-  await app.listen(env.API_PORT, "0.0.0.0");
+  // "::" = dual-stack (IPv4 + IPv6). Necessário na Fly: o DNS .internal (6PN) é IPv6.
+  await app.listen(env.API_PORT, "::");
   NestLogger.log(`RT Finance API em http://localhost:${env.API_PORT}/api`, "Bootstrap");
 }
 
