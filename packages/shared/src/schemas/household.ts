@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hexColor } from "./common.js";
+import { hexColor, strongPassword } from "./common.js";
 import { MemberRole } from "../enums.js";
 
 export const updateHouseholdBody = z.object({
@@ -28,7 +28,7 @@ export type UpdateMemberBody = z.infer<typeof updateMemberBody>;
 export const createMemberBody = z.object({
   name: z.string().trim().min(1).max(80),
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: strongPassword,
   displayName: z.string().trim().min(1).max(40),
   color: hexColor.default("#7A6A55"),
   role: MemberRole.default("MEMBER"),
@@ -60,7 +60,7 @@ export type UpdateProfileBody = z.infer<typeof updateProfileBody>;
 
 export const changePasswordBody = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8).max(128),
+  newPassword: strongPassword,
 });
 export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
 

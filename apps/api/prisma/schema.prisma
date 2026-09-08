@@ -200,6 +200,21 @@ model User {
 
   memberships HouseholdMember[]
   sessions    Session[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime  @db.Timestamptz(6)
+  usedAt      DateTime? @db.Timestamptz(6)
+  requestedIp String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model HouseholdMember {

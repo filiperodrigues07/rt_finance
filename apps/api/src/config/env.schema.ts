@@ -26,6 +26,15 @@ export const envSchema = z.object({
 
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
+  // E-mail transacional (redefinição de senha). Sem SMTP_USER/SMTP_PASS o MailService
+  // não envia nada — apenas loga o link (útil em dev/CI).
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().optional(), // ex.: "RT Finance <no-reply@…>"; default = SMTP_USER
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(45),
+
   // usados a partir das ETAPAS 4-6 (opcionais por enquanto)
   // "nvidia" (real) | "mock" (regras locais, sem custo/rede — usado se faltar NVIDIA_API_KEY)
   AI_PROVIDER: z.enum(["nvidia", "mock"]).default("nvidia"),

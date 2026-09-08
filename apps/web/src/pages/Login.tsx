@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -10,7 +12,6 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showHint, setShowHint] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,8 +77,7 @@ export function LoginPage() {
               />
             </Field>
             <Field label="Senha" error={error ?? undefined}>
-              <Input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -91,19 +91,12 @@ export function LoginPage() {
           </form>
 
           <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setShowHint((v) => !v)}
+            <Link
+              to="/esqueci-senha"
               className="text-xs text-muted underline-offset-2 hover:text-fg hover:underline"
             >
               Esqueci a senha
-            </button>
-            {showHint && (
-              <p className="mx-auto mt-2 max-w-xs text-xs text-muted">
-                Sem redefinição por e-mail. Peça ao dono da conta para redefinir sua senha em
-                <span className="text-fg"> Usuários → Redefinir senha</span>.
-              </p>
-            )}
+            </Link>
           </div>
 
           <footer className="mt-10 text-center text-[11px] leading-relaxed text-muted">

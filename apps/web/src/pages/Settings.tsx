@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
 
@@ -93,8 +94,7 @@ export function SettingsPage() {
               />
             </Field>
             <Field label="Sua senha" error={dngErr ?? undefined}>
-              <Input
-                type="password"
+              <PasswordInput
                 value={dngPwd}
                 onChange={(e) => setDngPwd(e.target.value)}
                 autoComplete="current-password"

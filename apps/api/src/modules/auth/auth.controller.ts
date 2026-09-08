@@ -1,27 +1,34 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req, Res } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   loginBody,
+  forgotPasswordBody,
+  resetPasswordBody,
   type AuthTokens,
   type LoginResponse,
   type AuthUser,
+  type ForgotPasswordBody,
+  type ResetPasswordBody,
+  type OkResponse,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { ENV, type Env } from "../../config/env.schema";
 import { AuthService, type AuthResult } from "./auth.service";
+import { PasswordResetService } from "./password-reset.service";
 
 function reqCtx(req: FastifyRequest): { userAgent?: string; ip?: string } {
   return { userAgent: req.headers["user-agent"], ip: req.ip };
 }
 
 @Controller("auth")
-@Throttle({ default: { limit: 10, ttl: 60_000 } })
+@Throttle({ default: { limit: 20, ttl: 60_000 } })
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly passwordReset: PasswordResetService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -73,6 +80,39 @@ export class AuthController {
     const raw = req.cookies?.[this.env.AUTH_COOKIE_NAME] ?? body.refreshToken;
     const result = await this.auth.refresh(raw ?? "", reqCtx(req));
     return this.toResponse(result, res);
+  }
+
+  /** Pede o link de redefinição. Resposta é sempre genérica (não revela se o e-mail existe). */
+  @Public()
+  @Post("forgot-password")
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  async forgotPassword(
+    @Body(new ZodValidationPipe(forgotPasswordBody)) body: ForgotPasswordBody,
+    @Req() req: FastifyRequest,
+  ): Promise<OkResponse> {
+    await this.passwordReset.requestReset(body.email, req.ip);
+    return { ok: true };
+  }
+
+  /** Confere se um token de redefinição ainda é válido (para a tela avisar antes). */
+  @Public()
+  @Get("reset-password/check")
+  @Throttle({ default: { limit: 20, ttl: 900_000 } })
+  async checkResetToken(@Query("token") token?: string): Promise<{ valid: boolean }> {
+    return { valid: token ? await this.passwordReset.isTokenValid(token) : false };
+  }
+
+  /** Aplica a nova senha a partir do token do e-mail e derruba as sessões antigas. */
+  @Public()
+  @Post("reset-password")
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  async resetPassword(
+    @Body(new ZodValidationPipe(resetPasswordBody)) body: ResetPasswordBody,
+  ): Promise<OkResponse> {
+    await this.passwordReset.resetPassword(body.token, body.password);
+    return { ok: true };
   }
 
   @Post("logout")

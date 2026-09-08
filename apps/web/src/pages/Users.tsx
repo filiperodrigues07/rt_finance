@@ -9,10 +9,12 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { PasswordInput, PasswordRules } from "@/components/ui/PasswordInput";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageHeader } from "@/components/ui/data";
 import { cn } from "@/lib/cn";
+import { checkPassword } from "@rt-finance/shared";
 import type { Member } from "@/lib/types";
 
 const COLORS = ["#7A6A55", "#3B82F6", "#EC4899", "#22C55E", "#F97316", "#8B5CF6", "#06B6D4"];
@@ -317,7 +319,9 @@ function UserDialog({
 
   async function doChangePassword() {
     setPwError(null);
-    if (newPw.length < 8) return setPwError("A nova senha precisa de ao menos 8 caracteres");
+    if (!checkPassword(newPw).ok) {
+      return setPwError("A nova senha não cumpre todos os requisitos abaixo.");
+    }
     try {
       await changePassword.mutateAsync({ currentPassword: curPw, newPassword: newPw });
       toast.success("Senha alterada. Faça login de novo nos outros aparelhos.");
@@ -425,20 +429,19 @@ function UserDialog({
         {isSelf ? (
           <div className="space-y-3">
             <Field label="Senha atual">
-              <Input
-                type="password"
+              <PasswordInput
                 value={curPw}
                 onChange={(e) => setCurPw(e.target.value)}
                 autoComplete="current-password"
               />
             </Field>
             <Field label="Nova senha" error={pwError ?? undefined}>
-              <Input
-                type="password"
+              <PasswordInput
                 value={newPw}
                 onChange={(e) => setNewPw(e.target.value)}
                 autoComplete="new-password"
               />
+              {newPw.length > 0 && <PasswordRules value={newPw} />}
             </Field>
             <Button
               type="button"
@@ -446,6 +449,7 @@ function UserDialog({
               variant="outline"
               loading={changePassword.isPending}
               onClick={doChangePassword}
+              disabled={!checkPassword(newPw).ok || curPw.length === 0}
             >
               Alterar senha
             </Button>
@@ -515,7 +519,9 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (f.password.length < 8) return setError("Senha inicial: mínimo 8 caracteres");
+    if (!checkPassword(f.password).ok) {
+      return setError("A senha inicial não cumpre todos os requisitos.");
+    }
     try {
       await createMember.mutateAsync({
         name: f.name.trim(),
@@ -565,12 +571,13 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
           <Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
         </Field>
         <Field label="Senha inicial" error={error ?? undefined}>
-          <Input
-            type="text"
+          <PasswordInput
+            defaultVisible
             value={f.password}
             onChange={(e) => setF({ ...f, password: e.target.value })}
-            placeholder="mín. 8 caracteres"
+            placeholder="mín. 8 caract., c/ maiúscula, número e especial"
           />
+          {f.password.length > 0 && <PasswordRules value={f.password} />}
         </Field>
         <Field label="Papel">
           <Select

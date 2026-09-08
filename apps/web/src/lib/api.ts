@@ -161,3 +161,22 @@ export async function logout(): Promise<void> {
 export function fetchMe(): Promise<AuthUser> {
   return api.get<AuthUser>("/auth/me");
 }
+
+/** Redefinição de senha por e-mail (rotas públicas — não passam pelo fluxo de refresh). */
+export function forgotPassword(email: string): Promise<{ ok: true }> {
+  return raw<{ ok: true }>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function checkResetToken(token: string): Promise<{ valid: boolean }> {
+  return raw<{ valid: boolean }>(`/auth/reset-password/check?token=${encodeURIComponent(token)}`);
+}
+
+export function resetPassword(token: string, password: string): Promise<{ ok: true }> {
+  return raw<{ ok: true }>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}

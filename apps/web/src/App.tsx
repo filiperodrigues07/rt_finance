@@ -5,6 +5,8 @@ import { Spinner } from "@/components/ui/misc";
 import { AppShell } from "@/components/layout/AppShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoginPage } from "@/pages/Login";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPassword";
+import { ResetPasswordPage } from "@/pages/auth/ResetPassword";
 import { NotFoundPage } from "@/pages/NotFound";
 
 const DashboardPage = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.DashboardPage })));
@@ -30,6 +32,15 @@ function Loading() {
 export function App() {
   const { user, loading } = useAuth();
 
+  // Redefinição por e-mail: telas standalone, acessíveis logado ou não, mesmo durante o loading.
+  if (window.location.pathname === "/redefinir-senha") {
+    return (
+      <Routes>
+        <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+      </Routes>
+    );
+  }
+
   if (loading) {
     return (
       <div className="grid h-full place-items-center">
@@ -42,6 +53,8 @@ export function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
+        <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -62,6 +75,7 @@ export function App() {
           <Route path="/usuarios" element={<UsersPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/esqueci-senha" element={<Navigate to="/carteira" replace />} />
           {/* rotas antigas → Carteira */}
           <Route path="/contas" element={<Navigate to="/carteira?tab=contas" replace />} />
           <Route path="/cartoes" element={<Navigate to="/carteira?tab=cartoes" replace />} />

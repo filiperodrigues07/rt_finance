@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import * as argon2 from "argon2";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import supertest from "supertest";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -690,5 +692,106 @@ describe("telefone do membro (allowlist via tela)", () => {
       .set(auth())
       .send({ phoneE164: "49 99648-4444" });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("redefinição de senha por e-mail", () => {
+  const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+  let victimId: string;
+
+  beforeAll(async () => {
+    const hash = await argon2.hash("test1234", { type: argon2.argon2id });
+    const u = await prisma.user.create({
+      data: {
+        name: "Vítima Reset",
+        email: "reset-victim@test.local",
+        passwordHash: hash,
+        memberships: { create: { householdId: seed.householdId, role: "MEMBER", displayName: "Vítima" } },
+      },
+    });
+    victimId = u.id;
+  });
+
+  it("forgot-password com e-mail desconhecido → 200 e nenhum token", async () => {
+    const res = await http.post("/api/auth/forgot-password").send({ email: "ninguem@nada.local" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    const count = await prisma.passwordResetToken.count();
+    expect(count).toBe(0);
+  });
+
+  it("forgot-password com e-mail real → 200 e cria 1 token pendente", async () => {
+    const res = await http.post("/api/auth/forgot-password").send({ email: "reset-victim@test.local" });
+    expect(res.status).toBe(200);
+    const rows = await prisma.passwordResetToken.findMany({ where: { userId: victimId } });
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.usedAt).toBeNull();
+  });
+
+  it("um novo forgot-password invalida o token anterior", async () => {
+    await http.post("/api/auth/forgot-password").send({ email: "reset-victim@test.local" }).expect(200);
+    const rows = await prisma.passwordResetToken.findMany({ where: { userId: victimId } });
+    expect(rows.length).toBe(2);
+    expect(rows.filter((r) => r.usedAt === null).length).toBe(1);
+  });
+
+  it("reset-password com token inválido → 422", async () => {
+    const res = await http
+      .post("/api/auth/reset-password")
+      .send({ token: "nao-existe-esse-token", password: "NovaSenh4!" });
+    expect(res.status).toBe(422);
+  });
+
+  it("reset-password com senha fraca → 400", async () => {
+    const raw = "raw-token-fraca-000000000000";
+    await prisma.passwordResetToken.create({
+      data: { userId: victimId, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + 600_000) },
+    });
+    const res = await http.post("/api/auth/reset-password").send({ token: raw, password: "fraca" });
+    expect(res.status).toBe(400);
+  });
+
+  it("reset-password válido troca a senha, consome o token e derruba sessões", async () => {
+    // sessão ativa da vítima (deve ser revogada ao final)
+    const before = await http
+      .post("/api/auth/login")
+      .send({ email: "reset-victim@test.local", password: "test1234" });
+    expect(before.status).toBe(200);
+    const activeSessions = await prisma.session.count({ where: { userId: victimId, revokedAt: null } });
+    expect(activeSessions).toBeGreaterThanOrEqual(1);
+
+    const raw = "raw-token-ok-11111111111111111";
+    await prisma.passwordResetToken.create({
+      data: { userId: victimId, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + 600_000) },
+    });
+
+    const res = await http
+      .post("/api/auth/reset-password")
+      .send({ token: raw, password: "NovaSenh4!" });
+    expect(res.status).toBe(200);
+
+    // senha antiga não entra mais, a nova entra
+    await http
+      .post("/api/auth/login")
+      .send({ email: "reset-victim@test.local", password: "test1234" })
+      .expect(401);
+    await http
+      .post("/api/auth/login")
+      .send({ email: "reset-victim@test.local", password: "NovaSenh4!" })
+      .expect(200);
+
+    // token consumido + sessões antigas revogadas
+    const used = await prisma.passwordResetToken.findFirst({ where: { tokenHash: sha256(raw) } });
+    expect(used!.usedAt).not.toBeNull();
+    const stillActive = await prisma.session.count({
+      where: { userId: victimId, revokedAt: null, createdAt: { lt: used!.usedAt! } },
+    });
+    expect(stillActive).toBe(0);
+
+    // token não pode ser reusado
+    await http
+      .post("/api/auth/reset-password")
+      .send({ token: raw, password: "OutraSenh4!" })
+      .expect(422);
   });
 });
