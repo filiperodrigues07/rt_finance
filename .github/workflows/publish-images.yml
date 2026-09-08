@@ -1,17 +1,13 @@
 # Builda as imagens de produção e publica no GitHub Container Registry (GHCR).
 # A VPS não builda nada — só faz `docker compose pull`.
+#
+# MANUAL. Só roda quando você pedir:
+#   - GitHub → aba Actions → "publish-images" → "Run workflow"
+#   - ou:  gh workflow run publish-images.yml
+# Nenhum push dispara build/deploy sozinho.
 name: publish-images
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "apps/api/Dockerfile"
-      - "apps/web/Dockerfile"
-      - ".github/workflows/publish-images.yml"
   workflow_dispatch: {}
 
 env:

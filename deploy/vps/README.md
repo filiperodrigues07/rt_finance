@@ -86,15 +86,16 @@ escaneie com o celular do bot.
 
 ---
 
-## Atualizar (a cada mudança no código)
+## Atualizar (só quando você quiser — nada é automático)
 
-O Actions rebuilda as imagens sozinho no push. Na VPS:
-
-```bash
-cd ~/rt_finance/deploy/vps && git pull
-docker compose --env-file .env.prod pull
-docker compose --env-file .env.prod up -d
-```
+1. Buildar as imagens novas: GitHub → **Actions → publish-images → Run workflow**
+   (ou `gh workflow run publish-images.yml`). Espere ficar verde.
+2. Na VPS:
+   ```bash
+   cd ~/rt_finance/deploy/vps && git pull
+   docker compose --env-file .env.prod pull
+   docker compose --env-file .env.prod up -d
+   ```
 
 ## Backup (cron do host)
 
