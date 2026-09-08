@@ -11,6 +11,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { CategoryPicker } from "@/components/ui/CategoryPicker";
 import type { TransactionRow } from "@/lib/types";
 
 type Mode = "EXPENSE" | "INCOME";
@@ -147,12 +148,12 @@ export function TransactionForm({
         </>
       }
     >
-      <form id="tx-form" onSubmit={submit} className="space-y-4">
+      <form id="tx-form" onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setType("EXPENSE")}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
               type === "EXPENSE" ? "border-negative bg-negative/10 text-negative" : "border-border text-muted"
             }`}
           >
@@ -161,7 +162,7 @@ export function TransactionForm({
           <button
             type="button"
             onClick={() => setType("INCOME")}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
               type === "INCOME" ? "border-positive bg-positive/10 text-positive" : "border-border text-muted"
             }`}
           >
@@ -173,7 +174,7 @@ export function TransactionForm({
           <button
             type="button"
             onClick={() => setWhen("paid")}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
               when === "paid" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted"
             }`}
           >
@@ -182,7 +183,7 @@ export function TransactionForm({
           <button
             type="button"
             onClick={() => setWhen("scheduled")}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
               when === "scheduled" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted"
             }`}
           >
@@ -216,14 +217,7 @@ export function TransactionForm({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Categoria">
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Sem categoria</option>
-              {cats.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.icon} {c.name}
-                </option>
-              ))}
-            </Select>
+            <CategoryPicker value={categoryId} onChange={setCategoryId} categories={cats} />
           </Field>
           <Field label="Responsável">
             <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
