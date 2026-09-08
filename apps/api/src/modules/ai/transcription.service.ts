@@ -1,11 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ENV, type Env } from "../../config/env.schema";
 
-/**
- * Transcrição de áudio (voz → texto) via Groq — endpoint OpenAI-compatível de Whisper.
- * Sem `GROQ_API_KEY`, `transcribe` devolve `null` e o chamador degrada pedindo texto.
- * A chave nunca sai do backend.
- */
+export type TranscriptionResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: "disabled" | "too_large" | "bad_format" | "transient" };
+
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
@@ -24,6 +23,7 @@ export class TranscriptionService {
     return "ogg"; // nota de voz do WhatsApp: audio/ogg; codecs=opus
   }
 
+  /** Uma chamada ao Groq. Lança Error com `.kind` = "transient" | "bad_format". */
   private async once(audio: Buffer, mimetype: string): Promise<string> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20_000);
@@ -44,11 +44,11 @@ export class TranscriptionService {
       });
       const text = await res.text();
       if (!res.ok) {
-        const retryable = res.status === 429 || res.status >= 500;
+        const kind = res.status === 429 || res.status >= 500 ? "transient" : "bad_format";
         const e = new Error(`Groq STT ${res.status}: ${text.slice(0, 200)}`) as Error & {
-          retryable?: boolean;
+          kind?: "transient" | "bad_format";
         };
-        e.retryable = retryable;
+        e.kind = kind;
         throw e;
       }
       return text.trim();
@@ -57,26 +57,30 @@ export class TranscriptionService {
     }
   }
 
-  /** Retorna o texto transcrito, ou `null` se desabilitado / vazio / falhou. */
-  async transcribe(audio: Buffer, mimetype: string): Promise<string | null> {
-    if (!this.enabled || audio.length === 0) return null;
+  async transcribe(audio: Buffer, mimetype: string): Promise<TranscriptionResult> {
+    if (!this.enabled) return { ok: false, reason: "disabled" };
+    if (audio.length === 0) return { ok: false, reason: "transient" };
+    if (audio.length > this.env.AUDIO_MAX_BYTES) return { ok: false, reason: "too_large" };
+
     try {
       let out: string;
       try {
         out = await this.once(audio, mimetype);
       } catch (err) {
-        const e = err as Error & { retryable?: boolean; name?: string };
-        if (e.retryable || e.name === "AbortError") {
-          await new Promise((r) => setTimeout(r, 1200));
+        const e = err as Error & { kind?: string; name?: string };
+        if (e.kind === "transient" || e.name === "AbortError") {
+          await new Promise((r) => setTimeout(r, 800));
           out = await this.once(audio, mimetype);
         } else {
           throw err;
         }
       }
-      return out.length > 0 ? out : null;
+      return out.length > 0 ? { ok: true, text: out } : { ok: false, reason: "transient" };
     } catch (err) {
-      this.logger.warn(`transcrição falhou: ${(err as Error).message}`);
-      return null;
+      const e = err as Error & { kind?: string; name?: string };
+      this.logger.warn(`transcrição falhou: ${e.message}`);
+      const reason = e.kind === "bad_format" ? "bad_format" : "transient";
+      return { ok: false, reason };
     }
   }
 }

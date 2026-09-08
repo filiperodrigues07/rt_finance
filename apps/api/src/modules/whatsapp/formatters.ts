@@ -3,15 +3,22 @@ import type { DashboardReport } from "@rt-finance/shared";
 
 export function help(name: string): string {
   return [
-    `Oi, ${name}! 👋 Aqui é o RT Finance.`,
+    `Oi, ${name}! 👋 Sou o assistente do RT Finance. Pode falar comigo em linguagem natural — por texto ou áudio.`,
     "",
-    "A interpretação de mensagens naturais por IA chega na próxima etapa. Por enquanto, entendo:",
+    "*Registrar:*",
+    "• _Gastei 85 no mercado_",
+    "• _Paguei 120 de luz no débito_",
+    "• _Recebi 3200 de salário_",
+    "• _Parcelei a geladeira em 10x no Nubank_",
+    "• _Aluguel de 1500 todo dia 5_",
     "",
-    "• *saldo* — saldo atual das contas",
-    "• *resumo* — resumo financeiro do mês",
-    "• *ajuda* — esta mensagem",
+    "*Consultar:*",
+    "• _Quanto gastamos esse mês?_",
+    "• _Quanto a gente gastou com mercado?_",
+    "• _Qual o saldo da conta corrente?_",
+    "• _Quanto tá a fatura do Nubank?_",
     "",
-    "Em breve: _“Gastei 85 no mercado”_, _“Quanto gastamos esse mês?”_ e muito mais.",
+    "Atalhos: *saldo*, *resumo*, *ajuda*.",
   ].join("\n");
 }
 
@@ -19,17 +26,23 @@ export function notAuthorized(): string {
   return "Este número não está autorizado a usar o RT Finance.";
 }
 
-export function audioUnavailable(): string {
-  return "Recebi seu áudio, mas não consegui transcrever agora. Pode mandar por texto?";
+/** Áudio: mensagem por tipo de falha. */
+export function audioProblem(reason: "disabled" | "too_large" | "bad_format" | "transient"): string {
+  switch (reason) {
+    case "disabled":
+      return "Não consigo processar áudio aqui. Manda por texto, por favor.";
+    case "too_large":
+      return "Esse áudio é muito longo. Manda um mais curto (até ~1 min) ou escreve por texto.";
+    case "bad_format":
+      return "Não consegui entender esse áudio. Tenta gravar de novo ou manda por texto.";
+    default:
+      return "Recebi seu áudio, mas não consegui transcrever agora. Pode tentar de novo ou mandar por texto?";
+  }
 }
 
-export function fallback(text: string): string {
-  return [
-    `Recebi: “${text}”.`,
-    "",
-    "Ainda não interpreto mensagens livres — isso chega na ETAPA 5 (IA).",
-    "Tente *saldo*, *resumo* ou *ajuda*.",
-  ].join("\n");
+/** @deprecated use audioProblem() */
+export function audioUnavailable(): string {
+  return audioProblem("transient");
 }
 
 export function monthSummary(report: DashboardReport): string {

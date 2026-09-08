@@ -15,8 +15,8 @@ export async function resetDb(): Promise<void> {
     "AuditLog", "AiInteraction", "AiConversation", "WhatsappMessage",
     "GoalContribution", "FinancialGoal", "Budget", "RecurringRun", "RecurringExpense",
     "Installment", "InstallmentPlan", "Transaction", "CreditCardInvoice", "CreditCard",
-    "Account", "Category", "NotificationPreference", "Notification", "Setting",
-    "Session", "HouseholdMember", "User", "Household",
+    "Account", "Category", "NotificationPreference", "Notification", "Setting", "AppSetting",
+    "PasswordResetToken", "Session", "HouseholdMember", "User", "Household",
   ];
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE;`,

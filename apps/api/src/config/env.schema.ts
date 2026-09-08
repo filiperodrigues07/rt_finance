@@ -56,6 +56,10 @@ export const envSchema = z.object({
   EVOLUTION_INSTANCE: z.string().default("rtfinance"),
   WHATSAPP_WEBHOOK_TOKEN: z.string().optional(),
   WHATSAPP_ALLOWLIST: z.string().default(""),
+  // timeout de toda chamada HTTP saída para a Evolution (envio de texto/mídia, download de áudio)
+  WHATSAPP_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
+  // teto de tamanho do áudio (bytes decodificados) antes de mandar pro Groq
+  AUDIO_MAX_BYTES: z.coerce.number().int().positive().default(8_000_000),
 
   AI_CONFIRM_THRESHOLD_CENTS: z.coerce.number().int().nonnegative().default(50000),
   PENDING_CONFIRMATION_TTL_MINUTES: z.coerce.number().int().positive().default(30),
@@ -79,6 +83,19 @@ function assertProdHardening(env: Env): void {
     }
   }
   if (env.WEB_ORIGIN.includes("localhost")) problems.push("WEB_ORIGIN aponta para localhost");
+
+  if (env.WHATSAPP_PROVIDER === "evolution") {
+    if (!env.EVOLUTION_BASE_URL) problems.push("EVOLUTION_BASE_URL obrigatório com WHATSAPP_PROVIDER=evolution");
+    if (!env.EVOLUTION_API_KEY) problems.push("EVOLUTION_API_KEY obrigatório com WHATSAPP_PROVIDER=evolution");
+    if (!env.WHATSAPP_WEBHOOK_TOKEN)
+      problems.push("WHATSAPP_WEBHOOK_TOKEN obrigatório — sem ele o webhook rejeita TODAS as mensagens em produção");
+    if (/localhost|127\.0\.0\.1/.test(env.API_PUBLIC_URL))
+      problems.push("API_PUBLIC_URL aponta para localhost — o webhook da Evolution não chegaria");
+  }
+  if (env.AI_PROVIDER === "nvidia" && !env.NVIDIA_API_KEY) {
+    problems.push("NVIDIA_API_KEY vazio com AI_PROVIDER=nvidia — o bot cairia no mock (degradado)");
+  }
+
   if (problems.length) {
     throw new Error(`Configuração insegura para produção:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
   }

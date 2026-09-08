@@ -9,6 +9,11 @@ interface ChatCompletion {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+interface ChatMsg {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 /**
  * Provider NVIDIA NIM (endpoint OpenAI-compatível: POST {base}/chat/completions).
  * Modelo padrão: nvidia/nemotron-3-super-120b-a12b (bom em JSON estruturado, ~3-8s).
@@ -22,7 +27,7 @@ export class NvidiaProvider extends AIService {
     super();
   }
 
-  private async chatOnce(system: string, user: string): Promise<ChatCompletion> {
+  private async chatOnce(messages: ChatMsg[]): Promise<ChatCompletion> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.env.AI_REQUEST_TIMEOUT_MS);
     try {
@@ -35,10 +40,7 @@ export class NvidiaProvider extends AIService {
         },
         body: JSON.stringify({
           model: this.env.NVIDIA_MODEL,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
+          messages,
           temperature: this.env.AI_TEMPERATURE,
           max_tokens: this.env.AI_MAX_TOKENS,
           response_format: { type: "json_object" },
@@ -59,26 +61,36 @@ export class NvidiaProvider extends AIService {
   }
 
   /** Uma retentativa com backoff em 429/5xx/timeout. */
-  private async chat(system: string, user: string): Promise<ChatCompletion> {
+  private async chat(messages: ChatMsg[]): Promise<ChatCompletion> {
     try {
-      return await this.chatOnce(system, user);
+      return await this.chatOnce(messages);
     } catch (err) {
       const e = err as Error & { retryable?: boolean; name?: string };
       if (e.retryable || e.name === "AbortError") {
         await new Promise((r) => setTimeout(r, 1500));
-        return this.chatOnce(system, user);
+        return this.chatOnce(messages);
       }
       throw err;
     }
   }
 
+  /** Últimas trocas da conversa como turnos separados (contexto p/ follow-ups). */
+  private historyMsgs(ctx: InterpretContext): ChatMsg[] {
+    return ctx.history.slice(-8).map((h) => ({ role: h.role, content: h.text.slice(0, 500) }));
+  }
+
   async interpret(text: string, ctx: InterpretContext): Promise<InterpretOutput> {
     const system = buildSystemPrompt(ctx);
+    const messages: ChatMsg[] = [
+      { role: "system", content: system },
+      ...this.historyMsgs(ctx),
+      { role: "user", content: text },
+    ];
     const t0 = Date.now();
 
     let completion: ChatCompletion;
     try {
-      completion = await this.chat(system, text);
+      completion = await this.chat(messages);
     } catch (err) {
       this.logger.error(`NVIDIA indisponível: ${(err as Error).message}`);
       return {
@@ -97,10 +109,14 @@ export class NvidiaProvider extends AIService {
     if (!parsed.ok) {
       this.logger.warn(`parse falhou (${parsed.error}); tentando reparo`);
       try {
-        completion = await this.chat(
-          `${system}\n\nA resposta anterior era inválida (${parsed.error}). Reenvie APENAS o JSON corrigido.`,
-          text,
-        );
+        completion = await this.chat([
+          {
+            role: "system",
+            content: `${system}\n\nA resposta anterior era inválida (${parsed.error}). Reenvie APENAS o JSON corrigido.`,
+          },
+          ...this.historyMsgs(ctx),
+          { role: "user", content: text },
+        ]);
         content = completion.choices[0]?.message.content ?? "";
         parsed = parseAiResult(content);
       } catch (err) {

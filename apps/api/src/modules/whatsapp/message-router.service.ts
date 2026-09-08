@@ -6,7 +6,7 @@ import { ReportsService } from "../reports/reports.service";
 import { FinanceAssistant } from "../ai/finance-assistant.service";
 import { TranscriptionService } from "../ai/transcription.service";
 import { WhatsAppService, type InboundMessage } from "./whatsapp.types";
-import { phonesMatch } from "./phone";
+import { phoneCandidates, phonesMatch } from "./phone";
 import * as fmt from "./formatters";
 
 interface ResolvedSender {
@@ -44,30 +44,50 @@ export class MessageRouter {
   }
 
   private async resolveSender(phone: string): Promise<ResolvedSender | null> {
-    const members = await this.prisma.householdMember.findMany({
-      include: {
-        user: { select: { id: true, phoneE164: true } },
-        household: { select: { name: true, whatsappInstance: true } },
-      },
-    });
-    const match = members.find(
-      (m) => m.user.phoneE164 && phonesMatch(m.user.phoneE164, phone),
-    );
-    if (!match) return null;
-    return {
-      householdId: match.householdId,
-      householdName: match.household.name,
-      memberId: match.id,
-      displayName: match.displayName,
-      userId: match.user.id,
-      whatsappInstance: match.household.whatsappInstance,
-    };
+    const memberInclude = {
+      user: { select: { id: true, phoneE164: true } },
+      household: { select: { name: true, whatsappInstance: true } },
+    } as const;
+
+    try {
+      // 1) casamento direto contra o índice único de User.phoneE164
+      const cands = phoneCandidates(phone);
+      let user = cands.length
+        ? await this.prisma.user.findFirst({
+            where: { phoneE164: { in: cands } },
+            select: { id: true, memberships: { include: memberInclude, take: 1 } },
+          })
+        : null;
+
+      // 2) fallback difuso — só entre usuários que TÊM telefone (bem menor que "todos os membros")
+      if (!user) {
+        const withPhone = await this.prisma.user.findMany({
+          where: { phoneE164: { not: null } },
+          select: { id: true, phoneE164: true, memberships: { include: memberInclude, take: 1 } },
+        });
+        user = withPhone.find((u) => u.phoneE164 && phonesMatch(u.phoneE164, phone)) ?? null;
+      }
+
+      const m = user?.memberships[0];
+      if (!m) return null;
+      return {
+        householdId: m.householdId,
+        householdName: m.household.name,
+        memberId: m.id,
+        displayName: m.displayName,
+        userId: m.user.id,
+        whatsappInstance: m.household.whatsappInstance,
+      };
+    } catch (err) {
+      this.logger.error(`resolveSender falhou: ${(err as Error).message}`);
+      return null;
+    }
   }
 
-  /** Persiste a mensagem recebida (idempotente por providerMessageId). Retorna false se duplicada. */
-  async persistInbound(msg: InboundMessage): Promise<boolean> {
+  /** Persiste a mensagem recebida (idempotente por providerMessageId). Retorna o id, ou null se duplicada. */
+  async persistInbound(msg: InboundMessage): Promise<string | null> {
     try {
-      await this.prisma.whatsappMessage.create({
+      const row = await this.prisma.whatsappMessage.create({
         data: {
           providerMessageId: msg.providerMessageId,
           direction: "INBOUND",
@@ -77,12 +97,27 @@ export class MessageRouter {
           text: msg.text,
           rawPayload: msg.raw as object,
         },
+        select: { id: true },
       });
-      return true;
+      return row.id;
     } catch (err) {
       // P2002 = já existe (reentrega do webhook)
-      if ((err as { code?: string }).code === "P2002") return false;
+      if ((err as { code?: string }).code === "P2002") return null;
       throw err;
+    }
+  }
+
+  /** reply() que engole o próprio erro — para uso no caminho de recuperação. */
+  private async safeReply(
+    to: string,
+    text: string,
+    sender?: { householdId: string; whatsappInstance: string | null } | null,
+    fallbackInstance?: string | null,
+  ): Promise<void> {
+    try {
+      await this.reply(to, text, sender, fallbackInstance);
+    } catch (err) {
+      this.logger.error(`falha ao enviar resposta de erro: ${(err as Error).message}`);
     }
   }
 
@@ -110,8 +145,8 @@ export class MessageRouter {
   }
 
   async handle(msg: InboundMessage): Promise<void> {
-    const fresh = await this.persistInbound(msg);
-    if (!fresh) {
+    const messageId = await this.persistInbound(msg);
+    if (!messageId) {
       this.logger.debug(`mensagem ${msg.providerMessageId} já processada`);
       return;
     }
@@ -120,8 +155,8 @@ export class MessageRouter {
     // WHATSAPP_ALLOWLIST do .env é só uma trava global EXTRA e opcional.
     const sender = await this.resolveSender(msg.fromPhone);
     if (!sender || !this.isAllowed(msg.fromPhone)) {
-      this.logger.warn(`número não autorizado: ${msg.fromPhone}`);
-      await this.reply(msg.fromPhone, fmt.notAuthorized(), null, msg.instance);
+      this.logger.warn("número não autorizado");
+      await this.safeReply(msg.fromPhone, fmt.notAuthorized(), null, msg.instance);
       return;
     }
 
@@ -139,21 +174,21 @@ export class MessageRouter {
       const media = await this.whatsapp
         .fetchAudio(msg.raw, sender.whatsappInstance ?? undefined)
         .catch(() => null);
-      const transcript = media
+      const result = media
         ? await this.transcription.transcribe(Buffer.from(media.base64, "base64"), media.mimetype)
-        : null;
-      if (!transcript) {
-        await this.reply(msg.fromPhone, fmt.audioUnavailable(), sender);
+        : ({ ok: false, reason: "transient" } as const); // media null = não baixou (rede/instância/grande demais)
+      if (!result.ok) {
+        await this.safeReply(msg.fromPhone, fmt.audioProblem(result.reason), sender);
         return;
       }
-      this.logger.log(`áudio transcrito (${sender.householdName}): "${transcript.slice(0, 80)}"`);
+      this.logger.debug(`áudio transcrito (${result.text.length} chars)`);
       await this.prisma.whatsappMessage
         .update({
           where: { providerMessageId: msg.providerMessageId },
-          data: { text: transcript, type: "TEXT" },
+          data: { text: result.text, type: "TEXT" },
         })
         .catch(() => {});
-      msg = { ...msg, text: transcript, type: "TEXT" };
+      msg = { ...msg, text: result.text, type: "TEXT" };
     }
 
     const text = (msg.text ?? "").trim();
@@ -202,7 +237,7 @@ export class MessageRouter {
         memberName: sender.displayName,
         channel: "WHATSAPP",
         text,
-        messageId: null,
+        messageId,
       });
       if (out.image) {
         const res = await this.whatsapp.sendImage(msg.fromPhone, out.image, out.reply, sender.whatsappInstance || undefined);
@@ -223,8 +258,8 @@ export class MessageRouter {
         await this.reply(msg.fromPhone, out.reply, sender);
       }
     } catch (err) {
-      this.logger.error({ err }, "erro ao processar mensagem");
-      await this.reply(
+      this.logger.error(`erro ao processar mensagem ${msg.providerMessageId}: ${(err as Error).message}`);
+      await this.safeReply(
         msg.fromPhone,
         "Ops, algo deu errado ao processar sua mensagem. Tente novamente.",
         sender,

@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import { ENV, type Env } from "../../config/env.schema";
 import { CategoriesModule } from "../categories/categories.module";
 import { CreditCardsModule } from "../credit-cards/credit-cards.module";
@@ -38,6 +38,11 @@ import { TranscriptionService } from "./transcription.service";
       inject: [ENV, NvidiaProvider, MockAiProvider],
       useFactory: (env: Env, nvidia: NvidiaProvider, mock: MockAiProvider) => {
         if (env.AI_PROVIDER === "nvidia" && env.NVIDIA_API_KEY) return nvidia;
+        if (env.AI_PROVIDER === "nvidia") {
+          new Logger("AIService").error(
+            "AI_PROVIDER=nvidia mas NVIDIA_API_KEY vazio — usando MockAiProvider (bot com entendimento degradado)",
+          );
+        }
         return mock;
       },
     },

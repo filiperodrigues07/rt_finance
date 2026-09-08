@@ -875,3 +875,46 @@ describe("config global de e-mail (SMTP)", () => {
     expect(put.body.weeklyEnabled).toBe(true);
   });
 });
+
+describe("webhook do WhatsApp", () => {
+  const payload = (id: string, jid: string, textMsg: string) => ({
+    event: "messages.upsert",
+    instance: "rtfinance",
+    data: {
+      key: { remoteJid: jid, fromMe: false, id },
+      message: { conversation: textMsg },
+      messageTimestamp: 1_780_000_000,
+      pushName: "Owner",
+    },
+  });
+  const OWNER_JID = "5511900000001@s.whatsapp.net";
+
+  it("mensagem de membro conhecido → 2xx, grava INBOUND + OUTBOUND", async () => {
+    const res = await http.post("/api/whatsapp/webhook").send(payload("WA_1", OWNER_JID, "ping"));
+    expect(res.status).toBeLessThan(300);
+    expect(res.body).toEqual({ ok: true });
+    const inbound = await prisma.whatsappMessage.findUnique({ where: { providerMessageId: "WA_1" } });
+    expect(inbound?.direction).toBe("INBOUND");
+    const outbound = await prisma.whatsappMessage.findFirst({
+      where: { direction: "OUTBOUND", toPhone: { contains: "900000001" }, text: "pong ✅" },
+    });
+    expect(outbound).toBeTruthy();
+  });
+
+  it("reentrega do mesmo providerMessageId não duplica", async () => {
+    await http.post("/api/whatsapp/webhook").send(payload("WA_1", OWNER_JID, "ping"));
+    const count = await prisma.whatsappMessage.count({ where: { providerMessageId: "WA_1" } });
+    expect(count).toBe(1);
+  });
+
+  it("número desconhecido → 2xx + resposta 'não autorizado'", async () => {
+    const res = await http
+      .post("/api/whatsapp/webhook")
+      .send(payload("WA_2", "5599111112222@s.whatsapp.net", "oi"));
+    expect(res.status).toBeLessThan(300);
+    const outbound = await prisma.whatsappMessage.findFirst({
+      where: { direction: "OUTBOUND", toPhone: { contains: "111112222" } },
+    });
+    expect(outbound?.text).toContain("não está autorizado");
+  });
+});

@@ -31,6 +31,28 @@ export function toE164BR(input: string): string {
 }
 
 /**
+ * Formas plausíveis de E.164 para um número BR — com/sem o 9º dígito do celular,
+ * com/sem o +55. Para casar direto contra `User.phoneE164` (indexado) sem varrer a tabela.
+ */
+export function phoneCandidates(input: string): string[] {
+  const set = new Set<string>();
+  const c = canonical(input);
+  if (c) {
+    set.add(`+55${c.ddd}9${c.local8}`);
+    set.add(`+55${c.ddd}${c.local8}`);
+    set.add(`55${c.ddd}9${c.local8}`);
+    set.add(`${c.ddd}9${c.local8}`);
+  }
+  const d = digits(input);
+  if (d) {
+    set.add(`+${d}`);
+    set.add(d);
+    set.add(d.startsWith("55") ? `+${d}` : `+55${d}`);
+  }
+  return [...set].filter(Boolean);
+}
+
+/**
  * Compara dois telefones brasileiros tolerando: código do país presente ou não,
  * e o 9º dígito do celular presente ou não. Casa DDD + os 8 dígitos finais.
  */

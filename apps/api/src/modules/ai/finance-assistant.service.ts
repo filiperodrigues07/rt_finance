@@ -45,7 +45,9 @@ type StaticCtx = Pick<
   InterpretContext,
   "timezone" | "members" | "categories" | "cards" | "accounts"
 >;
-const CTX_TTL_MS = 60_000;
+// stop-gap: TTL curto + limpeza por tamanho. Bust por mutação (categoria/conta/cartão) fica p/ a fase 2.
+const CTX_TTL_MS = 20_000;
+const CTX_CACHE_MAX = 200;
 const ctxCache = new Map<string, { at: number; value: StaticCtx }>();
 
 @Injectable()
@@ -135,7 +137,7 @@ export class FinanceAssistant {
     r: Extract<AiResult, { kind: "query" }>,
   ): Promise<Buffer | undefined> {
     if (r.template === "FUTURE_COMMITMENT") {
-      const data = await this.installments.futureCommitment(householdId, r.params.months ?? 12);
+      const data = await this.installments.futureCommitment(householdId, r.params.months ?? 6);
       const pts = data
         .filter((m) => m.cents > 0)
         .map((m) => ({ label: monthLabelBR(m.month).slice(0, 3), value: m.cents }));
@@ -465,6 +467,7 @@ export class FinanceAssistant {
       cards: cards.map((c) => c.name),
       accounts: accounts.map((a) => a.name),
     };
+    if (ctxCache.size > CTX_CACHE_MAX) ctxCache.clear();
     ctxCache.set(householdId, { at: Date.now(), value });
     return value;
   }

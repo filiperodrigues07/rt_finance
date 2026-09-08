@@ -26,21 +26,51 @@ export class EvolutionProvider extends WhatsAppService {
   }
 
   private async call<T>(path: string, body: unknown): Promise<T> {
-    const res = await fetch(`${this.base}${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        apikey: this.env.EVOLUTION_API_KEY ?? "",
-      },
-      body: JSON.stringify(body),
-    });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.env.WHATSAPP_HTTP_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}${path}`, {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: {
+          "content-type": "application/json",
+          apikey: this.env.EVOLUTION_API_KEY ?? "",
+        },
+        body: JSON.stringify(body),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const text = await res.text();
-    const json = text ? (JSON.parse(text) as unknown) : undefined;
+    let json: unknown;
+    try {
+      json = text ? (JSON.parse(text) as unknown) : undefined;
+    } catch {
+      if (!res.ok) throw new Error(`Evolution API ${res.status}`);
+      throw new Error("Evolution API: resposta não-JSON");
+    }
     if (!res.ok) {
-      this.logger.error({ status: res.status, json }, "Evolution API respondeu erro");
+      this.logger.error({ status: res.status }, "Evolution API respondeu erro");
       throw new Error(`Evolution API ${res.status}`);
     }
     return json as T;
+  }
+
+  /** `call` com 1 retentativa em timeout / erro de rede / 5xx (só para envios curtos). */
+  private async callRetry<T>(path: string, body: unknown): Promise<T> {
+    try {
+      return await this.call<T>(path, body);
+    } catch (err) {
+      const m = (err as Error).message;
+      const retryable =
+        (err as Error).name === "AbortError" ||
+        /Evolution API 5\d\d/.test(m) ||
+        /fetch failed|network|ECONN|ETIMEDOUT/i.test(m);
+      if (!retryable) throw err;
+      await new Promise((r) => setTimeout(r, 1000));
+      return this.call<T>(path, body);
+    }
   }
 
   private inst(instance?: string): string {
@@ -48,7 +78,7 @@ export class EvolutionProvider extends WhatsAppService {
   }
 
   async sendText(toPhone: string, text: string, instance?: string): Promise<SendResult> {
-    const json = await this.call<{ key?: { id?: string } }>(
+    const json = await this.callRetry<{ key?: { id?: string } }>(
       `/message/sendText/${this.inst(instance)}`,
       { number: digits(toPhone), text },
     );
@@ -89,6 +119,11 @@ export class EvolutionProvider extends WhatsAppService {
       );
       const base64 = json.base64 ?? json.media ?? null;
       if (!base64) return null;
+      // ~3/4 do comprimento base64 = bytes decodificados
+      if (base64.length * 0.75 > this.env.AUDIO_MAX_BYTES) {
+        this.logger.warn("áudio acima do limite; ignorado antes de decodificar");
+        return null;
+      }
       return { base64, mimetype: json.mimetype ?? "audio/ogg" };
     } catch (err) {
       this.logger.warn(`falha ao baixar áudio: ${(err as Error).message}`);
