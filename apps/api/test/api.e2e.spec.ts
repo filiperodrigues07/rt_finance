@@ -795,3 +795,81 @@ describe("redefinição de senha por e-mail", () => {
       .expect(422);
   });
 });
+
+describe("config de e-mail (SMTP)", () => {
+  it("GET começa sem SMTP configurado", async () => {
+    const res = await http.get("/api/household/email-settings").set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.smtpConfigured).toBe(false);
+    expect(res.body.smtpUser).toBe("");
+    expect(res.body).not.toHaveProperty("smtpPass");
+  });
+
+  it("PUT salva e o GET marca configurado sem devolver a senha", async () => {
+    const put = await http
+      .put("/api/household/email-settings")
+      .set(auth())
+      .send({
+        smtpHost: "127.0.0.1",
+        smtpPort: 2525,
+        smtpUser: "bot@rtfinance.local",
+        smtpPass: "app-password-secreta",
+        fromName: "RT Finance",
+        weeklyEnabled: true,
+      });
+    expect(put.status).toBe(200);
+    expect(put.body.smtpConfigured).toBe(true);
+    expect(put.body).not.toHaveProperty("smtpPass");
+
+    const get = await http.get("/api/household/email-settings").set(auth());
+    expect(get.body.smtpUser).toBe("bot@rtfinance.local");
+    expect(get.body.weeklyEnabled).toBe(true);
+
+    // a senha foi cifrada no Setting (não fica em texto puro)
+    const row = await prisma.setting.findFirst({ where: { key: "email" } });
+    const stored = row!.value as { smtpPassEnc: string };
+    expect(stored.smtpPassEnc).toMatch(/^v1:/);
+    expect(stored.smtpPassEnc).not.toContain("app-password-secreta");
+  });
+
+  it("PUT sem smtpPass mantém a senha salva", async () => {
+    const put = await http
+      .put("/api/household/email-settings")
+      .set(auth())
+      .send({
+        smtpHost: "127.0.0.1",
+        smtpPort: 2525,
+        smtpUser: "bot@rtfinance.local",
+        fromName: "Casa RT",
+        weeklyEnabled: false,
+      });
+    expect(put.status).toBe(200);
+    expect(put.body.smtpConfigured).toBe(true);
+    expect(put.body.fromName).toBe("Casa RT");
+  });
+
+  it("membro que não é OWNER não edita (403)", async () => {
+    const login = await http
+      .post("/api/auth/login")
+      .send({ email: "partner@test.local", password: "test1234" });
+    const partnerToken = login.body.tokens.accessToken;
+    const res = await http
+      .put("/api/household/email-settings")
+      .set({ Authorization: `Bearer ${partnerToken}` })
+      .send({
+        smtpHost: "smtp.x",
+        smtpPort: 587,
+        smtpUser: "x@x.com",
+        fromName: "x",
+        weeklyEnabled: false,
+      });
+    expect(res.status).toBe(403);
+  });
+
+  it("teste de e-mail com SMTP inalcançável responde ok:false (sem 500)", async () => {
+    const res = await http.post("/api/household/email-settings/test").set(auth());
+    expect(res.status).toBe(201);
+    expect(res.body.ok).toBe(false);
+    expect(typeof res.body.error).toBe("string");
+  });
+});

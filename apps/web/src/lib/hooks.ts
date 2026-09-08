@@ -39,6 +39,7 @@ import type {
   NotificationRow,
   WhatsappStatus,
   WhatsappQr,
+  EmailSettings,
 } from "./types";
 import type { BudgetStatus } from "@rt-finance/shared";
 
@@ -465,6 +466,24 @@ export function useHousehold() {
 }
 export function useProfile() {
   return useQuery({ queryKey: ["profile"], queryFn: () => api.get<Profile>("/me/profile") });
+}
+export function useEmailSettings() {
+  return useQuery({
+    queryKey: ["email-settings"],
+    queryFn: () => api.get<EmailSettings>("/household/email-settings"),
+  });
+}
+export function useEmailSettingsMutations() {
+  const qc = useQueryClient();
+  return {
+    save: useMutation({
+      mutationFn: (b: unknown) => api.put<EmailSettings>("/household/email-settings", b),
+      onSuccess: (data) => qc.setQueryData(["email-settings"], data),
+    }),
+    test: useMutation({
+      mutationFn: () => api.post<{ ok: boolean; error?: string }>("/household/email-settings/test"),
+    }),
+  };
 }
 export function useHouseholdMutations() {
   const qc = useQueryClient();

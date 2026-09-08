@@ -25,7 +25,10 @@ export class PasswordResetService {
    * o controller responde sempre `{ ok: true }`.
    */
   async requestReset(email: string, ip?: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { memberships: { take: 1, orderBy: { joinedAt: "asc" } } },
+    });
     if (!user) {
       this.logger.debug(`forgot-password para e-mail sem conta: ${email}`);
       return;
@@ -51,7 +54,13 @@ export class PasswordResetService {
     const base = this.env.WEB_ORIGIN.replace(/\/+$/, "");
     const link = `${base}/redefinir-senha?token=${rawToken}`;
     try {
-      await this.mail.sendPasswordReset(user.email, user.name, link, ttlMin);
+      await this.mail.sendPasswordReset(
+        user.email,
+        user.name,
+        link,
+        ttlMin,
+        user.memberships[0]?.householdId,
+      );
     } catch {
       // erro de SMTP não deve vazar para a resposta; o usuário pode tentar de novo
       this.logger.error(`Não foi possível enviar o e-mail de redefinição para ${user.email}`);

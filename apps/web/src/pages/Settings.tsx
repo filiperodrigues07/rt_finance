@@ -11,6 +11,7 @@ import { Field, Input } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
+import { EmailPanel } from "@/components/settings/EmailPanel";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -47,10 +48,12 @@ export function SettingsPage() {
     <div className="space-y-4">
       <PageHeader
         title="Configurações"
-        subtitle="Integração com WhatsApp e exclusão de dados. Perfil e senha ficam em Usuários."
+        subtitle="WhatsApp, e-mail e exclusão de dados. Perfil e senha ficam em Usuários."
       />
 
       <WhatsAppPanel />
+
+      <EmailPanel />
 
       {user?.role === "OWNER" && (
         <Card className="border-negative/40">

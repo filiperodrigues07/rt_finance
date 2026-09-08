@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
   updateHouseholdBody,
@@ -7,6 +7,7 @@ import {
   updateProfileBody,
   changePasswordBody,
   resetDataBody,
+  emailSettingsBody,
   idParam,
   type UpdateHouseholdBody,
   type UpdateMemberBody,
@@ -14,6 +15,7 @@ import {
   type UpdateProfileBody,
   type ChangePasswordBody,
   type ResetDataBody,
+  type EmailSettingsBody,
   type AuthUser,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -87,6 +89,25 @@ export class HouseholdsController {
     @Body(new ZodValidationPipe(changePasswordBody)) body: ChangePasswordBody,
   ) {
     return this.households.changePassword(user.id, body);
+  }
+
+  @Get("household/email-settings")
+  getEmailSettings(@CurrentHousehold() householdId: string) {
+    return this.households.getEmailSettings(householdId);
+  }
+
+  @Put("household/email-settings")
+  updateEmailSettings(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(emailSettingsBody)) body: EmailSettingsBody,
+  ) {
+    return this.households.updateEmailSettings(user, body);
+  }
+
+  @Post("household/email-settings/test")
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  testEmail(@CurrentUser() user: AuthUser) {
+    return this.households.testEmail(user);
   }
 
   @Post("household/reset-data")

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { Cron } from "@nestjs/schedule";
 import { addDays, formatBRL, formatDateBR, todayIso } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
@@ -10,6 +11,8 @@ import { BudgetsService } from "../budgets/budgets.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { monthSummary } from "../whatsapp/formatters";
 import { ReportsService } from "../reports/reports.service";
+import { MailService, EMAIL_SETTING_KEY, type StoredEmailConfig } from "../mail/mail.service";
+import { renderWeeklyDigest } from "../mail/weekly-digest";
 
 /**
  * Jobs agendados (via @nestjs/schedule — cron em processo, sem Redis/pg-boss).
@@ -27,6 +30,7 @@ export class SchedulerService {
     private readonly budgets: BudgetsService,
     private readonly notifications: NotificationsService,
     private readonly reports: ReportsService,
+    private readonly mail: MailService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -86,17 +90,54 @@ export class SchedulerService {
   @Cron("0 9 * * 1")
   async weeklySummary(): Promise<void> {
     if (!this.enabled) return;
-    const households = await this.prisma.household.findMany({ select: { id: true } });
+    const households = await this.prisma.household.findMany({
+      select: { id: true, name: true, timezone: true },
+    });
     for (const h of households) {
-      const report = await this.reports.dashboard(h.id, {});
+      const monthReport = await this.reports.dashboard(h.id, {});
       await this.notifications.push({
         householdId: h.id,
         type: "WEEKLY_SUMMARY",
         title: "🗓️ Resumo da semana",
-        body: monthSummary(report),
+        body: monthSummary(monthReport),
         dedupe: `weekly:${h.id}:${toIsoDate(new Date())}`,
       });
+      await this.weeklyEmail(h).catch((e) =>
+        this.logger.error(`resumo semanal por e-mail (household ${h.id}): ${(e as Error).message}`),
+      );
     }
+  }
+
+  /** Envia o resumo semanal (janela de 7 dias) por e-mail, se ativado no household. */
+  private async weeklyEmail(h: { id: string; name: string; timezone: string | null }): Promise<void> {
+    const row = await this.prisma.setting.findUnique({
+      where: { householdId_key: { householdId: h.id, key: EMAIL_SETTING_KEY } },
+    });
+    const cfg = row?.value as StoredEmailConfig | undefined;
+    if (!cfg?.weeklyEnabled) return;
+
+    const tz = h.timezone ?? this.env.APP_TIMEZONE;
+    const today = todayIso(tz);
+    if (cfg.weeklyLastRunIso === today) return; // já rodou hoje
+
+    const from = addDays(today, -7, tz);
+    const report = await this.reports.dashboard(h.id, { from, to: today });
+    const { subject, text, html } = renderWeeklyDigest({ householdName: h.name, report, tz });
+
+    const members = await this.prisma.householdMember.findMany({
+      where: { householdId: h.id },
+      include: { user: { select: { email: true } } },
+    });
+    const emails = [...new Set(members.map((m) => m.user.email).filter(Boolean))];
+    for (const to of emails) {
+      await this.mail.sendWeeklyDigest(h.id, to, subject, text, html);
+    }
+
+    await this.prisma.setting.update({
+      where: { householdId_key: { householdId: h.id, key: EMAIL_SETTING_KEY } },
+      data: { value: { ...cfg, weeklyLastRunIso: today } as unknown as Prisma.InputJsonObject },
+    });
+    this.logger.log(`resumo semanal enviado p/ ${emails.length} e-mail(s) do household ${h.id}`);
   }
 
   /** Lembretes de vencimento de fatura (leadDays configurável). */

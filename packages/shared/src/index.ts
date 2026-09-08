@@ -10,6 +10,7 @@ export * from "./categorize.js";
 export * from "./schemas/common.js";
 export * from "./schemas/auth.js";
 export * from "./schemas/household.js";
+export * from "./schemas/email.js";
 export * from "./schemas/category.js";
 export * from "./schemas/account.js";
 export * from "./schemas/credit-card.js";

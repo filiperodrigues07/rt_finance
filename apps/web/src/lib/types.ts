@@ -145,6 +145,16 @@ export interface Profile {
   avatarUrl: string | null;
 }
 
+export interface EmailSettings {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  fromName: string;
+  weeklyEnabled: boolean;
+  smtpConfigured: boolean;
+  usingEnvFallback: boolean;
+}
+
 export interface RecurringExpense {
   id: string;
   name: string;

@@ -4,6 +4,7 @@ import { RecurringExpensesModule } from "../recurring-expenses/recurring-expense
 import { BudgetsModule } from "../budgets/budgets.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { ReportsModule } from "../reports/reports.module";
+import { MailModule } from "../mail/mail.module";
 import { SchedulerService } from "./scheduler.service";
 
 @Module({
@@ -13,6 +14,7 @@ import { SchedulerService } from "./scheduler.service";
     BudgetsModule,
     NotificationsModule,
     ReportsModule,
+    MailModule,
   ],
   providers: [SchedulerService],
 })

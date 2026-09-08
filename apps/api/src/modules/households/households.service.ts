@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { Injectable, ForbiddenException } from "@nestjs/common";
+import { Inject, Injectable, ForbiddenException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import * as argon2 from "argon2";
 import {
   SYSTEM_CATEGORIES,
@@ -10,10 +11,23 @@ import {
   type CreateMemberBody,
   type ResetDataBody,
   type ResetDataResult,
+  type EmailSettingsBody,
+  type EmailSettingsDto,
+  type EmailTestResult,
   type AuthUser,
 } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { ConflictError, DomainError, NotFoundError } from "../../common/errors/domain-error";
+import { ENV, type Env } from "../../config/env.schema";
+import { encryptSecret } from "../../common/secret-box";
+import { MailService, EMAIL_SETTING_KEY, type StoredEmailConfig } from "../mail/mail.service";
+
+const EMAIL_DEFAULTS = {
+  smtpHost: "smtp.gmail.com",
+  smtpPort: 587,
+  fromName: "RT Finance",
+  weeklyEnabled: false,
+};
 
 const MEMBER_USER_SELECT = {
   id: true,
@@ -26,7 +40,68 @@ const MEMBER_USER_SELECT = {
 
 @Injectable()
 export class HouseholdsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  // ---------------- config de e-mail (SMTP) ----------------
+
+  async getEmailSettings(householdId: string): Promise<EmailSettingsDto> {
+    const { cfg, smtpConfigured, usingEnvFallback } = await this.mail.describe(householdId);
+    return {
+      smtpHost: cfg?.smtpHost ?? EMAIL_DEFAULTS.smtpHost,
+      smtpPort: cfg?.smtpPort ?? EMAIL_DEFAULTS.smtpPort,
+      smtpUser: cfg?.smtpUser ?? "",
+      fromName: cfg?.fromName ?? EMAIL_DEFAULTS.fromName,
+      weeklyEnabled: cfg?.weeklyEnabled ?? EMAIL_DEFAULTS.weeklyEnabled,
+      smtpConfigured,
+      usingEnvFallback,
+    };
+  }
+
+  async updateEmailSettings(actor: AuthUser, body: EmailSettingsBody): Promise<EmailSettingsDto> {
+    if (actor.role !== "OWNER") throw new ForbiddenException("Apenas o dono edita a config de e-mail");
+    const existing = (
+      await this.prisma.setting.findUnique({
+        where: { householdId_key: { householdId: actor.householdId, key: EMAIL_SETTING_KEY } },
+      })
+    )?.value as StoredEmailConfig | undefined;
+
+    const newPass = body.smtpPass?.trim();
+    const smtpPassEnc = newPass
+      ? encryptSecret(newPass, this.env.JWT_ACCESS_SECRET)
+      : (existing?.smtpPassEnc ?? "");
+
+    const value: StoredEmailConfig = {
+      smtpHost: body.smtpHost,
+      smtpPort: body.smtpPort,
+      smtpUser: body.smtpUser,
+      smtpPassEnc,
+      fromName: body.fromName,
+      weeklyEnabled: body.weeklyEnabled,
+      weeklyLastRunIso: existing?.weeklyLastRunIso,
+    };
+
+    const jsonValue = value as unknown as Prisma.InputJsonObject;
+    await this.prisma.setting.upsert({
+      where: { householdId_key: { householdId: actor.householdId, key: EMAIL_SETTING_KEY } },
+      create: { householdId: actor.householdId, key: EMAIL_SETTING_KEY, value: jsonValue },
+      update: { value: jsonValue },
+    });
+    return this.getEmailSettings(actor.householdId);
+  }
+
+  async testEmail(actor: AuthUser): Promise<EmailTestResult> {
+    if (actor.role !== "OWNER") throw new ForbiddenException("Apenas o dono pode testar o e-mail");
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.id },
+      select: { email: true },
+    });
+    if (!user) throw new NotFoundError("Usuário");
+    return this.mail.sendTest(actor.householdId, user.email);
+  }
 
   async getHousehold(householdId: string) {
     const household = await this.prisma.household.findUnique({
