@@ -18,7 +18,10 @@ import {
   User,
   FileDown,
   Paperclip,
+  Rows3,
+  Rows4,
 } from "lucide-react";
+import { useDensity } from "@/lib/useDensity";
 import type { ListTransactionsQuery } from "@rt-finance/shared";
 import { resolvePeriod, APP_TZ, toCents, fromCents } from "@rt-finance/shared";
 import {
@@ -36,7 +39,7 @@ import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Field } from "@/components/ui/Field";
-import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
+import { Badge, EmptyState, Skeleton, RowSkeleton } from "@/components/ui/misc";
 import { PageHeader, Stat } from "@/components/ui/data";
 import { Menu } from "@/components/ui/Menu";
 import { Segmented } from "@/components/ui/Segmented";
@@ -102,6 +105,7 @@ const centsParamToReais = (v: string | number | undefined) =>
 export function TransactionsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const { dense, toggle: toggleDensity } = useDensity();
   const [sp, setSp] = useSearchParams();
   const view = sp.get("view") === "apagar" ? "apagar" : "todas";
   const filters = useMemo(() => {
@@ -377,6 +381,16 @@ export function TransactionsPage() {
           <SlidersHorizontal className="size-4" />
           Filtros{activeChips.length ? ` (${activeChips.length})` : ""}
         </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="hidden sm:inline-flex"
+          onClick={toggleDensity}
+          title={dense ? "Linhas confortáveis" : "Linhas compactas"}
+          aria-label="Densidade da tabela"
+        >
+          {dense ? <Rows3 className="size-4" /> : <Rows4 className="size-4" />}
+        </Button>
       </div>
 
       {(activeChips.length > 0 || (filters.from && filters.to)) && (
@@ -496,7 +510,7 @@ export function TransactionsPage() {
       ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14" />
+            <RowSkeleton key={i} />
           ))}
         </div>
       ) : rows.length === 0 ? (
@@ -517,7 +531,7 @@ export function TransactionsPage() {
         <>
           {/* desktop */}
           <Card className="hidden overflow-x-auto p-0 sm:block">
-            <table className="w-full text-sm">
+            <table className={"w-full text-sm" + (dense ? " table-dense" : "")}>
               <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-3 py-3">

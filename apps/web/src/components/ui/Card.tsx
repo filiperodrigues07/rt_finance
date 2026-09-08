@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("card p-5", className)} {...props} />;
+  return <div className={cn("card p-4", className)} {...props} />;
 }
 
 export function CardHeader({

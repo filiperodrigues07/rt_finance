@@ -6,6 +6,20 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("skeleton", className)} />;
 }
 
+/** Placeholder com a forma de uma linha de lista (marcador + 2 linhas + valor). */
+export function RowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
+      <div className="skeleton size-4 shrink-0 rounded" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="skeleton h-3 w-2/5 rounded" />
+        <div className="skeleton h-2.5 w-1/4 rounded" />
+      </div>
+      <div className="skeleton h-4 w-16 shrink-0 rounded" />
+    </div>
+  );
+}
+
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn("size-5 animate-spin text-muted", className)} />;
 }

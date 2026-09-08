@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Rows3, Rows4 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAdminHouseholds, useAdminMutations } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { useDensity } from "@/lib/useDensity";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -19,6 +21,7 @@ export function AdminPage() {
   const toast = useToast();
   const { data, isLoading } = useAdminHouseholds();
   const { create, update, remove } = useAdminMutations();
+  const { dense, toggle: toggleDensity } = useDensity();
   const [newOpen, setNewOpen] = useState(false);
   const [toDelete, setToDelete] = useState<AdminHouseholdRow | null>(null);
   const [toEdit, setToEdit] = useState<AdminHouseholdRow | null>(null);
@@ -44,9 +47,20 @@ export function AdminPage() {
         title="Admin"
         subtitle="Households da plataforma — dados de cada casal são isolados."
         actions={
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            <Plus className="size-4" /> Novo household
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleDensity}
+              title={dense ? "Linhas confortáveis" : "Linhas compactas"}
+              aria-label="Densidade da tabela"
+            >
+              {dense ? <Rows3 className="size-4" /> : <Rows4 className="size-4" />}
+            </Button>
+            <Button size="sm" onClick={() => setNewOpen(true)}>
+              <Plus className="size-4" /> Novo household
+            </Button>
+          </>
         }
       />
 
@@ -60,7 +74,7 @@ export function AdminPage() {
         <EmptyState title="Nenhum household" />
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+          <table className={cn("w-full text-sm", dense && "table-dense")}>
             <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Household</th>

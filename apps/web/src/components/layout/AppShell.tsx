@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/Button";
 import { NotificationsBell } from "./NotificationsBell";
 import { UserMenu } from "./UserMenu";
+import { CommandPalette } from "@/components/CommandPalette";
 import { NAV, MOBILE_NAV } from "./nav";
 
 /** rótulos curtos no menu inferior do mobile (evita quebra/corte em telas ~360px) */
@@ -41,12 +42,27 @@ function useSidebarCollapsed() {
 function Brand({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
-      <div
-        className="grid size-9 place-items-center rounded-lg bg-[#0B0D12] text-sm font-bold tracking-tight text-white"
-        title="RT Finance"
+      <svg
+        viewBox="0 0 36 36"
+        className="size-9"
+        role="img"
+        aria-label="RT Finance"
       >
-        RT
-      </div>
+        <rect width="36" height="36" rx="9" fill="rgb(var(--accent))" />
+        <text
+          x="18"
+          y="19"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="rgb(var(--accent-fg))"
+          fontSize="15"
+          fontWeight="700"
+          letterSpacing="-0.5"
+          fontFamily="Inter, system-ui, sans-serif"
+        >
+          RT
+        </text>
+      </svg>
     );
   }
   return (
@@ -84,7 +100,7 @@ function NavItems({
               item.soon
                 ? "cursor-not-allowed text-muted/50"
                 : isActive
-                  ? "bg-accent/10 font-medium text-accent"
+                  ? "nav-active font-medium text-accent"
                   : "text-muted hover:bg-surface-2 hover:text-fg",
             )
           }
@@ -195,6 +211,27 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" />
           </Button>
+
+          {/* busca global — abre a paleta de comandos (⌘/Ctrl + K) */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
+            className="hidden items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-2.5 py-1.5 text-xs text-muted transition-colors hover:text-fg sm:flex"
+          >
+            <Search className="size-3.5" />
+            <span>Buscar</span>
+            <kbd className="rounded border border-border px-1 py-px text-[10px]">Ctrl K</kbd>
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden"
+            onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
+            aria-label="Buscar"
+          >
+            <Search className="size-4" />
+          </Button>
+
           <div className="flex-1" />
           <NotificationsBell />
           <ThemeToggle />
@@ -206,6 +243,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por
           Filipe Rodrigues
         </footer>
+
+        <CommandPalette />
 
         {/* bottom nav mobile */}
         <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur lg:hidden">

@@ -58,7 +58,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       document.documentElement.classList.toggle("dark", r === "dark");
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", r === "dark" ? "#090a0d" : "#fafafb");
+        ?.setAttribute("content", r === "dark" ? "#090a0d" : "#faf9f6");
     };
     apply();
     try {

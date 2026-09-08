@@ -4,7 +4,7 @@ import { useDashboard, useFutureCommitment } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Field";
 import { Skeleton } from "@/components/ui/misc";
-import { PageHeader, Stat } from "@/components/ui/data";
+import { PageHeader, Stat, StatSkeleton } from "@/components/ui/data";
 import {
   DonutCategories,
   MonthlyEvolutionChart,
@@ -57,7 +57,7 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {isLoading || !data ? (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24" />)
+          Array.from({ length: 5 }).map((_, i) => <StatSkeleton key={i} />)
         ) : (
           <>
             <Stat label="Saldo atual" cents={data.balanceCents} />

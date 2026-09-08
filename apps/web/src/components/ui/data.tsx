@@ -42,6 +42,16 @@ export function Stat({
   );
 }
 
+/** Placeholder com a forma do <Stat> (rótulo curto + número grande). */
+export function StatSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn("card p-4", className)}>
+      <div className="skeleton h-2.5 w-16 rounded" />
+      <div className="skeleton mt-3 h-6 w-24 rounded" />
+    </div>
+  );
+}
+
 /** Barra de progresso simples (0–100+). */
 export function Progress({
   percent,
