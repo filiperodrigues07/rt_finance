@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useHouseholdMutations } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -56,15 +56,17 @@ export function SettingsPage() {
       <EmailPanel />
 
       {user?.role === "OWNER" && (
-        <Card className="border-negative/40">
-          <CardHeader
-            title={
-              <span className="flex items-center gap-2 text-negative">
-                <AlertTriangle className="size-4" /> Zona de perigo
-              </span>
-            }
-            description="Limpar dados para começar a usar de verdade. Isto NÃO tem volta."
-          />
+        <CollapsibleCard
+          id="danger"
+          defaultOpen={false}
+          className="border-negative/40"
+          title={
+            <span className="flex items-center gap-2 text-negative">
+              <AlertTriangle className="size-4" /> Zona de perigo
+            </span>
+          }
+          description="Limpar dados para começar a usar de verdade. Isto NÃO tem volta."
+        >
           <form onSubmit={wipeData} className="space-y-3">
             <p className="text-sm text-muted">
               Sempre apaga o <strong className="text-fg">histórico</strong>: lançamentos, parcelas,
@@ -113,7 +115,7 @@ export function SettingsPage() {
               <Trash2 className="size-4" /> Limpar dados
             </Button>
           </form>
-        </Card>
+        </CollapsibleCard>
       )}
     </div>
   );

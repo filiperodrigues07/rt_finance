@@ -9,7 +9,8 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -53,17 +54,16 @@ export function EmailPanel() {
   }
 
   return (
-    <Card>
-      <CardHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Mail className="size-4" /> E-mail
-          </span>
-        }
-        description="Redefinição de senha e resumos semanais."
-        action={statusBadge}
-      />
-
+    <CollapsibleCard
+      id="email"
+      title={
+        <span className="flex items-center gap-2">
+          <Mail className="size-4" /> E-mail
+        </span>
+      }
+      description="Redefinição de senha e resumos semanais."
+      action={statusBadge}
+    >
       {isAdmin && <GlobalSmtpForm />}
 
       {isOwner ? (
@@ -91,7 +91,7 @@ export function EmailPanel() {
       ) : (
         <p className="text-sm text-muted">Apenas o dono do household edita estas opções.</p>
       )}
-    </Card>
+    </CollapsibleCard>
   );
 }
 

@@ -4,7 +4,8 @@ import { useWhatsappStatus, useWhatsappActions, useHousehold, useHouseholdMutati
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -43,8 +44,7 @@ export function WhatsAppPanel() {
   // modo dev (provider console)
   if (status && !status.enabled) {
     return (
-      <Card>
-        <CardHeader title="WhatsApp" description="Conexão com a Evolution API" />
+      <CollapsibleCard id="whatsapp" title="WhatsApp" description="Conexão com a Evolution API">
         <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
           Rodando em <strong>modo de desenvolvimento</strong> (<code>WHATSAPP_PROVIDER=console</code>).
           As respostas do bot saem no log do servidor. Para conectar um número real, configure
@@ -53,35 +53,34 @@ export function WhatsAppPanel() {
         </div>
         <InfoRows status={status} />
         <AllowedNumbers />
-      </Card>
+      </CollapsibleCard>
     );
   }
 
   const unreachable = status && status.enabled && !status.evolutionReachable;
 
   return (
-    <Card>
-      <CardHeader
-        title="WhatsApp"
-        description="Conecte o número do bot (dispositivo vinculado, tipo WhatsApp Web)"
-        action={
-          <Badge
-            color={
-              status?.connected ? "#22C55E" : status?.state === "connecting" ? "#EAB308" : "#EF4444"
-            }
-          >
-            {status?.connected ? (
-              <CheckCircle2 className="size-3" />
-            ) : status?.state === "connecting" ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <XCircle className="size-3" />
-            )}
-            {STATE_LABEL[status?.state ?? "unknown"]}
-          </Badge>
-        }
-      />
-
+    <CollapsibleCard
+      id="whatsapp"
+      title="WhatsApp"
+      description="Conecte o número do bot (dispositivo vinculado, tipo WhatsApp Web)"
+      action={
+        <Badge
+          color={
+            status?.connected ? "#22C55E" : status?.state === "connecting" ? "#EAB308" : "#EF4444"
+          }
+        >
+          {status?.connected ? (
+            <CheckCircle2 className="size-3" />
+          ) : status?.state === "connecting" ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <XCircle className="size-3" />
+          )}
+          {STATE_LABEL[status?.state ?? "unknown"]}
+        </Badge>
+      }
+    >
       {unreachable && (
         <div className="mb-3 rounded-lg border border-negative/40 bg-negative/10 p-3 text-sm">
           Não consegui falar com a Evolution API. Verifique se o container está de pé
@@ -154,7 +153,7 @@ export function WhatsAppPanel() {
 
       <InfoRows status={status} />
       <AllowedNumbers />
-    </Card>
+    </CollapsibleCard>
   );
 }
 
