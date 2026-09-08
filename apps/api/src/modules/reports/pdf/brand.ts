@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import sharp from "sharp";
 
 /** Paleta do relatório — derivada da marca (logo-full.svg / logo-mark.svg). */
@@ -51,7 +53,38 @@ const LOGO_SVG = `<svg width="560" height="180" viewBox="0 0 560 180" xmlns="htt
   <text x="14" y="176" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="600" letter-spacing="18" fill="#475569">FINANCE</text>
 </svg>`;
 
-/** Rasteriza o logo como PNG transparente na largura pedida (px). */
+/** Rasteriza o logo como PNG transparente na largura pedida (px). Para fundos claros (PDF). */
 export async function renderLogoPng(widthPx = 900): Promise<Buffer> {
   return sharp(Buffer.from(LOGO_SVG)).resize({ width: Math.round(widthPx) }).png().toBuffer();
+}
+
+/** Logo oficial (arquivo `logo/rt finance.png`, fundo preto — não alterar). */
+const OFFICIAL_LOGO_CANDIDATES = [
+  resolve(process.cwd(), "logo/rt finance.png"),
+  resolve(process.cwd(), "../../logo/rt finance.png"),
+  resolve(__dirname, "../../../../../logo/rt finance.png"),
+  resolve(__dirname, "../../../../../../logo/rt finance.png"),
+];
+let officialLogoRaw: Buffer | null | undefined;
+
+function loadOfficialLogo(): Buffer | null {
+  if (officialLogoRaw !== undefined) return officialLogoRaw;
+  const path = OFFICIAL_LOGO_CANDIDATES.find((p) => existsSync(p));
+  officialLogoRaw = path ? readFileSync(path) : null;
+  return officialLogoRaw;
+}
+
+/**
+ * Logo OFICIAL do RT Finance, redimensionado para a largura pedida. Fundo preto
+ * original preservado — usar sobre faixa escura. `null` se o arquivo não for achado.
+ */
+export async function officialLogoPng(widthPx = 320): Promise<Buffer | null> {
+  const raw = loadOfficialLogo();
+  if (!raw) return null;
+  // remove só a margem preta sobrando em volta da arte (não altera o logo em si)
+  return sharp(raw)
+    .trim({ background: "#000000", threshold: 25 })
+    .resize({ width: Math.round(widthPx) })
+    .png()
+    .toBuffer();
 }

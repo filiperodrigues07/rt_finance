@@ -2,11 +2,14 @@ import { Injectable } from "@nestjs/common";
 import sharp from "sharp";
 import { fromCents, monthLabelBR, formatDateBR } from "@rt-finance/shared";
 import type { DashboardReport } from "@rt-finance/shared";
-import { BRAND, renderLogoPng } from "../reports/pdf/brand";
+import { BRAND, officialLogoPng } from "../reports/pdf/brand";
 
 const SIZE = 1080;
 const PAD = 64; // borda externa até o painel branco
 const INNER = 104; // conteúdo dentro do painel
+const PANEL_BOTTOM = SIZE - PAD; // 1016
+const FOOTER_H = 148; // faixa escura do rodapé (leva o logo oficial)
+const FOOTER_Y = PANEL_BOTTOM - FOOTER_H;
 
 /** Stack com fontes presentes tanto no Windows (dev) quanto no container Debian (prod). */
 const FONT = "'DejaVu Sans','Liberation Sans','Segoe UI',Arial,sans-serif";
@@ -46,16 +49,25 @@ export interface InvoiceCardInput {
 export class ShareCardService {
   private async compose(svg: string): Promise<Buffer> {
     const base = sharp(Buffer.from(svg)).png();
-    const logo = await renderLogoPng(300);
-    const meta = await sharp(logo).metadata();
-    const logoH = meta.height ?? 84;
+    const logo = await officialLogoPng(560);
+    if (!logo) return base.png().toBuffer();
+
+    // encaixa o logo na altura da faixa do rodapé
+    const fitted = await sharp(logo).resize({ height: 88 }).png().toBuffer();
+    const meta = await sharp(fitted).metadata();
     return base
-      .composite([{ input: logo, left: INNER, top: SIZE - PAD - 40 - logoH }])
+      .composite([
+        {
+          input: fitted,
+          left: INNER,
+          top: Math.round(FOOTER_Y + (FOOTER_H - (meta.height ?? 88)) / 2),
+        },
+      ])
       .png()
       .toBuffer();
   }
 
-  /** Moldura comum: fundo, painel branco, kicker, título, rodapé. `body` é SVG posicionado a partir de y≈`bodyTop`. */
+  /** Moldura comum: fundo, painel branco, kicker, título e faixa-rodapé escura (logo oficial). */
   private frame(opts: { kicker: string; title: string; footer: string; body: string }): string {
     const panel = SIZE - PAD * 2;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" font-family="${FONT}">
@@ -63,6 +75,7 @@ export class ShareCardService {
         <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="${BRAND.accent2}"/><stop offset="1" stop-color="${BRAND.accent}"/>
         </linearGradient>
+        <clipPath id="panelClip"><rect x="${PAD}" y="${PAD}" width="${panel}" height="${panel}" rx="40"/></clipPath>
       </defs>
       <rect width="${SIZE}" height="${SIZE}" fill="${BRAND.zebra}"/>
       <rect x="${PAD}" y="${PAD}" width="${panel}" height="${panel}" rx="40" fill="#FFFFFF" stroke="${BRAND.line}" stroke-width="2"/>
@@ -70,8 +83,10 @@ export class ShareCardService {
       <text x="${INNER}" y="${PAD + 96}" fill="${BRAND.accent}" font-size="24" font-weight="700" letter-spacing="3">${esc(opts.kicker.toUpperCase())}</text>
       <text x="${INNER}" y="${PAD + 156}" fill="${BRAND.ink}" font-size="52" font-weight="700">${esc(opts.title)}</text>
       ${opts.body}
-      <line x1="${INNER}" y1="${SIZE - PAD - 132}" x2="${SIZE - INNER}" y2="${SIZE - PAD - 132}" stroke="${BRAND.line}" stroke-width="2"/>
-      <text x="${SIZE - INNER}" y="${SIZE - PAD - 70}" fill="${BRAND.muted}" font-size="22" text-anchor="end">${esc(opts.footer)}</text>
+      <g clip-path="url(#panelClip)">
+        <rect x="${PAD}" y="${FOOTER_Y}" width="${panel}" height="${FOOTER_H + 40}" fill="#000000"/>
+      </g>
+      <text x="${SIZE - INNER}" y="${FOOTER_Y + FOOTER_H / 2 + 8}" fill="#E7ECF3" font-size="22" text-anchor="end">${esc(opts.footer)}</text>
     </svg>`;
   }
 

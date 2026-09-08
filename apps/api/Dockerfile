@@ -23,7 +23,11 @@ RUN pnpm --filter @rt-finance/shared build \
 # ---------- runtime ----------
 FROM node:22-slim AS runner
 ENV NODE_ENV=production PNPM_HOME=/pnpm PATH="/pnpm:$PATH"
-RUN corepack enable && apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates tini && rm -rf /var/lib/apt/lists/*
+# fonts-dejavu-core / fonts-liberation2: necessárias para o sharp/librsvg renderizar
+# texto nos PNGs (cards de compartilhamento, gráficos do WhatsApp) — senão sai tudo "tofu".
+RUN corepack enable && apt-get update && apt-get install -y --no-install-recommends \
+      openssl ca-certificates tini fonts-dejavu-core fonts-liberation2 \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # leva a árvore pronta (node_modules do pnpm + builds)
