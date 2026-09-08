@@ -15,6 +15,36 @@ import { PageHeader } from "@/components/ui/data";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
 import type { FinancialGoal } from "@/lib/types";
 
+/**
+ * Projeção client-side: ritmo médio de aporte nos últimos 90 dias → meses até
+ * bater a meta. Compara com o prazo, se houver. `null` quando não dá pra estimar.
+ */
+function projectGoal(g: FinancialGoal): { label: string; tone: "ok" | "warn" | "muted" } | null {
+  const remaining = g.targetCents - g.currentCents;
+  if (g.status === "ACHIEVED" || remaining <= 0) return null;
+
+  const since = Date.now() - 90 * 86_400_000;
+  const recent = g.contributions.filter((c) => new Date(c.date).getTime() >= since);
+  if (recent.length === 0) return null;
+
+  const perMonth = (recent.reduce((a, c) => a + c.amountCents, 0) / 90) * 30;
+  if (perMonth <= 0) return null;
+
+  const months = Math.ceil(remaining / perMonth);
+  const hit = new Date();
+  hit.setMonth(hit.getMonth() + months);
+  const hitLabel = hit.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+
+  if (!g.deadline) return { label: `No ritmo atual: bate em ${hitLabel}`, tone: "muted" };
+
+  const deadline = new Date(g.deadline);
+  const slackMonths = Math.round(
+    (deadline.getTime() - hit.getTime()) / (30 * 86_400_000),
+  );
+  if (slackMonths >= 0) return { label: `🎯 No prazo (sobra ~${slackMonths} mês/meses)`, tone: "ok" };
+  return { label: `⚠️ ~${Math.abs(slackMonths)} mês/meses atrasado (bate em ${hitLabel})`, tone: "warn" };
+}
+
 export function GoalsPage() {
   const toast = useToast();
   const { data, isLoading } = useGoals();
@@ -45,6 +75,7 @@ export function GoalsPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {data!.map((g) => {
             const pct = percentOf(g.currentCents, g.targetCents);
+            const projection = projectGoal(g);
             return (
               <Card key={g.id} className="p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -83,6 +114,21 @@ export function GoalsPage() {
                     <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: g.color }} />
                   </div>
                 </div>
+
+                {projection && (
+                  <div
+                    className={
+                      "mt-3 text-xs " +
+                      (projection.tone === "ok"
+                        ? "text-positive"
+                        : projection.tone === "warn"
+                          ? "text-negative"
+                          : "text-muted")
+                    }
+                  >
+                    {projection.label}
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-between">
                   <div className="text-xs text-muted">

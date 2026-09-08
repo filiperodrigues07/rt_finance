@@ -63,6 +63,11 @@ export class ReportsController {
     return this.reports.pace(householdId);
   }
 
+  @Get("insights")
+  insights(@CurrentHousehold() householdId: string) {
+    return this.reports.insights(householdId);
+  }
+
   @Get("transactions.csv")
   @Header("content-type", "text/csv; charset=utf-8")
   @Header("content-disposition", 'attachment; filename="rt-finance-transacoes.csv"')

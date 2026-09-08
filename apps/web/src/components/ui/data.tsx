@@ -10,6 +10,7 @@ export function Stat({
   hint,
   icon,
   tone,
+  delta,
   className,
 }: {
   label: ReactNode;
@@ -18,6 +19,8 @@ export function Stat({
   hint?: ReactNode;
   icon?: ReactNode;
   tone?: "positive" | "negative" | "muted";
+  /** Comparativo com o período anterior. `goodWhenUp`: subir é bom (receita) ou ruim (despesa). */
+  delta?: { pct: number; goodWhenUp?: boolean } | null;
   className?: string;
 }) {
   return (
@@ -26,19 +29,38 @@ export function Stat({
         {icon}
         {label}
       </div>
-      <div
-        className={cn(
-          "mt-1.5 truncate text-xl font-semibold tracking-tight sm:mt-2 sm:text-2xl",
-          cents == null && "tnum",
-          tone === "positive" && "text-positive",
-          tone === "negative" && "text-negative",
-          tone === "muted" && "text-muted",
-        )}
-      >
-        {cents != null ? <Money cents={cents} animate /> : value}
+      <div className="mt-1.5 flex items-baseline gap-2 sm:mt-2">
+        <div
+          className={cn(
+            "truncate text-xl font-semibold tracking-tight sm:text-2xl",
+            cents == null && "tnum",
+            tone === "positive" && "text-positive",
+            tone === "negative" && "text-negative",
+            tone === "muted" && "text-muted",
+          )}
+        >
+          {cents != null ? <Money cents={cents} animate /> : value}
+        </div>
+        {delta && Number.isFinite(delta.pct) && delta.pct !== 0 && <DeltaChip {...delta} />}
       </div>
       {hint && <div className="mt-0.5 truncate text-[11px] text-muted">{hint}</div>}
     </div>
+  );
+}
+
+function DeltaChip({ pct, goodWhenUp = true }: { pct: number; goodWhenUp?: boolean }) {
+  const up = pct > 0;
+  const good = up === goodWhenUp;
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tnum",
+        good ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative",
+      )}
+      title="vs. período anterior"
+    >
+      {up ? "▲" : "▼"} {Math.abs(pct)}%
+    </span>
   );
 }
 

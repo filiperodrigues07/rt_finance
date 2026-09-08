@@ -8,7 +8,10 @@ import { ThemeProvider } from "@/lib/theme";
 import { ToastProvider } from "@/lib/toast";
 import { App } from "@/App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { applyDensityClass } from "@/lib/useDensity";
 import "@/index.css";
+
+applyDensityClass();
 
 // service worker (PWA) — autoUpdate; avisa quando há versão nova
 if (import.meta.env.PROD) {

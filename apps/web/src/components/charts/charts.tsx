@@ -330,3 +330,43 @@ export function NetWorthChart({ data }: { data: { month: string; cents: number }
     </div>
   );
 }
+
+/** Minigráfico de área, sem eixos/grid/tooltip — para dentro de cards e legendas. */
+export function Sparkline({
+  data,
+  color,
+  className = "h-8 w-24",
+}: {
+  data: number[];
+  color?: string;
+  className?: string;
+}) {
+  const t = useChartTheme();
+  if (!data || data.length < 2) return null;
+  const rows = data.map((v, i) => ({ i, v }));
+  const stroke = color ?? t.accent;
+  const id = `spark-${Math.random().toString(36).slice(2, 8)}`;
+  return (
+    <div className={className}>
+      <ResponsiveContainer>
+        <AreaChart data={rows} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
+          <defs>
+            <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area
+            dataKey="v"
+            stroke={stroke}
+            strokeWidth={2}
+            fill={`url(#${id})`}
+            isAnimationActive={!t.reduced}
+            animationDuration={400}
+            dot={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

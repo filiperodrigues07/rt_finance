@@ -178,6 +178,12 @@ body {
     padding-top: 0.4rem;
     padding-bottom: 0.4rem;
   }
+  /* densidade global (Configurações → Aparência): classe `dense` no <html> */
+  html.dense table td,
+  html.dense table th {
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
 }
 
 /* animações — respeitando reduced-motion */

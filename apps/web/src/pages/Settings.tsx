@@ -12,6 +12,7 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
 import { EmailPanel } from "@/components/settings/EmailPanel";
+import { AppearancePanel } from "@/components/settings/AppearancePanel";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -50,6 +51,8 @@ export function SettingsPage() {
         title="Configurações"
         subtitle="WhatsApp, e-mail e exclusão de dados. Perfil e senha ficam em Usuários."
       />
+
+      <AppearancePanel />
 
       <WhatsAppPanel />
 

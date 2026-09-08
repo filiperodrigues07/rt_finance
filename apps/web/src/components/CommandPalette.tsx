@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Search, CornerDownLeft } from "lucide-react";
+import { Search, CornerDownLeft, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
+import { useTransactions } from "@/lib/hooks";
+import { formatBRL, formatDate } from "@/lib/format";
 import { NAV } from "./layout/nav";
 
 interface Cmd {
@@ -11,6 +13,10 @@ interface Cmd {
   to: string;
   keywords?: string;
 }
+
+type Item =
+  | { kind: "nav"; to: string; label: string }
+  | { kind: "tx"; to: string; label: string; sub: string };
 
 const COMBINING = /[̀-ͯ]/g;
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(COMBINING, "");
@@ -39,11 +45,33 @@ export function CommandPalette() {
     ];
   }, [user?.isSuperAdmin]);
 
-  const results = useMemo(() => {
+  const navResults = useMemo(() => {
     const term = norm(q.trim());
     if (!term) return commands;
     return commands.filter((c) => norm(c.label + " " + (c.keywords ?? "")).includes(term));
   }, [q, commands]);
+
+  // busca de transações (debounce simples)
+  const [dq, setDq] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDq(q.trim()), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  const txSearch = useTransactions(
+    { search: dq, pageSize: 6 },
+    { enabled: open && dq.length >= 2 },
+  );
+
+  const results = useMemo<Item[]>(() => {
+    const nav: Item[] = navResults.map((c) => ({ kind: "nav", to: c.to, label: c.label }));
+    const txs: Item[] = (txSearch.data?.data ?? []).map((t) => ({
+      kind: "tx",
+      to: `/transacoes?search=${encodeURIComponent(t.description)}`,
+      label: t.description,
+      sub: `${formatDate(t.date)} · ${formatBRL(t.amountCents)}`,
+    }));
+    return [...nav, ...txs];
+  }, [navResults, txSearch.data]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,9 +103,9 @@ export function CommandPalette() {
 
   if (!open) return null;
 
-  function go(cmd: Cmd) {
+  function go(item: Item) {
     setOpen(false);
-    navigate(cmd.to);
+    navigate(item.to);
   }
 
   return createPortal(
@@ -101,27 +129,33 @@ export function CommandPalette() {
                 go(results[sel]);
               }
             }}
-            placeholder="Ir para…"
+            placeholder="Ir para… ou buscar um lançamento"
             className="h-12 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted"
           />
           <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">esc</kbd>
         </div>
         <ul className="max-h-[50vh] overflow-y-auto p-1.5">
           {results.length === 0 && (
-            <li className="px-3 py-6 text-center text-sm text-muted">Nada encontrado</li>
+            <li className="px-3 py-6 text-center text-sm text-muted">
+              {txSearch.isFetching ? "Buscando…" : "Nada encontrado"}
+            </li>
           )}
           {results.map((c, i) => (
-            <li key={c.to}>
+            <li key={`${c.kind}:${c.to}:${i}`}>
               <button
                 onMouseEnter={() => setSel(i)}
                 onClick={() => go(c)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors",
+                  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
                   i === sel ? "bg-surface-2 text-fg" : "text-muted hover:text-fg",
                 )}
               >
-                <span>{c.label}</span>
-                {i === sel && <CornerDownLeft className="size-3.5 opacity-60" />}
+                {c.kind === "tx" && <ArrowLeftRight className="size-3.5 shrink-0 opacity-60" />}
+                <span className="min-w-0 flex-1 truncate">
+                  {c.label}
+                  {c.kind === "tx" && <span className="ml-2 text-xs text-muted">{c.sub}</span>}
+                </span>
+                {i === sel && <CornerDownLeft className="size-3.5 shrink-0 opacity-60" />}
               </button>
             </li>
           ))}

@@ -8,6 +8,7 @@ import type {
   ListTransactionsQuery,
   CashFlowMonth,
   CategoryTrend,
+  Insight,
   MemberComparison,
   MonthPace,
   ImportBatchDTO,
@@ -93,6 +94,12 @@ export function useByMember(range: { from?: string; to?: string }) {
 export function usePace() {
   return useQuery({ queryKey: ["pace"], queryFn: () => api.get<MonthPace>("/reports/pace") });
 }
+export function useInsights() {
+  return useQuery({
+    queryKey: ["insights"],
+    queryFn: () => api.get<Insight[]>("/reports/insights"),
+  });
+}
 
 // ---------------- categorias ----------------
 export function useCategories(includeArchived = false) {
@@ -163,10 +170,14 @@ export function useCreditCardMutations() {
 }
 
 // ---------------- transações ----------------
-export function useTransactions(query: Partial<ListTransactionsQuery>) {
+export function useTransactions(
+  query: Partial<ListTransactionsQuery>,
+  opts: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["transactions", query],
     queryFn: () => api.get<Paginated<TransactionRow>>(`/transactions${qs(query)}`),
+    enabled: opts.enabled ?? true,
   });
 }
 

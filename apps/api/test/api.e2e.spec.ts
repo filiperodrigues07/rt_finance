@@ -526,6 +526,16 @@ describe("relatórios", () => {
     expect(res.status).toBe(200);
     expect(res.body.expenseCents).toBeGreaterThan(0);
     expect(Array.isArray(res.body.byCategory)).toBe(true);
+    expect(res.body.prev).toBeDefined();
+    expect(typeof res.body.prev.expenseCents).toBe("number");
+    expect(Array.isArray(res.body.prev.expenseByCategory)).toBe(true);
+  });
+
+  it("insights retorna uma lista", async () => {
+    const res = await http.get("/api/reports/insights").set(auth());
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeLessThanOrEqual(4);
   });
 
   it("exporta CSV", async () => {

@@ -11,6 +11,7 @@ import {
   monthLabelBR,
   type DashboardQuery,
   type DashboardReport,
+  type Insight,
   type MonthlyPoint,
   type CashFlowMonth,
   type CategoryTrend,
@@ -29,6 +30,10 @@ const REAL_MOVEMENT: Prisma.TransactionWhereInput = {
   status: { in: ["CONFIRMED", "CLEARED"] },
   transferGroupId: null,
 };
+
+function brlCents(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 @Injectable()
 export class ReportsService {
@@ -63,6 +68,16 @@ export class ReportsService {
       date: dateFilter,
     };
 
+    // período anterior de mesmo tamanho (para os comparativos ▲▼)
+    const spanDays = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) + 1;
+    const prevTo = addDays(range.from, -1, tz);
+    const prevFrom = addDays(prevTo, -(spanDays - 1), tz);
+    const prevRange: Prisma.TransactionWhereInput = {
+      householdId,
+      ...REAL_MOVEMENT,
+      date: { gte: dateOnly(prevFrom), lte: dateOnly(prevTo) },
+    };
+
     const [
       byType,
       accounts,
@@ -72,6 +87,8 @@ export class ReportsService {
       byCardRaw,
       invoices,
       monthly,
+      prevByType,
+      prevByCategoryRaw,
     ] = await Promise.all([
       this.prisma.transaction.groupBy({
         by: ["type"],
@@ -111,6 +128,16 @@ export class ReportsService {
         select: { totalCents: true, dueDate: true },
       }),
       this.monthlyEvolution(householdId, months, tz),
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where: prevRange,
+        _sum: { amountCents: true },
+      }),
+      this.prisma.transaction.groupBy({
+        by: ["categoryId"],
+        where: { ...prevRange, type: "EXPENSE" },
+        _sum: { amountCents: true },
+      }),
     ]);
 
     const sumType = (t: "INCOME" | "EXPENSE", rows: typeof byType) =>
@@ -195,7 +222,101 @@ export class ReportsService {
       byMember,
       byCard,
       monthly,
+      prev: {
+        incomeCents: sumType("INCOME", prevByType),
+        expenseCents: sumType("EXPENSE", prevByType),
+        expenseByCategory: prevByCategoryRaw
+          .filter((r) => r.categoryId)
+          .map((r) => ({ categoryId: r.categoryId as string, cents: r._sum.amountCents ?? 0 })),
+      },
     };
+  }
+
+  /** Destaques do Dashboard: comparativos com o mês passado + projeção do mês. Máx. 4. */
+  async insights(householdId: string): Promise<Insight[]> {
+    const [dash, pace] = await Promise.all([
+      this.dashboard(householdId, {}),
+      this.pace(householdId),
+    ]);
+    const out: Insight[] = [];
+    const pct = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : 0);
+    const MATERIAL = 100_00;
+
+    // 1. despesa total vs mês passado
+    if (dash.prev.expenseCents > 0 && dash.expenseCents - dash.prev.expenseCents >= MATERIAL) {
+      const p = pct(dash.expenseCents, dash.prev.expenseCents);
+      if (p >= 15) {
+        out.push({
+          id: "expense-up",
+          severity: p >= 40 ? "bad" : "warn",
+          icon: "trending-up",
+          title: `Gastos ${p}% acima do mês passado`,
+          detail: `${brlCents(dash.expenseCents)} contra ${brlCents(dash.prev.expenseCents)} até agora.`,
+          link: "/transacoes",
+        });
+      }
+    } else if (
+      dash.prev.expenseCents > 0 &&
+      dash.prev.expenseCents - dash.expenseCents >= MATERIAL
+    ) {
+      const p = pct(dash.prev.expenseCents, dash.expenseCents);
+      out.push({
+        id: "expense-down",
+        severity: "info",
+        icon: "trending-down",
+        title: `Gastos ${p}% abaixo do mês passado`,
+        detail: `Ritmo mais leve: ${brlCents(dash.expenseCents)} até agora.`,
+      });
+    }
+
+    // 2. categoria que disparou
+    const prevCat = new Map(dash.prev.expenseByCategory.map((c) => [c.categoryId, c.cents]));
+    for (const c of dash.byCategory.slice(0, 6)) {
+      if (!c.categoryId || c.cents < MATERIAL) continue;
+      const before = prevCat.get(c.categoryId) ?? 0;
+      if (before < MATERIAL) continue;
+      const p = pct(c.cents, before);
+      if (p >= 25) {
+        out.push({
+          id: `cat-${c.categoryId}`,
+          severity: p >= 60 ? "warn" : "info",
+          icon: "activity",
+          title: `${c.name} +${p}% este mês`,
+          detail: `${brlCents(c.cents)} em ${c.name.toLowerCase()} — ${brlCents(before)} no mês passado.`,
+          link: "/relatorios",
+        });
+      }
+    }
+
+    // 3. projeção do mês
+    if (pace.projectedResultCents < 0) {
+      out.push({
+        id: "pace-negative",
+        severity: "bad",
+        icon: "alert-triangle",
+        title: "Projeção do mês no vermelho",
+        detail: `No ritmo atual o mês fecha em ${brlCents(pace.projectedResultCents)}.`,
+        link: "/relatorios",
+      });
+    } else if (
+      dash.prev.expenseCents > 0 &&
+      pace.projectedSpendCents - dash.prev.expenseCents >= MATERIAL
+    ) {
+      const p = pct(pace.projectedSpendCents, dash.prev.expenseCents);
+      if (p >= 12) {
+        out.push({
+          id: "pace-high",
+          severity: "warn",
+          icon: "gauge",
+          title: `Mês deve fechar ${p}% acima`,
+          detail: `Projeção de ${brlCents(pace.projectedSpendCents)} em despesas (${brlCents(dash.prev.expenseCents)} mês passado).`,
+          link: "/relatorios",
+        });
+      }
+    }
+
+    const rank = { bad: 0, warn: 1, info: 2 } as const;
+    return out.sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 4);
   }
 
   /** Exporta transações do período como CSV (separador ';', compatível com Excel pt-BR). */

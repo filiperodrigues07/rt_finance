@@ -39,6 +39,13 @@ export interface MonthlyPoint {
   balanceCents: number;
 }
 
+/** Período anterior de mesmo tamanho, para os comparativos ▲▼ do Dashboard. */
+export interface DashboardPrev {
+  incomeCents: number;
+  expenseCents: number;
+  expenseByCategory: { categoryId: string; cents: number }[];
+}
+
 export interface DashboardReport {
   range: { from: string; to: string };
   balanceCents: number;
@@ -51,6 +58,17 @@ export interface DashboardReport {
   byMember: MemberSlice[];
   byCard: CardSlice[];
   monthly: MonthlyPoint[];
+  prev: DashboardPrev;
+}
+
+/** Destaque do Dashboard ("card Destaques"). */
+export interface Insight {
+  id: string;
+  severity: "info" | "warn" | "bad";
+  icon: string;
+  title: string;
+  detail: string;
+  link?: string;
 }
 
 // ---------- dashboards extras ----------
