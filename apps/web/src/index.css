@@ -154,7 +154,21 @@ body {
   .input {
     @apply w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg;
     outline: none;
+    /* impede que input[type=date] no iOS force largura e estoure o grid */
+    min-width: 0;
+    max-width: 100%;
     transition: color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  /* iOS/WebKit: date/time têm aparência e largura intrínseca próprias */
+  input[type="date"].input,
+  input[type="datetime-local"].input,
+  input[type="time"].input,
+  input[type="month"].input {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
   }
   .input::placeholder {
     color: rgb(var(--muted));

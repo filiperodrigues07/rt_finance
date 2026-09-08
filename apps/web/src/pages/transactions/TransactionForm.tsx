@@ -149,7 +149,7 @@ export function TransactionForm({
       }
     >
       <form id="tx-form" onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
           <button
             type="button"
             onClick={() => setType("EXPENSE")}
@@ -170,7 +170,7 @@ export function TransactionForm({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
           <button
             type="button"
             onClick={() => setWhen("paid")}
@@ -191,7 +191,7 @@ export function TransactionForm({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
           <Field label="Valor (R$)">
             <MoneyInput value={amount} onChange={setAmount} autoFocus />
           </Field>
@@ -215,7 +215,7 @@ export function TransactionForm({
           <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Compra no mercado" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
           <Field label="Categoria">
             <CategoryPicker value={categoryId} onChange={setCategoryId} categories={cats} />
           </Field>
