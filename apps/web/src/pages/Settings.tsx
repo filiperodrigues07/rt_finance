@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Moon, Sun, Monitor, Upload, Trash2, AlertTriangle } from "lucide-react";
-import { useTheme, type ThemePref, type Hue } from "@/lib/theme";
-import { Segmented } from "@/components/ui/Segmented";
+import { Upload, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useProfile, useHouseholdMutations } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
@@ -17,7 +15,6 @@ import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
 
 export function SettingsPage() {
-  const { pref, setPref, hue, setHue } = useTheme();
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -128,34 +125,10 @@ export function SettingsPage() {
     <div className="space-y-4">
       <PageHeader title="Configurações" />
 
-      <Card>
-        <CardHeader title="Aparência" description="Escuro é o padrão." />
-        <div className="space-y-3">
-          <div>
-            <div className="label">Modo</div>
-            <Segmented<ThemePref>
-              value={pref}
-              onChange={setPref}
-              options={[
-                { value: "dark", label: "Escuro", icon: <Moon className="size-3.5" /> },
-                { value: "light", label: "Claro", icon: <Sun className="size-3.5" /> },
-                { value: "system", label: "Sistema", icon: <Monitor className="size-3.5" /> },
-              ]}
-            />
-          </div>
-          <div>
-            <div className="label">Cor</div>
-            <Segmented<Hue>
-              value={hue}
-              onChange={setHue}
-              options={[
-                { value: "blue", label: "Azul", icon: <span className="size-3 rounded-full bg-[#3B82F6]" /> },
-                { value: "pink", label: "Rosa", icon: <span className="size-3 rounded-full bg-[#EC4899]" /> },
-              ]}
-            />
-          </div>
-        </div>
-      </Card>
+      <p className="text-sm text-muted">
+        Tema (modo e cor) agora fica no menu do seu perfil — clique na sua foto no canto
+        inferior esquerdo.
+      </p>
 
       <Card>
         <CardHeader title="Perfil" />

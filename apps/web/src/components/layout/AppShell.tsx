@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun, LogOut, Menu, X } from "lucide-react";
+import { Moon, Sun, Menu, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { NotificationsBell } from "./NotificationsBell";
+import { UserMenu } from "./UserMenu";
 import { NAV, MOBILE_NAV } from "./nav";
 
 /** rótulos curtos no menu inferior do mobile (evita quebra/corte em telas ~360px) */
@@ -15,20 +15,54 @@ const MOBILE_LABELS: Record<string, string> = {
   "/configuracoes": "Config",
 };
 
-function Brand() {
+const SIDEBAR_KEY = "rt-sidebar-collapsed";
+
+function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setCollapsed((c) => {
+      const n = !c;
+      try {
+        localStorage.setItem(SIDEBAR_KEY, n ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  return { collapsed, toggle };
+}
+
+function Brand({ compact = false }: { compact?: boolean }) {
+  if (compact) {
+    return (
+      <div className="rounded-lg bg-[#0B0D12] p-1.5 dark:bg-transparent dark:p-0">
+        <img src="/brand-logo.png" alt="RT Finance" className="h-7 w-auto" />
+      </div>
+    );
+  }
   return (
     <div className="px-1">
       <div className="inline-flex rounded-xl bg-[#0B0D12] px-3 py-2.5 dark:bg-transparent dark:px-0 dark:py-0">
         <img src="/brand-logo.png" alt="RT Finance" className="h-11 w-auto" />
       </div>
-      <div className="mt-1.5 text-[10px] uppercase tracking-wide text-muted">
-        assistente do casal
-      </div>
+      <div className="mt-1.5 text-[10px] uppercase tracking-wide text-muted">assistente do casal</div>
     </div>
   );
 }
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+function NavItems({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const { user } = useAuth();
   const items = NAV.filter((n) => !n.admin || user?.isSuperAdmin);
   return (
@@ -39,9 +73,11 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           to={item.to}
           end={item.to === "/"}
           onClick={item.soon ? (e) => e.preventDefault() : onNavigate}
+          title={collapsed ? item.label : undefined}
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-lg py-2 text-sm transition-colors",
+              collapsed ? "justify-center px-2" : "px-3",
               item.soon
                 ? "cursor-not-allowed text-muted/50"
                 : isActive
@@ -50,9 +86,11 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
             )
           }
         >
-          <item.icon className="size-[18px]" />
-          <span className="flex-1">{item.label}</span>
-          {item.soon && <span className="text-[10px] uppercase tracking-wide">em breve</span>}
+          <item.icon className="size-[18px] shrink-0" />
+          {!collapsed && <span className="flex-1">{item.label}</span>}
+          {!collapsed && item.soon && (
+            <span className="text-[10px] uppercase tracking-wide">em breve</span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -62,24 +100,25 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 function ThemeToggle() {
   const { resolved, toggle } = useTheme();
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Alternar tema">
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Alternar tema (escuro/claro)">
       {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </Button>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { hueChosen, setHue } = useTheme();
+  const { collapsed, toggle: toggleSidebar } = useSidebarCollapsed();
 
-  // cor padrão por pessoa no primeiro acesso (Julia = rosa, senão azul). Trocável em Configurações.
+  // cor padrão por pessoa no primeiro acesso (Julia = rosa, senão azul). Trocável no menu do usuário.
   useEffect(() => {
     if (!hueChosen && user) setHue(/jul/i.test(user.displayName) ? "pink" : "blue");
   }, [hueChosen, user, setHue]);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
-  // rótulos de rotas que não estão no menu (evita cair em "RT Finance" no topo/aba)
+  // rótulos de rotas que não estão no menu (só para o <title> da aba)
   const EXTRA_TITLES: Record<string, string> = {
     "/categorias": "Categorias",
     "/importar": "Revisar importação",
@@ -94,16 +133,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [current]);
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
+    <div
+      className={cn(
+        "min-h-screen lg:grid",
+        collapsed ? "lg:grid-cols-[68px_1fr]" : "lg:grid-cols-[260px_1fr]",
+      )}
+    >
       {/* sidebar desktop */}
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-border bg-surface p-3 lg:flex">
-        <div className="py-3">
-          <Brand />
+        <div
+          className={cn(
+            "flex items-center gap-2 py-3",
+            collapsed ? "flex-col" : "justify-between",
+          )}
+        >
+          <Brand compact={collapsed} />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </Button>
         </div>
         <div className="mt-2 flex-1 overflow-y-auto">
-          <NavItems />
+          <NavItems collapsed={collapsed} />
         </div>
-        <UserBox user={user} onLogout={logout} />
+        <UserMenu collapsed={collapsed} />
       </aside>
 
       {/* drawer mobile */}
@@ -113,14 +171,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="animate-in absolute inset-y-0 left-0 flex w-72 flex-col border-r border-border bg-surface p-3">
             <div className="flex items-center justify-between py-3">
               <Brand />
-              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
+              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Fechar menu">
                 <X className="size-4" />
               </Button>
             </div>
             <div className="mt-2 flex-1 overflow-y-auto">
               <NavItems onNavigate={() => setMobileOpen(false)} />
             </div>
-            <UserBox user={user} onLogout={logout} />
+            <UserMenu />
           </div>
         </div>
       )}
@@ -137,9 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" />
           </Button>
-          <p className="flex-1 truncate text-sm font-semibold" aria-hidden="true">
-            {current}
-          </p>
+          <div className="flex-1" />
           <NotificationsBell />
           <ThemeToggle />
         </header>
@@ -147,8 +203,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
 
         <footer className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 text-center text-[11px] leading-relaxed text-muted sm:px-6 lg:pb-6">
-          © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. ·{" "}
-          Desenvolvido por Filipe Rodrigues
+          © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por
+          Filipe Rodrigues
         </footer>
 
         {/* bottom nav mobile */}
@@ -166,33 +222,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               }
             >
               <item.icon className="size-5 shrink-0" />
-              <span className="w-full truncate text-center">{MOBILE_LABELS[item.to] ?? item.label}</span>
+              <span className="w-full truncate text-center">
+                {MOBILE_LABELS[item.to] ?? item.label}
+              </span>
             </NavLink>
           ))}
         </nav>
       </div>
-    </div>
-  );
-}
-
-function UserBox({
-  user,
-  onLogout,
-}: {
-  user: { displayName: string; email: string; avatarUrl?: string | null } | null;
-  onLogout: () => void;
-}) {
-  if (!user) return null;
-  return (
-    <div className="mt-2 flex items-center gap-2.5 rounded-lg border border-border p-2">
-      <Avatar name={user.displayName} src={user.avatarUrl} size={32} />
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className="truncate text-xs font-medium">{user.displayName}</div>
-        <div className="truncate text-[10px] text-muted">{user.email}</div>
-      </div>
-      <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Sair">
-        <LogOut className="size-4" />
-      </Button>
     </div>
   );
 }
