@@ -56,10 +56,15 @@ gráficos, faturas de cartão, orçamentos, metas e relatórios.
 - **Importação de extratos/faturas** — **OFX**, **PDF** e **imagem (PNG/JPG)**. PDF/imagem
   passam por OCR local + extração por IA; tela de revisão antes de confirmar.
 - **Anexos** — boleto e comprovante por lançamento (guardados no banco).
-- **Relatórios** — projeções, tendências, comparativo por pessoa; export PDF/Excel/CSV.
+- **Relatórios** — projeções, tendências, comparativo por pessoa; export **PDF com a
+  identidade da marca** (capa, KPIs, gráficos, tabela paginada), **Excel** e **CSV**.
 - **Notificações** — fatura a vencer, orçamento estourado, meta atingida (web + WhatsApp).
-- **Configurações** — tema (claro/escuro/sistema + acento azul/rosa por usuário), perfil,
-  senha, conexão do WhatsApp, e *Zona de perigo* (limpar dados para começar do zero).
+- **Autenticação** — login por e-mail, **redefinição de senha por e-mail** (link com
+  expiração), política de senha (maiúscula + minúscula + número + símbolo) e mostrar/ocultar.
+- **Configurações** (seções recolhíveis) — **WhatsApp** (conexão + números autorizados),
+  **E-mail** (SMTP global do sistema + toggle de *resumo semanal* por household) e
+  *Zona de perigo* (limpar dados para começar do zero). Tema (claro/escuro/sistema +
+  acento azul/rosa por usuário) fica no menu do usuário; perfil e senha, em **Usuários**.
 - **Multi-casal** — cada `Household` é isolado. Um **super-admin** cria e gerencia
   households em `/admin`; cada household tem **seu próprio número de WhatsApp**.
 
@@ -102,7 +107,7 @@ Detalhes: [`docs/01-arquitetura.md`](docs/01-arquitetura.md) ·
 
 | Camada | Tecnologias |
 |---|---|
-| **Backend** | Node 22 · TypeScript · NestJS 10 (adapter **Fastify**) · Prisma 5 · **PostgreSQL 16+** · `@nestjs/schedule` (cron em processo) · Zod · JWT + refresh rotativo · Argon2id · pino |
+| **Backend** | Node 22 · TypeScript · NestJS 10 (adapter **Fastify**) · Prisma 5 · **PostgreSQL 16+** · `@nestjs/schedule` (cron em processo) · Zod · JWT + refresh rotativo · Argon2id · pino · `nodemailer` (SMTP) · `pdfkit` + `@fontsource/inter` (relatórios) |
 | **Frontend** | React 18 · Vite 5 · Tailwind CSS 3 · Recharts · TanStack Query 5 · react-router 6 · lucide-react · PWA · componentes de UI próprios |
 | **Importação** | `tesseract.js` (OCR) · `sharp` (pré-processo de imagem) · `pdfjs-dist` + `pdf-parse` (PDF) · parser OFX próprio |
 | **Integrações** | **Evolution API** v2.3.1 (WhatsApp self-hosted, Baileys) · **NVIDIA NIM** `nemotron-3-super-120b` (interpretação, endpoint OpenAI-compatível) · **Groq** `whisper-large-v3` (transcrição de áudio) |
@@ -178,7 +183,24 @@ GROQ_API_KEY=gsk_...             # https://console.groq.com/keys
 GROQ_STT_MODEL=whisper-large-v3
 ```
 
-Sem `GROQ_API_KEY`, áudios recebem um aviso pedindo texto.
+Sem `GROQ_API_KEY`, áudios recebem um aviso pedindo texto. Falhas de áudio dão
+mensagens específicas (áudio longo demais / formato ruim / tenta de novo); o teto
+de tamanho é `AUDIO_MAX_BYTES` e o timeout das chamadas à Evolution é
+`WHATSAPP_HTTP_TIMEOUT_MS`.
+
+### 4. E-mail (SMTP) — opcional
+
+Reset de senha e resumo semanal usam um **SMTP global** configurável em
+**Configurações → E-mail** (só super-admin), com fallback para `SMTP_*` do `.env`.
+Sem nenhum dos dois, o link/resumo só é registrado no log.
+
+```ini
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=voce@gmail.com         # Gmail: use uma "Senha de app" (2FA obrigatório)
+SMTP_PASS=xxxxxxxxxxxxxxxx
+MAIL_FROM=RT Finance <voce@gmail.com>
+```
 
 ---
 
@@ -250,9 +272,17 @@ Evolution + Redis numa rede interna; só o painel fica exposto (coloque um proxy
 na frente).
 
 ```bash
-cp .env.prod.example .env.prod            # e preencha
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+cp deploy/vps/.env.prod.example deploy/vps/.env.prod   # e preencha
+cd deploy/vps
+docker compose --env-file .env.prod pull               # imagens GHCR (workflow publish-images)
+docker compose --env-file .env.prod up -d
 ```
+
+O container da API roda `prisma migrate deploy` no boot. O `assertProdHardening`
+**recusa subir** se, em produção, faltar: `AUTH_COOKIE_SECURE=true`, segredos JWT
+fortes, `WEB_ORIGIN`/`API_PUBLIC_URL` reais e — com `WHATSAPP_PROVIDER=evolution` —
+`EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `WHATSAPP_WEBHOOK_TOKEN`; com
+`AI_PROVIDER=nvidia`, `NVIDIA_API_KEY`.
 
 Passo a passo (DNS, TLS, migrations, backups): [`docs/05-deploy.md`](docs/05-deploy.md).
 **Antes de subir, siga o [`SECURITY.md`](SECURITY.md)** — rotacionar chaves, segredos
