@@ -264,7 +264,7 @@ export function TransactionsPage() {
     <Menu
       label="Ações do lançamento"
       trigger={
-        <span className="grid size-10 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
+        <span className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
           <MoreHorizontal className="size-4" />
         </span>
       }
@@ -461,11 +461,11 @@ export function TransactionsPage() {
                 </option>
               ))}
             </Select>
-            <div className="flex gap-2">
+            <div className="col-span-2 flex gap-2 sm:col-span-1">
               <Input type="date" value={filters.from ?? ""} onChange={(e) => patch({ from: e.target.value || undefined })} />
               <Input type="date" value={filters.to ?? ""} onChange={(e) => patch({ to: e.target.value || undefined })} />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
               <Input
                 inputMode="decimal"
                 placeholder="de R$"
@@ -628,7 +628,7 @@ export function TransactionsPage() {
           </Card>
 
           {/* mobile */}
-          <div className="space-y-2 sm:hidden">
+          <div className={"space-y-2 sm:hidden " + (selected.size ? "pb-24" : "")}>
             {rows.map((t) => (
               <Card key={t.id} className={"p-3 " + (selected.has(t.id) ? "ring-1 ring-accent" : "")}>
                 <div className="flex items-start gap-2">
@@ -716,9 +716,9 @@ export function TransactionsPage() {
       {/* barra de ações em massa */}
       {selected.size > 0 && (
         <div className="pb-safe fixed inset-x-0 bottom-14 z-40 border-t border-border bg-surface/95 p-3 backdrop-blur lg:bottom-0 lg:pl-[260px]">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">{selected.size} selecionado(s)</span>
-            <div className="flex-1" />
+          <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
+            <span className="shrink-0 text-sm font-medium">{selected.size} selecionado(s)</span>
+            <div className="hidden flex-1 sm:block" />
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
               Limpar
             </Button>

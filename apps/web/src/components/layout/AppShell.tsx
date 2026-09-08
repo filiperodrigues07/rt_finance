@@ -115,6 +115,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
+
+  // fecha o drawer ao trocar de rota ou apertar Esc
+  useEffect(() => setMobileOpen(false), [pathname]);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
   // rótulos de rotas que não estão no menu (só para o <title> da aba)
   const EXTRA_TITLES: Record<string, string> = {
     "/categorias": "Categorias",
@@ -132,7 +141,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div
       className={cn(
-        "min-h-screen lg:grid",
+        "min-h-dvh lg:grid",
         collapsed ? "lg:grid-cols-[68px_1fr]" : "lg:grid-cols-[260px_1fr]",
       )}
     >
@@ -161,8 +170,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* drawer mobile */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="animate-in absolute inset-y-0 left-0 flex w-72 flex-col border-r border-border bg-surface p-3">
+          <div className="animate-in absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+          <div className="pt-safe animate-drawer absolute inset-y-0 left-0 flex w-[min(20rem,82vw)] flex-col border-r border-border bg-surface p-3">
             <div className="flex items-center justify-between py-3">
               <Brand />
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Fechar menu">
@@ -177,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         {/* topbar */}
         <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-bg/80 px-4 backdrop-blur">
           <Button
@@ -221,7 +230,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
 
-        <footer className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 text-center text-[11px] leading-relaxed text-muted sm:px-6 lg:pb-6">
+        <footer className="mx-auto w-full max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-6 text-center text-[11px] leading-relaxed text-muted sm:px-6 lg:pb-6">
           © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por
           Filipe Rodrigues
         </footer>

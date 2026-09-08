@@ -21,14 +21,14 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("card p-4", className)}>
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted">
+    <div className={cn("card overflow-hidden p-3 sm:p-4", className)}>
+      <div className="flex items-center gap-1.5 truncate text-[11px] uppercase tracking-wide text-muted sm:text-xs">
         {icon}
         {label}
       </div>
       <div
         className={cn(
-          "mt-2 text-2xl font-semibold tracking-tight",
+          "mt-1.5 truncate text-xl font-semibold tracking-tight sm:mt-2 sm:text-2xl",
           cents == null && "tnum",
           tone === "positive" && "text-positive",
           tone === "negative" && "text-negative",
@@ -37,7 +37,7 @@ export function Stat({
       >
         {cents != null ? <Money cents={cents} animate /> : value}
       </div>
-      {hint && <div className="mt-0.5 text-[11px] text-muted">{hint}</div>}
+      {hint && <div className="mt-0.5 truncate text-[11px] text-muted">{hint}</div>}
     </div>
   );
 }

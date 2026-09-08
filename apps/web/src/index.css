@@ -201,6 +201,14 @@ body {
     transform: none;
   }
 }
+@keyframes rt-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
 .animate-in {
   animation: rt-fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -213,6 +221,10 @@ body {
   animation: rt-fade-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--rt-i, 0) * 32ms);
 }
+/* drawer lateral do mobile */
+.animate-drawer {
+  animation: rt-drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -224,7 +236,9 @@ body {
   }
   .animate-in,
   .animate-pop,
-  .stagger-item {
+  .stagger-item,
+  .animate-drawer,
+  .animate-sheet-up {
     animation: none;
   }
   .card-hover:hover {

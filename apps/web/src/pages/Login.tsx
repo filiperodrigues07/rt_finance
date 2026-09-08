@@ -26,7 +26,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen bg-bg lg:grid-cols-2">
+    <div className="grid min-h-dvh bg-bg lg:grid-cols-2">
       {/* painel de marca */}
       <aside className="relative hidden overflow-hidden bg-[#0B0D12] lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div
@@ -50,7 +50,7 @@ export function LoginPage() {
       </aside>
 
       {/* formulário — centralizado */}
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-dvh items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex justify-center lg:hidden">
             <div className="rounded-xl bg-[#0B0D12] px-4 py-3">

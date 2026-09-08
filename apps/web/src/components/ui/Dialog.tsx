@@ -39,7 +39,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "animate-pop relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-surface shadow-pop sm:mb-0 sm:rounded-2xl",
+          "animate-sheet-up relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-surface shadow-pop sm:mb-0 sm:animate-pop sm:rounded-2xl",
           size === "md" ? "sm:max-w-lg" : "sm:max-w-2xl",
         )}
       >

@@ -17,7 +17,7 @@ export function NotificationsBell() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="relative grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg"
+        className="relative grid size-11 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg"
         aria-label="Notificações"
       >
         <Bell className="size-4" />

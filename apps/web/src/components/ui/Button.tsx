@@ -21,7 +21,8 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-xs gap-1.5",
   md: "h-10 px-4 text-sm gap-2",
-  icon: "h-10 w-10 shrink-0 justify-center",
+  // alvo de toque >= 44px (mobile-first)
+  icon: "h-11 w-11 shrink-0 justify-center",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
