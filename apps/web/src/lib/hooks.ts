@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Paginated,
   DashboardReport,
@@ -20,6 +20,7 @@ import type {
   BulkActionResult,
   TransactionAttachmentDTO,
   TransactionCommentDTO,
+  ActivityPage,
   AdminHouseholdRow,
   CreateHouseholdBody,
   CreateHouseholdResult,
@@ -276,6 +277,19 @@ export function useCommentMutations(transactionId: string | undefined) {
       onSuccess: invalidate,
     }),
   };
+}
+
+// ---------------- feed de atividade ----------------
+export function useActivity() {
+  return useInfiniteQuery({
+    queryKey: ["activity"],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.get<ActivityPage>(
+        `/activity?limit=25${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`,
+      ),
+    getNextPageParam: (last) => last.nextCursor,
+  });
 }
 
 // ---------------- parcelamentos ----------------

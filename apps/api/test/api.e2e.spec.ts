@@ -981,3 +981,44 @@ describe("comentários em transação", () => {
     expect(res.body).toHaveLength(0);
   });
 });
+
+describe("feed de atividade", () => {
+  let txId: string;
+
+  beforeAll(async () => {
+    const tx = await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 5000, description: "Padaria da esquina", date: "2026-09-11", accountId: seed.accountId });
+    txId = tx.body.id;
+    await http.post(`/api/transactions/${txId}/comments`).set(auth()).send({ body: "isso aqui foi você?" });
+  });
+
+  it("GET /activity funde comentário + notificação, ordenado por tempo", async () => {
+    const res = await http.get("/api/activity?limit=25").set(auth());
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body).toHaveProperty("nextCursor");
+
+    const comment = res.body.items.find((i: { kind: string }) => i.kind === "comment");
+    expect(comment).toBeTruthy();
+    expect(comment.link).toBe(`/transacoes?comments=${txId}`);
+    expect(comment.actor.displayName).toBe("Owner");
+
+    const times = res.body.items.map((i: { at: string }) => i.at);
+    const sorted = [...times].sort((a, b) => (a < b ? 1 : -1));
+    expect(times).toEqual(sorted);
+  });
+
+  it("pagina com cursor", async () => {
+    const first = await http.get("/api/activity?limit=1").set(auth());
+    expect(first.body.items).toHaveLength(1);
+    if (first.body.nextCursor) {
+      const second = await http
+        .get(`/api/activity?limit=1&cursor=${encodeURIComponent(first.body.nextCursor)}`)
+        .set(auth());
+      expect(second.status).toBe(200);
+      expect(second.body.items[0]?.id).not.toBe(first.body.items[0]?.id);
+    }
+  });
+});
