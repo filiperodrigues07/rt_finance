@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Layers, Receipt, Upload } from "lucide-react";
 import { ImportDialog } from "@/components/ImportDialog";
 import { formatBRL, formatDate } from "@/lib/format";
 import { percentOf } from "@rt-finance/shared";
+import { ListToolbar, useListPrefs, type SortOption } from "@/components/ui/ListToolbar";
 import {
   useCardInvoices,
   useCreditCardMutations,
@@ -30,6 +31,29 @@ const INVOICE_STATUS: Record<string, string> = {
   OVERDUE: "Vencida",
 };
 
+type CardSort = "name" | "limit" | "available" | "usage";
+const CARD_SORTS: SortOption<CardSort>[] = [
+  { value: "name", label: "Nome" },
+  { value: "limit", label: "Limite" },
+  { value: "available", label: "Disponível" },
+  { value: "usage", label: "Uso (%)" },
+];
+function sortCards(rows: CardT[], by: CardSort): CardT[] {
+  const use = (c: CardT) => percentOf(c.limits.usedCents, c.limits.limitCents || 1);
+  return [...rows].sort((a, b) => {
+    switch (by) {
+      case "limit":
+        return b.limits.limitCents - a.limits.limitCents;
+      case "available":
+        return b.limits.availableCents - a.limits.availableCents;
+      case "usage":
+        return use(b) - use(a);
+      default:
+        return a.name.localeCompare(b.name, "pt-BR");
+    }
+  });
+}
+
 export function CardsPage() {
   const toast = useToast();
   const { data: cards, isLoading } = useCreditCards();
@@ -40,6 +64,9 @@ export function CardsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [instFor, setInstFor] = useState<string | null>(null);
   const [importFor, setImportFor] = useState<CardT | null>(null);
+  const { sort, setSort, view, setView } = useListPrefs<CardSort>("cards", "name");
+  const shown = useMemo(() => sortCards(cards ?? [], sort), [cards, sort]);
+  const count = (cards ?? []).length;
 
   async function confirmDelete() {
     if (!toDelete) return;
@@ -54,19 +81,30 @@ export function CardsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">
-          {(cards ?? []).length} cartão{(cards ?? []).length === 1 ? "" : "es"}
+          {count} {count === 1 ? "cartão" : "cartões"}
         </p>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="size-4" /> Novo cartão
-        </Button>
+        <div className="flex items-center gap-2">
+          {count > 1 && (
+            <ListToolbar
+              sort={sort}
+              setSort={setSort}
+              sortOptions={CARD_SORTS}
+              view={view}
+              setView={setView}
+            />
+          )}
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="size-4" /> Novo cartão
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -75,11 +113,26 @@ export function CardsPage() {
             <Skeleton key={i} className="h-40" />
           ))}
         </div>
-      ) : (cards ?? []).length === 0 ? (
+      ) : count === 0 ? (
         <EmptyState title="Nenhum cartão" description="Cadastre um cartão para acompanhar faturas e parcelas." />
+      ) : view === "list" ? (
+        <div className="space-y-2">
+          {shown.map((c) => (
+            <CardListRow
+              key={c.id}
+              card={c}
+              open={selected === c.id}
+              onToggle={() => setSelected(selected === c.id ? null : c.id)}
+              onEdit={() => { setEditing(c); setFormOpen(true); }}
+              onDelete={() => setToDelete(c)}
+              onInstallment={() => setInstFor(c.id)}
+              onImport={() => setImportFor(c)}
+            />
+          ))}
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {cards!.map((c) => {
+          {shown.map((c) => {
             const used = c.limits.usedCents;
             const pct = percentOf(used, c.limits.limitCents || 1);
             return (
@@ -187,6 +240,86 @@ export function CardsPage() {
         loading={remove.isPending}
       />
     </div>
+  );
+}
+
+function CardListRow({
+  card: c,
+  open,
+  onToggle,
+  onEdit,
+  onDelete,
+  onInstallment,
+  onImport,
+}: {
+  card: CardT;
+  open: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onInstallment: () => void;
+  onImport: () => void;
+}) {
+  const pct = percentOf(c.limits.usedCents, c.limits.limitCents || 1);
+  return (
+    <Card className="p-0">
+      <div className="flex items-center gap-3 p-3">
+        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          {c.bankId ? (
+            <BankBadge id={c.bankId} size={32} />
+          ) : (
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg text-base" style={{ background: `${c.color}22` }}>
+              {c.icon}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold">{c.name}</span>
+              {c.member && (
+                <Avatar name={c.member.displayName} src={c.member.user.avatarUrl} color={c.member.color} size={14} />
+              )}
+            </div>
+            <div className="truncate text-xs text-muted">
+              {bankById(c.bankId)?.name ?? c.bank ?? "—"}
+              {c.last4 ? ` · final ${c.last4}` : ""}
+            </div>
+          </div>
+          <div className="hidden shrink-0 text-right sm:block">
+            <div className="tnum text-sm font-semibold">{formatBRL(c.limits.availableCents)}</div>
+            <div className="text-[11px] text-muted">disp. de {formatBRL(c.limits.limitCents)}</div>
+          </div>
+          <div className="hidden h-8 w-16 shrink-0 items-end lg:flex">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.min(pct, 100)}%`, background: pct >= 90 ? "rgb(var(--negative))" : c.color }}
+              />
+            </div>
+          </div>
+        </button>
+        <div className="flex shrink-0 gap-1">
+          <Button variant="ghost" size="icon" title="Editar cartão" aria-label="Editar cartão" onClick={onEdit}>
+            <Pencil className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Remover cartão" aria-label="Remover cartão" onClick={onDelete}>
+            <Trash2 className="size-4 text-negative" />
+          </Button>
+        </div>
+      </div>
+      {open && (
+        <div className="border-t border-border p-3">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={onInstallment}>
+              <Layers className="size-4" /> Parcelar compra
+            </Button>
+            <Button variant="outline" size="sm" onClick={onImport}>
+              <Upload className="size-4" /> Importar fatura
+            </Button>
+          </div>
+          <CardDetail cardId={c.id} />
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Wallet, Upload } from "lucide-react";
 import { toCents } from "@rt-finance/shared";
+import { ListToolbar, useListPrefs, type SortOption } from "@/components/ui/ListToolbar";
 import { useAccountMutations, useAccounts, useHousehold } from "@/lib/hooks";
 import { centsToMasked, formatBRL } from "@/lib/format";
 import { useToast } from "@/lib/toast";
@@ -24,6 +25,21 @@ const TYPES = [
   { value: "CASH", label: "Dinheiro" },
   { value: "WALLET", label: "Carteira digital" },
 ];
+const TYPE_LABEL = (t: string) => TYPES.find((x) => x.value === t)?.label ?? t;
+
+type AccSort = "name" | "balance" | "type";
+const ACC_SORTS: SortOption<AccSort>[] = [
+  { value: "name", label: "Nome" },
+  { value: "balance", label: "Saldo" },
+  { value: "type", label: "Tipo" },
+];
+function sortAccounts(rows: Account[], by: AccSort): Account[] {
+  return [...rows].sort((a, b) => {
+    if (by === "balance") return b.balanceCents - a.balanceCents;
+    if (by === "type") return TYPE_LABEL(a.type).localeCompare(TYPE_LABEL(b.type), "pt-BR");
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
+}
 
 export function AccountsPage() {
   const toast = useToast();
@@ -33,35 +49,43 @@ export function AccountsPage() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [toDelete, setToDelete] = useState<Account | null>(null);
   const [importFor, setImportFor] = useState<Account | null>(null);
+  const { sort, setSort, view, setView } = useListPrefs<AccSort>("accounts", "name");
 
   const total = (data ?? []).reduce((a, x) => a + x.balanceCents, 0);
+  const shown = useMemo(() => sortAccounts(data ?? [], sort), [data, sort]);
+  const count = (data ?? []).length;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">
           Saldo somado: <strong className="text-fg">{formatBRL(total)}</strong>
         </p>
-        <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
-          <Plus className="size-4" /> Nova conta
-        </Button>
+        <div className="flex items-center gap-2">
+          {count > 1 && (
+            <ListToolbar sort={sort} setSort={setSort} sortOptions={ACC_SORTS} view={view} setView={setView} />
+          )}
+          <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
+            <Plus className="size-4" /> Nova conta
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
         </div>
-      ) : (data ?? []).length === 0 ? (
+      ) : count === 0 ? (
         <EmptyState icon={<Wallet className="size-6" />} title="Nenhuma conta" description="Cadastre contas para acompanhar o saldo." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {data!.map((a) => (
-            <Card key={a.id} className="flex items-center gap-3 p-4">
-              <BankBadge id={a.bankId} size={40} />
+        <div className={view === "list" ? "space-y-2" : "grid gap-3 sm:grid-cols-2"}>
+          {shown.map((a) => (
+            <Card key={a.id} className={view === "list" ? "flex items-center gap-3 p-3" : "flex items-center gap-3 p-4"}>
+              <BankBadge id={a.bankId} size={view === "list" ? 34 : 40} />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{a.name}</div>
                 <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <span>{TYPES.find((t) => t.value === a.type)?.label}</span>
+                  <span>{TYPE_LABEL(a.type)}</span>
                   {a.member && (
                     <>
                       <span>·</span>
@@ -70,8 +94,11 @@ export function AccountsPage() {
                     </>
                   )}
                 </div>
-                <div className="tnum mt-1 text-lg font-bold">{formatBRL(a.balanceCents)}</div>
+                {view !== "list" && <div className="tnum mt-1 text-lg font-bold">{formatBRL(a.balanceCents)}</div>}
               </div>
+              {view === "list" && (
+                <div className="tnum shrink-0 text-right text-sm font-bold">{formatBRL(a.balanceCents)}</div>
+              )}
               <div className="flex shrink-0 gap-1">
                 <Button variant="ghost" size="icon" title="Importar extrato" aria-label="Importar extrato" onClick={() => setImportFor(a)}>
                   <Upload className="size-4" />
