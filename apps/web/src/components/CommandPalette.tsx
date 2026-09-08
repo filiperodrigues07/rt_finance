@@ -81,9 +81,9 @@ export function CommandPalette() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 pt-[16vh]">
+    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-      <div className="animate-pop relative z-10 w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface shadow-pop">
+      <div className="animate-pop relative z-10 -mt-[8vh] w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface shadow-pop">
         <div className="flex items-center gap-2 border-b border-border px-3">
           <Search className="size-4 shrink-0 text-muted" />
           <input
