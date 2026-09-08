@@ -19,6 +19,7 @@ import {
   FileDown,
   Paperclip,
   MessageSquare,
+  Share2,
   Rows3,
   Rows4,
 } from "lucide-react";
@@ -52,6 +53,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TransactionForm } from "./transactions/TransactionForm";
 import { ImportDialog } from "@/components/ImportDialog";
 import { Attachments } from "@/components/Attachments";
+import { ShareDialog } from "@/components/ShareDialog";
 import { Comments } from "@/components/Comments";
 import type { TransactionRow } from "@/lib/types";
 
@@ -127,6 +129,7 @@ export function TransactionsPage() {
   const [payTarget, setPayTarget] = useState<TransactionRow | null>(null);
   const [attachTarget, setAttachTarget] = useState<TransactionRow | null>(null);
   const [commentTarget, setCommentTarget] = useState<TransactionRow | null>(null);
+  const [shareTarget, setShareTarget] = useState<TransactionRow | null>(null);
   const commentId = sp.get("comments");
   const [quick, setQuick] = useState("");
   // inputs de faixa de valor em reais (o commit p/ a URL é em centavos, no blur/Enter)
@@ -283,6 +286,7 @@ export function TransactionsPage() {
           icon: <MessageSquare className="size-4" />,
           onClick: () => setCommentTarget(t),
         },
+        { label: "Compartilhar", icon: <Share2 className="size-4" />, onClick: () => setShareTarget(t) },
         { label: "Duplicar", icon: <Copy className="size-4" />, onClick: () => onDuplicate(t.id), disabled: !!t.transferGroupId },
         {
           label: "Editar",
@@ -878,6 +882,13 @@ export function TransactionsPage() {
           <Comments transactionId={commentTarget?.id ?? commentId!} />
         )}
       </Sheet>
+
+      <ShareDialog
+        open={!!shareTarget}
+        onClose={() => setShareTarget(null)}
+        kind="transaction"
+        id={shareTarget?.id}
+      />
     </div>
   );
 }

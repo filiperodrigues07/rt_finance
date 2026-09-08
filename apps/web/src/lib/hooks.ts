@@ -21,6 +21,8 @@ import type {
   TransactionAttachmentDTO,
   TransactionCommentDTO,
   ActivityPage,
+  ShareKind,
+  ShareTarget,
   AdminHouseholdRow,
   CreateHouseholdBody,
   CreateHouseholdResult,
@@ -290,6 +292,34 @@ export function useActivity() {
       ),
     getNextPageParam: (last) => last.nextCursor,
   });
+}
+
+// ---------------- compartilhar card ----------------
+export function useShareTargets() {
+  return useQuery({
+    queryKey: ["share-targets"],
+    queryFn: () => api.get<ShareTarget[]>("/share/targets"),
+  });
+}
+
+interface ShareArgs {
+  kind: ShareKind;
+  id?: string;
+  toMemberId: string;
+  range?: { from?: string; to?: string };
+}
+
+export function useShareMutations() {
+  return {
+    toWhatsapp: useMutation({
+      mutationFn: ({ kind, id, toMemberId, range }: ShareArgs) => {
+        const body = { toMemberId, ...(range ?? {}) };
+        return kind === "month"
+          ? api.post("/share/month/whatsapp", body)
+          : api.post(`/share/${kind}/${id}/whatsapp`, body);
+      },
+    }),
+  };
 }
 
 // ---------------- parcelamentos ----------------

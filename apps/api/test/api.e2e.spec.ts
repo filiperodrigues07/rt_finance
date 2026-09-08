@@ -1022,3 +1022,67 @@ describe("feed de atividade", () => {
     }
   });
 });
+
+describe("compartilhar card visual", () => {
+  let txId: string;
+  const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  beforeAll(async () => {
+    // estabiliza os telefones (testes anteriores mexem na allowlist)
+    await prisma.user.update({ where: { email: "owner@test.local" }, data: { phoneE164: "+5511900000001" } });
+    await prisma.user.update({ where: { email: "partner@test.local" }, data: { phoneE164: null } });
+    const tx = await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 12900, description: "Jantar romântico", date: "2026-09-12", accountId: seed.accountId });
+    txId = tx.body.id;
+  });
+
+  it("GET /share/transaction/:id → PNG", async () => {
+    const res = await http.get(`/api/share/transaction/${txId}`).set(auth()).buffer(true);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toBe("image/png");
+    expect(Buffer.from(res.body).subarray(0, 8)).toEqual(PNG_MAGIC);
+  });
+
+  it("GET /share/month → PNG", async () => {
+    const res = await http
+      .get("/api/share/month?from=2026-09-01&to=2026-09-30")
+      .set(auth())
+      .buffer(true);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toBe("image/png");
+    expect(Buffer.from(res.body).subarray(0, 8)).toEqual(PNG_MAGIC);
+  });
+
+  it("GET /share/targets lista membros com flag de telefone", async () => {
+    const res = await http.get("/api/share/targets").set(auth());
+    expect(res.status).toBe(200);
+    const owner = res.body.find((t: { displayName: string }) => t.displayName === "Owner");
+    const partner = res.body.find((t: { displayName: string }) => t.displayName === "Partner");
+    expect(owner.hasPhone).toBe(true);
+    expect(partner.hasPhone).toBe(false);
+  });
+
+  it("POST /share/month/whatsapp → ok + WhatsappMessage OUTBOUND IMAGE", async () => {
+    const res = await http
+      .post("/api/share/month/whatsapp")
+      .set(auth())
+      .send({ toMemberId: seed.ownerMemberId, from: "2026-09-01", to: "2026-09-30" });
+    expect(res.status).toBeLessThan(300);
+    expect(res.body.ok).toBe(true);
+    const msg = await prisma.whatsappMessage.findFirst({
+      where: { direction: "OUTBOUND", type: "IMAGE" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(msg).toBeTruthy();
+  });
+
+  it("POST whatsapp para membro sem telefone → 422", async () => {
+    const res = await http
+      .post(`/api/share/transaction/${txId}/whatsapp`)
+      .set(auth())
+      .send({ toMemberId: seed.partnerMemberId });
+    expect(res.status).toBe(422);
+  });
+});

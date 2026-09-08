@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Layers, Receipt, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, Receipt, Upload, Share2 } from "lucide-react";
 import { ImportDialog } from "@/components/ImportDialog";
+import { ShareDialog } from "@/components/ShareDialog";
 import { formatBRL, formatDate } from "@/lib/format";
 import { percentOf } from "@rt-finance/shared";
 import { ListToolbar, useListPrefs, type SortOption } from "@/components/ui/ListToolbar";
@@ -329,6 +330,7 @@ function CardDetail({ cardId }: { cardId: string }) {
   const { cancel } = useInstallmentMutations();
   const toast = useToast();
   const cardPlans = (plans.data ?? []).filter((p) => p.creditCard.id === cardId);
+  const [shareInvoiceId, setShareInvoiceId] = useState<string | null>(null);
 
   return (
     <div className="mt-4 space-y-4 border-t border-border pt-4">
@@ -348,12 +350,26 @@ function CardDetail({ cardId }: { cardId: string }) {
                 <span className="flex items-center gap-2">
                   <Badge>{INVOICE_STATUS[inv.status]}</Badge>
                   <strong className="tnum">{formatBRL(inv.totalCents)}</strong>
+                  <button
+                    className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
+                    onClick={() => setShareInvoiceId(inv.id)}
+                    aria-label="Compartilhar fatura"
+                  >
+                    <Share2 className="size-3.5" />
+                  </button>
                 </span>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      <ShareDialog
+        open={!!shareInvoiceId}
+        onClose={() => setShareInvoiceId(null)}
+        kind="invoice"
+        id={shareInvoiceId ?? undefined}
+      />
 
       <div>
         <CardHeader title="Compras parceladas" />

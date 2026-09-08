@@ -26,6 +26,7 @@ import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { GoalsModule } from "./modules/goals/goals.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { ActivityModule } from "./modules/activity/activity.module";
+import { ShareModule } from "./modules/share/share.module";
 import { ChartsModule } from "./modules/charts/charts.module";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module";
 import { AiModule } from "./modules/ai/ai.module";
@@ -79,6 +80,7 @@ import { HealthModule } from "./modules/health/health.module";
     GoalsModule,
     NotificationsModule,
     ActivityModule,
+    ShareModule,
     ChartsModule,
     AiModule,
     WhatsappModule,

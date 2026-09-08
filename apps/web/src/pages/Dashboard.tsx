@@ -1,8 +1,11 @@
 import { useMemo, useState, type CSSProperties } from "react";
+import { Share2 } from "lucide-react";
 import { resolvePeriod, type PeriodPreset } from "@rt-finance/shared";
 import { useDashboard, useFutureCommitment } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Field";
+import { ShareDialog } from "@/components/ShareDialog";
 import { Skeleton } from "@/components/ui/misc";
 import { PageHeader, Stat, StatSkeleton } from "@/components/ui/data";
 import {
@@ -31,6 +34,8 @@ export function DashboardPage() {
   const { data, isLoading } = useDashboard(range);
   const future = useFutureCommitment(12);
 
+  const [shareOpen, setShareOpen] = useState(false);
+
   const period = data
     ? `${data.range.from.split("-").reverse().join("/")} – ${data.range.to.split("-").reverse().join("/")}`
     : undefined;
@@ -41,18 +46,30 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle={period}
         actions={
-          <Select
-            value={preset}
-            onChange={(e) => setPreset(e.target.value as PeriodPreset)}
-            className="w-40"
-          >
-            {PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </Select>
+          <>
+            <Button variant="ghost" onClick={() => setShareOpen(true)}>
+              <Share2 className="size-4" /> Compartilhar
+            </Button>
+            <Select
+              value={preset}
+              onChange={(e) => setPreset(e.target.value as PeriodPreset)}
+              className="w-40"
+            >
+              {PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </>
         }
+      />
+
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        kind="month"
+        range={{ from: range.from, to: range.to }}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
