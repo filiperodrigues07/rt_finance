@@ -11,7 +11,7 @@ import { BudgetsService } from "../budgets/budgets.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { monthSummary } from "../whatsapp/formatters";
 import { ReportsService } from "../reports/reports.service";
-import { MailService, EMAIL_SETTING_KEY, type StoredEmailConfig } from "../mail/mail.service";
+import { MailService, HOUSEHOLD_EMAIL_KEY, type HouseholdEmailPrefs } from "../mail/mail.service";
 import { renderWeeklyDigest } from "../mail/weekly-digest";
 
 /**
@@ -111,9 +111,9 @@ export class SchedulerService {
   /** Envia o resumo semanal (janela de 7 dias) por e-mail, se ativado no household. */
   private async weeklyEmail(h: { id: string; name: string; timezone: string | null }): Promise<void> {
     const row = await this.prisma.setting.findUnique({
-      where: { householdId_key: { householdId: h.id, key: EMAIL_SETTING_KEY } },
+      where: { householdId_key: { householdId: h.id, key: HOUSEHOLD_EMAIL_KEY } },
     });
-    const cfg = row?.value as StoredEmailConfig | undefined;
+    const cfg = row?.value as HouseholdEmailPrefs | undefined;
     if (!cfg?.weeklyEnabled) return;
 
     const tz = h.timezone ?? this.env.APP_TIMEZONE;
@@ -130,11 +130,11 @@ export class SchedulerService {
     });
     const emails = [...new Set(members.map((m) => m.user.email).filter(Boolean))];
     for (const to of emails) {
-      await this.mail.sendWeeklyDigest(h.id, to, subject, text, html);
+      await this.mail.sendWeeklyDigest(to, subject, text, html);
     }
 
     await this.prisma.setting.update({
-      where: { householdId_key: { householdId: h.id, key: EMAIL_SETTING_KEY } },
+      where: { householdId_key: { householdId: h.id, key: HOUSEHOLD_EMAIL_KEY } },
       data: { value: { ...cfg, weeklyLastRunIso: today } as unknown as Prisma.InputJsonObject },
     });
     this.logger.log(`resumo semanal enviado p/ ${emails.length} e-mail(s) do household ${h.id}`);

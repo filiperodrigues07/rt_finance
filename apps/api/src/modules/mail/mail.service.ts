@@ -4,15 +4,22 @@ import { PrismaService } from "../../lib/prisma.service";
 import { ENV, type Env } from "../../config/env.schema";
 import { decryptSecret } from "../../common/secret-box";
 
-export const EMAIL_SETTING_KEY = "email";
+/** Chave da config global de e-mail (tabela AppSetting). */
+export const APP_EMAIL_KEY = "email";
+/** Chave da preferência de e-mail por household (tabela Setting). */
+export const HOUSEHOLD_EMAIL_KEY = "email";
 
-/** Formato do Setting `email` (por household). `smtpPassEnc` é cifrado (secret-box). */
-export interface StoredEmailConfig {
+/** AppSetting `email` — SMTP global do sistema. `smtpPassEnc` cifrado (secret-box). */
+export interface GlobalEmailConfig {
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
   smtpPassEnc: string;
   fromName: string;
+}
+
+/** Setting `email` de um household. */
+export interface HouseholdEmailPrefs {
   weeklyEnabled: boolean;
   weeklyLastRunIso?: string;
 }
@@ -20,14 +27,13 @@ export interface StoredEmailConfig {
 interface ResolvedTransport {
   transporter: Transporter;
   from: string;
-  /** de onde veio: config do household ou .env do servidor */
-  source: "household" | "env";
+  source: "global" | "env";
 }
 
 /**
  * Envio de e-mail transacional via SMTP.
- * Prioridade: config do household (tela Configurações) → SMTP_* do .env → nada
- * (nesse caso só registra o link/conteúdo no log, mantendo dev/CI funcionando).
+ * Um único remetente para todo o sistema: config global (tela do super-admin) →
+ * SMTP_* do .env (fallback) → nada (só registra no log, mantendo dev/CI vivos).
  */
 @Injectable()
 export class MailService {
@@ -38,31 +44,30 @@ export class MailService {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  private async householdConfig(householdId: string): Promise<StoredEmailConfig | null> {
-    const row = await this.prisma.setting.findUnique({
-      where: { householdId_key: { householdId, key: EMAIL_SETTING_KEY } },
-    });
-    return (row?.value as StoredEmailConfig | undefined) ?? null;
+  private async globalConfig(): Promise<GlobalEmailConfig | null> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: APP_EMAIL_KEY } });
+    return (row?.value as GlobalEmailConfig | undefined) ?? null;
   }
 
-  /** Descreve o estado da config de e-mail para a tela. */
-  async describe(householdId: string): Promise<{
-    cfg: StoredEmailConfig | null;
-    smtpConfigured: boolean;
+  /** Estado da config global (para a tela do super-admin). */
+  async describe(): Promise<{
+    cfg: GlobalEmailConfig | null;
+    configured: boolean;
     usingEnvFallback: boolean;
   }> {
-    const cfg = await this.householdConfig(householdId);
-    const smtpConfigured = !!(cfg?.smtpUser && cfg?.smtpPassEnc);
+    const cfg = await this.globalConfig();
+    const configured = !!(cfg?.smtpUser && cfg?.smtpPassEnc);
     const envConfigured = !!(this.env.SMTP_USER && this.env.SMTP_PASS);
-    return { cfg, smtpConfigured, usingEnvFallback: !smtpConfigured && envConfigured };
+    return { cfg, configured, usingEnvFallback: !configured && envConfigured };
   }
 
-  private buildTransport(
-    host: string,
-    port: number,
-    user: string,
-    pass: string,
-  ): Transporter {
+  /** Há algum SMTP utilizável (global ou .env)? */
+  async isReady(): Promise<boolean> {
+    const { configured, usingEnvFallback } = await this.describe();
+    return configured || usingEnvFallback;
+  }
+
+  private buildTransport(host: string, port: number, user: string, pass: string): Transporter {
     return nodemailer.createTransport({
       host,
       port,
@@ -71,18 +76,15 @@ export class MailService {
     });
   }
 
-  /** Resolve o transporte para um household (com fallback pro .env). null = sem SMTP. */
-  private async resolve(householdId?: string): Promise<ResolvedTransport | null> {
-    if (householdId) {
-      const cfg = await this.householdConfig(householdId);
-      if (cfg?.smtpUser && cfg?.smtpPassEnc) {
-        const pass = decryptSecret(cfg.smtpPassEnc, this.env.JWT_ACCESS_SECRET);
-        return {
-          transporter: this.buildTransport(cfg.smtpHost, cfg.smtpPort, cfg.smtpUser, pass),
-          from: `${cfg.fromName} <${cfg.smtpUser}>`,
-          source: "household",
-        };
-      }
+  private async resolve(): Promise<ResolvedTransport | null> {
+    const cfg = await this.globalConfig();
+    if (cfg?.smtpUser && cfg?.smtpPassEnc) {
+      const pass = decryptSecret(cfg.smtpPassEnc, this.env.JWT_ACCESS_SECRET);
+      return {
+        transporter: this.buildTransport(cfg.smtpHost, cfg.smtpPort, cfg.smtpUser, pass),
+        from: `${cfg.fromName} <${cfg.smtpUser}>`,
+        source: "global",
+      };
     }
     if (this.env.SMTP_USER && this.env.SMTP_PASS) {
       return {
@@ -99,14 +101,8 @@ export class MailService {
     return null;
   }
 
-  private async send(
-    householdId: string | undefined,
-    to: string,
-    subject: string,
-    text: string,
-    html: string,
-  ): Promise<void> {
-    const t = await this.resolve(householdId);
+  private async send(to: string, subject: string, text: string, html: string): Promise<void> {
+    const t = await this.resolve();
     if (!t) {
       this.logger.debug(`[mail:noop] para=${to} assunto="${subject}"\n${text}`);
       return;
@@ -116,9 +112,9 @@ export class MailService {
   }
 
   /** Testa a conexão SMTP e manda um e-mail de teste. Não lança — devolve ok/erro. */
-  async sendTest(householdId: string, to: string): Promise<{ ok: boolean; error?: string }> {
-    const t = await this.resolve(householdId);
-    if (!t) return { ok: false, error: "Nenhum SMTP configurado (nem no household nem no servidor)." };
+  async sendTest(to: string): Promise<{ ok: boolean; error?: string }> {
+    const t = await this.resolve();
+    if (!t) return { ok: false, error: "Nenhum SMTP configurado (nem global nem no servidor)." };
     try {
       await t.transporter.verify();
       await t.transporter.sendMail({
@@ -128,7 +124,7 @@ export class MailService {
         text: "Deu certo! O envio de e-mail do RT Finance está funcionando.",
         html: `<div style="font-family:system-ui,sans-serif">
           <p>Deu certo! ✅</p>
-          <p>O envio de e-mail do RT Finance está funcionando (via <strong>${t.source === "household" ? "config do household" : "SMTP do servidor"}</strong>).</p>
+          <p>O envio de e-mail do RT Finance está funcionando (via <strong>${t.source === "global" ? "config global" : "SMTP do servidor"}</strong>).</p>
         </div>`,
       });
       return { ok: true };
@@ -137,13 +133,12 @@ export class MailService {
     }
   }
 
-  /** Link de redefinição de senha (resolve o household do usuário, senão .env). */
+  /** Link de redefinição de senha. */
   async sendPasswordReset(
     to: string,
     name: string,
     link: string,
     ttlMinutes: number,
-    householdId?: string,
   ): Promise<void> {
     const hello = name ? `Olá, ${name}!` : "Olá!";
     const text = [
@@ -172,17 +167,16 @@ export class MailService {
         <p style="font-size:13px;color:#475569">Se não foi você, ignore este e-mail — sua senha continua a mesma.</p>
         <p style="font-size:12px;color:#94a3b8;margin-top:32px">RT Finance · assistente do casal</p>
       </div>`;
-    await this.send(householdId, to, "Redefinição de senha · RT Finance", text, html);
+    await this.send(to, "Redefinição de senha · RT Finance", text, html);
   }
 
-  /** Resumo semanal (chamado pelo scheduler). `to` = e-mail de um membro. */
+  /** Resumo semanal (chamado pelo scheduler). */
   async sendWeeklyDigest(
-    householdId: string,
     to: string,
     subject: string,
     text: string,
     html: string,
   ): Promise<void> {
-    await this.send(householdId, to, subject, text, html);
+    await this.send(to, subject, text, html);
   }
 }

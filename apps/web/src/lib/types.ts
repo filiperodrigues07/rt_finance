@@ -145,14 +145,20 @@ export interface Profile {
   avatarUrl: string | null;
 }
 
-export interface EmailSettings {
+/** Config global de SMTP (só super-admin). */
+export interface GlobalEmailSettings {
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
   fromName: string;
-  weeklyEnabled: boolean;
-  smtpConfigured: boolean;
+  configured: boolean;
   usingEnvFallback: boolean;
+}
+
+/** Preferência de e-mail do household. */
+export interface EmailPrefs {
+  weeklyEnabled: boolean;
+  emailReady: boolean;
 }
 
 export interface RecurringExpense {

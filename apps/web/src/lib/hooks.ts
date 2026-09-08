@@ -39,7 +39,8 @@ import type {
   NotificationRow,
   WhatsappStatus,
   WhatsappQr,
-  EmailSettings,
+  EmailPrefs,
+  GlobalEmailSettings,
 } from "./types";
 import type { BudgetStatus } from "@rt-finance/shared";
 
@@ -467,21 +468,44 @@ export function useHousehold() {
 export function useProfile() {
   return useQuery({ queryKey: ["profile"], queryFn: () => api.get<Profile>("/me/profile") });
 }
-export function useEmailSettings() {
+/** Preferência de e-mail do household (resumo semanal). */
+export function useEmailPrefs() {
   return useQuery({
-    queryKey: ["email-settings"],
-    queryFn: () => api.get<EmailSettings>("/household/email-settings"),
+    queryKey: ["email-prefs"],
+    queryFn: () => api.get<EmailPrefs>("/household/email-settings"),
   });
 }
-export function useEmailSettingsMutations() {
+export function useEmailPrefsMutations() {
   const qc = useQueryClient();
   return {
     save: useMutation({
-      mutationFn: (b: unknown) => api.put<EmailSettings>("/household/email-settings", b),
-      onSuccess: (data) => qc.setQueryData(["email-settings"], data),
+      mutationFn: (b: { weeklyEnabled: boolean }) =>
+        api.put<EmailPrefs>("/household/email-settings", b),
+      onSuccess: (data) => qc.setQueryData(["email-prefs"], data),
+    }),
+  };
+}
+
+/** Config global de SMTP (só super-admin). */
+export function useAdminEmailSettings(enabled = true) {
+  return useQuery({
+    queryKey: ["admin-email-settings"],
+    queryFn: () => api.get<GlobalEmailSettings>("/admin/email-settings"),
+    enabled,
+  });
+}
+export function useAdminEmailMutations() {
+  const qc = useQueryClient();
+  return {
+    save: useMutation({
+      mutationFn: (b: unknown) => api.put<GlobalEmailSettings>("/admin/email-settings", b),
+      onSuccess: (data) => {
+        qc.setQueryData(["admin-email-settings"], data);
+        qc.invalidateQueries({ queryKey: ["email-prefs"] });
+      },
     }),
     test: useMutation({
-      mutationFn: () => api.post<{ ok: boolean; error?: string }>("/household/email-settings/test"),
+      mutationFn: () => api.post<{ ok: boolean; error?: string }>("/admin/email-settings/test"),
     }),
   };
 }

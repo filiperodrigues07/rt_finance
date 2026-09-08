@@ -665,6 +665,13 @@ model Setting {
   @@unique([householdId, key])
 }
 
+/// Config global do sistema (não pertence a nenhum household). Ex.: SMTP de e-mail.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
+
 model AuditLog {
   id          String   @id @default(cuid())
   householdId String

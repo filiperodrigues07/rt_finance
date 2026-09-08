@@ -1,18 +1,80 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type {
   AdminHouseholdRow,
   AuthUser,
   CreateHouseholdBody,
   CreateHouseholdResult,
   UpdateAdminHouseholdBody,
+  EmailSettingsBody,
+  EmailSettingsDto,
+  EmailTestResult,
 } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { ConflictError, DomainError, NotFoundError } from "../../common/errors/domain-error";
 import { provisionHousehold } from "../../lib/household-provisioner";
+import { ENV, type Env } from "../../config/env.schema";
+import { encryptSecret } from "../../common/secret-box";
+import { MailService, APP_EMAIL_KEY, type GlobalEmailConfig } from "../mail/mail.service";
+
+const EMAIL_DEFAULTS = { smtpHost: "smtp.gmail.com", smtpPort: 587, fromName: "RT Finance" };
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  // ---------------- config global de e-mail (SMTP) ----------------
+
+  async getEmailSettings(): Promise<EmailSettingsDto> {
+    const { cfg, configured, usingEnvFallback } = await this.mail.describe();
+    return {
+      smtpHost: cfg?.smtpHost ?? EMAIL_DEFAULTS.smtpHost,
+      smtpPort: cfg?.smtpPort ?? EMAIL_DEFAULTS.smtpPort,
+      smtpUser: cfg?.smtpUser ?? "",
+      fromName: cfg?.fromName ?? EMAIL_DEFAULTS.fromName,
+      configured,
+      usingEnvFallback,
+    };
+  }
+
+  async updateEmailSettings(body: EmailSettingsBody): Promise<EmailSettingsDto> {
+    const existing = (
+      await this.prisma.appSetting.findUnique({ where: { key: APP_EMAIL_KEY } })
+    )?.value as GlobalEmailConfig | undefined;
+
+    const newPass = body.smtpPass?.trim();
+    const smtpPassEnc = newPass
+      ? encryptSecret(newPass, this.env.JWT_ACCESS_SECRET)
+      : (existing?.smtpPassEnc ?? "");
+
+    const value: GlobalEmailConfig = {
+      smtpHost: body.smtpHost,
+      smtpPort: body.smtpPort,
+      smtpUser: body.smtpUser,
+      smtpPassEnc,
+      fromName: body.fromName,
+    };
+    const jsonValue = value as unknown as Prisma.InputJsonObject;
+    await this.prisma.appSetting.upsert({
+      where: { key: APP_EMAIL_KEY },
+      create: { key: APP_EMAIL_KEY, value: jsonValue },
+      update: { value: jsonValue },
+    });
+    return this.getEmailSettings();
+  }
+
+  async testEmail(actor: AuthUser): Promise<EmailTestResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.id },
+      select: { email: true },
+    });
+    if (!user) throw new NotFoundError("Usuário");
+    return this.mail.sendTest(user.email);
+  }
 
   async list(actor: AuthUser): Promise<AdminHouseholdRow[]> {
     const households = await this.prisma.household.findMany({

@@ -7,7 +7,7 @@ import {
   updateProfileBody,
   changePasswordBody,
   resetDataBody,
-  emailSettingsBody,
+  householdEmailPrefsBody,
   idParam,
   type UpdateHouseholdBody,
   type UpdateMemberBody,
@@ -15,7 +15,7 @@ import {
   type UpdateProfileBody,
   type ChangePasswordBody,
   type ResetDataBody,
-  type EmailSettingsBody,
+  type HouseholdEmailPrefsBody,
   type AuthUser,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -92,22 +92,16 @@ export class HouseholdsController {
   }
 
   @Get("household/email-settings")
-  getEmailSettings(@CurrentHousehold() householdId: string) {
-    return this.households.getEmailSettings(householdId);
+  getEmailPrefs(@CurrentHousehold() householdId: string) {
+    return this.households.getEmailPrefs(householdId);
   }
 
   @Put("household/email-settings")
-  updateEmailSettings(
+  updateEmailPrefs(
     @CurrentUser() user: AuthUser,
-    @Body(new ZodValidationPipe(emailSettingsBody)) body: EmailSettingsBody,
+    @Body(new ZodValidationPipe(householdEmailPrefsBody)) body: HouseholdEmailPrefsBody,
   ) {
-    return this.households.updateEmailSettings(user, body);
-  }
-
-  @Post("household/email-settings/test")
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
-  testEmail(@CurrentUser() user: AuthUser) {
-    return this.households.testEmail(user);
+    return this.households.updateEmailPrefs(user, body);
   }
 
   @Post("household/reset-data")

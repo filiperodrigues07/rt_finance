@@ -1,13 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
   createHouseholdBody,
   updateAdminHouseholdBody,
   deleteHouseholdBody,
+  emailSettingsBody,
   idParam,
   type CreateHouseholdBody,
   type UpdateAdminHouseholdBody,
   type DeleteHouseholdBody,
+  type EmailSettingsBody,
   type AuthUser,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -46,5 +48,23 @@ export class AdminController {
     @Body(new ZodValidationPipe(deleteHouseholdBody)) body: DeleteHouseholdBody,
   ) {
     return this.admin.remove(user, params.id, body.confirmName);
+  }
+
+  @Get("email-settings")
+  getEmailSettings() {
+    return this.admin.getEmailSettings();
+  }
+
+  @Put("email-settings")
+  updateEmailSettings(
+    @Body(new ZodValidationPipe(emailSettingsBody)) body: EmailSettingsBody,
+  ) {
+    return this.admin.updateEmailSettings(body);
+  }
+
+  @Post("email-settings/test")
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  testEmail(@CurrentUser() user: AuthUser) {
+    return this.admin.testEmail(user);
   }
 }
