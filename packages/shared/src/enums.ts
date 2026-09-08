@@ -41,6 +41,7 @@ export const NotificationType = z.enum([
   "BUDGET_EXCEEDED",
   "GOAL_MILESTONE",
   "WEEKLY_SUMMARY",
+  "TRANSACTION_COMMENT",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;
 

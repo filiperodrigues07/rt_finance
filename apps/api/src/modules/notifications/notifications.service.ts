@@ -14,6 +14,17 @@ interface PushInput {
   data?: Prisma.InputJsonValue;
   /** Se informado, não cria de novo se já existir uma notificação com o mesmo dedupe. */
   dedupe?: string;
+  /** Se informado, a notificação web só aparece para esse usuário (senão é do household). */
+  targetUserId?: string;
+  /** Não enviar WhatsApp para esse membro (ex.: o autor de um comentário). */
+  excludeMemberId?: string;
+}
+
+/** Só notificações do household inteiro, ou direcionadas a mim. */
+function scopeFor(householdId: string, userId?: string): Prisma.NotificationWhereInput {
+  return userId
+    ? { householdId, OR: [{ userId: null }, { userId }] }
+    : { householdId };
 }
 
 @Injectable()
@@ -48,6 +59,7 @@ export class NotificationsService {
     const notification = await this.prisma.notification.create({
       data: {
         householdId: input.householdId,
+        userId: input.targetUserId ?? null,
         type: input.type,
         title: input.title,
         body: input.body,
@@ -59,7 +71,11 @@ export class NotificationsService {
 
     const wantsWhats = channel !== "WEB" && (!pref || pref.channelWhatsapp);
     if (wantsWhats) {
-      await this.deliverWhatsapp(input.householdId, `${input.title}\n\n${input.body}`).catch((err) =>
+      await this.deliverWhatsapp(
+        input.householdId,
+        `${input.title}\n\n${input.body}`,
+        input.excludeMemberId,
+      ).catch((err) =>
         this.logger.warn(`falha ao enviar notificação no WhatsApp: ${(err as Error).message}`),
       );
     }
@@ -70,20 +86,25 @@ export class NotificationsService {
     });
   }
 
-  private async deliverWhatsapp(householdId: string, text: string): Promise<void> {
+  private async deliverWhatsapp(
+    householdId: string,
+    text: string,
+    excludeMemberId?: string,
+  ): Promise<void> {
     const members = await this.prisma.householdMember.findMany({
       where: { householdId },
       include: { user: { select: { phoneE164: true } } },
     });
     for (const m of members) {
+      if (m.id === excludeMemberId) continue;
       if (m.user.phoneE164) await this.whatsapp.sendText(m.user.phoneE164, text);
     }
   }
 
-  async list(householdId: string, opts: { status: string; limit: number }) {
+  async list(householdId: string, opts: { status: string; limit: number }, userId?: string) {
     return this.prisma.notification.findMany({
       where: {
-        householdId,
+        ...scopeFor(householdId, userId),
         ...(opts.status !== "ALL" ? { status: opts.status as never } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -91,9 +112,9 @@ export class NotificationsService {
     });
   }
 
-  async unreadCount(householdId: string): Promise<{ count: number }> {
+  async unreadCount(householdId: string, userId?: string): Promise<{ count: number }> {
     const count = await this.prisma.notification.count({
-      where: { householdId, status: { in: ["PENDING", "SENT"] } },
+      where: { ...scopeFor(householdId, userId), status: { in: ["PENDING", "SENT"] } },
     });
     return { count };
   }
@@ -104,9 +125,9 @@ export class NotificationsService {
     return this.prisma.notification.update({ where: { id }, data: { status: "READ" } });
   }
 
-  async markAllRead(householdId: string) {
+  async markAllRead(householdId: string, userId?: string) {
     await this.prisma.notification.updateMany({
-      where: { householdId, status: { in: ["PENDING", "SENT"] } },
+      where: { ...scopeFor(householdId, userId), status: { in: ["PENDING", "SENT"] } },
       data: { status: "READ" },
     });
     return { ok: true };

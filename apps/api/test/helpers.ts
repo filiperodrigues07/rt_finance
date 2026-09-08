@@ -14,6 +14,7 @@ export async function resetDb(): Promise<void> {
   const tables = [
     "AuditLog", "AiInteraction", "AiConversation", "WhatsappMessage",
     "GoalContribution", "FinancialGoal", "Budget", "RecurringRun", "RecurringExpense",
+    "TransactionComment", "TransactionAttachment",
     "Installment", "InstallmentPlan", "Transaction", "CreditCardInvoice", "CreditCard",
     "Account", "Category", "NotificationPreference", "Notification", "Setting", "AppSetting",
     "PasswordResetToken", "Session", "HouseholdMember", "User", "Household",

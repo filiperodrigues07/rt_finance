@@ -87,6 +87,7 @@ enum NotificationType {
   BUDGET_EXCEEDED
   GOAL_MILESTONE
   WEEKLY_SUMMARY
+  TRANSACTION_COMMENT
 }
 
 enum NotificationChannel {
@@ -237,6 +238,7 @@ model HouseholdMember {
   aiConversations   AiConversation[]
   accounts          Account[]
   creditCards       CreditCard[]
+  transactionComments TransactionComment[]
 
   @@unique([householdId, userId])
   @@index([householdId])
@@ -396,6 +398,7 @@ model Transaction {
   recurringRun     RecurringRun?
   goalContribution GoalContribution?
   attachments      TransactionAttachment[]
+  comments         TransactionComment[]
 
   @@index([householdId, date])
   @@index([householdId, categoryId, date])
@@ -752,4 +755,20 @@ model TransactionAttachment {
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([transactionId])
+}
+
+/// Conversa do casal em cima de um lançamento ("que gasto é esse?").
+model TransactionComment {
+  id             String    @id @default(cuid())
+  transactionId  String
+  authorMemberId String
+  body           String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  editedAt       DateTime? @db.Timestamptz(6)
+
+  transaction Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  author      HouseholdMember @relation(fields: [authorMemberId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId, createdAt])
+  @@index([authorMemberId])
 }

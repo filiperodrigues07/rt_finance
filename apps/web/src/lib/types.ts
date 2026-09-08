@@ -90,6 +90,7 @@ export interface TransactionRow {
   member: { id: string; displayName: string; color: string };
   account: { id: string; name: string; type: AccountType } | null;
   creditCard: { id: string; name: string; color: string; icon: string } | null;
+  _count: { comments: number; attachments: number };
 }
 
 export interface Installment {
@@ -205,6 +206,7 @@ export interface NotificationRow {
   body: string;
   status: "PENDING" | "SENT" | "READ" | "DISMISSED";
   createdAt: string;
+  data?: Record<string, unknown> | null;
 }
 
 export interface WhatsappStatus {

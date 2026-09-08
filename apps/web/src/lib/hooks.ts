@@ -19,6 +19,7 @@ import type {
 import type {
   BulkActionResult,
   TransactionAttachmentDTO,
+  TransactionCommentDTO,
   AdminHouseholdRow,
   CreateHouseholdBody,
   CreateHouseholdResult,
@@ -241,6 +242,38 @@ export function useAttachmentMutations(transactionId: string | undefined) {
         const { blob } = await download(`/transactions/attachments/${att.id}/file`);
         saveBlob(blob, att.fileName);
       },
+    }),
+  };
+}
+
+// ---------------- comentários (conversa do casal num lançamento) ----------------
+export function useComments(transactionId: string | undefined) {
+  return useQuery({
+    queryKey: ["comments", transactionId],
+    queryFn: () => api.get<TransactionCommentDTO[]>(`/transactions/${transactionId}/comments`),
+    enabled: Boolean(transactionId),
+  });
+}
+export function useCommentMutations(transactionId: string | undefined) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["comments", transactionId] });
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+  };
+  return {
+    add: useMutation({
+      mutationFn: (body: string) =>
+        api.post<TransactionCommentDTO>(`/transactions/${transactionId}/comments`, { body }),
+      onSuccess: invalidate,
+    }),
+    edit: useMutation({
+      mutationFn: ({ id, body }: { id: string; body: string }) =>
+        api.patch<TransactionCommentDTO>(`/transactions/comments/${id}`, { body }),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (id: string) => api.delete(`/transactions/comments/${id}`),
+      onSuccess: invalidate,
     }),
   };
 }

@@ -26,6 +26,7 @@ const TX_INCLUDE = {
   member: { select: { id: true, displayName: true, color: true } },
   account: { select: { id: true, name: true, type: true } },
   creditCard: { select: { id: true, name: true, color: true, icon: true } },
+  _count: { select: { comments: true, attachments: true } },
 } satisfies Prisma.TransactionInclude;
 
 @Injectable()

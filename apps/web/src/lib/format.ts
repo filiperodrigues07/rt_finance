@@ -10,6 +10,18 @@ export function monthLabel(iso: string): string {
   return monthLabelBR(iso.slice(0, 10));
 }
 
+/** "agora", "há 5 min", "há 3 h", "ontem", "há 4 d" ou a data curta. */
+export function timeAgo(iso: string | Date): string {
+  const then = typeof iso === "string" ? new Date(iso) : iso;
+  const s = Math.floor((Date.now() - then.getTime()) / 1000);
+  if (s < 45) return "agora";
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  if (s < 86_400) return `há ${Math.round(s / 3600)} h`;
+  if (s < 172_800) return "ontem";
+  if (s < 604_800) return `há ${Math.round(s / 86_400)} d`;
+  return formatDateBR(then.toISOString().slice(0, 10));
+}
+
 export function shortMonth(iso: string): string {
   const [y, m] = iso.slice(0, 10).split("-");
   const names = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];

@@ -11,6 +11,8 @@ import {
   bulkCategorizeBody,
   quickAddBody,
   uploadAttachmentFields,
+  createCommentBody,
+  updateCommentBody,
   idParam,
   type CreateTransactionBody,
   type UpdateTransactionBody,
@@ -20,6 +22,7 @@ import {
   type BulkIdsBody,
   type BulkCategorizeBody,
   type QuickAddBody,
+  type CreateCommentBody,
   type AuthUser,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -27,12 +30,14 @@ import { CurrentHousehold, CurrentUser } from "../../common/decorators/current-u
 import { readUpload } from "../../common/read-upload";
 import { TransactionsService } from "./transactions.service";
 import { TransactionAttachmentsService } from "./transaction-attachments.service";
+import { TransactionCommentsService } from "./transaction-comments.service";
 
 @Controller("transactions")
 export class TransactionsController {
   constructor(
     private readonly transactions: TransactionsService,
     private readonly attachments: TransactionAttachmentsService,
+    private readonly comments: TransactionCommentsService,
   ) {}
 
   @Get()
@@ -156,6 +161,38 @@ export class TransactionsController {
   @Delete("attachments/:attId")
   removeAttachment(@CurrentHousehold() householdId: string, @Param("attId") attId: string) {
     return this.attachments.remove(householdId, attId);
+  }
+
+  // ---------- comentários (conversa do casal) ----------
+  @Get(":id/comments")
+  listComments(
+    @CurrentHousehold() householdId: string,
+    @Param(new ZodValidationPipe(idParam)) params: { id: string },
+  ) {
+    return this.comments.list(householdId, params.id);
+  }
+
+  @Post(":id/comments")
+  addComment(
+    @CurrentUser() user: AuthUser,
+    @Param(new ZodValidationPipe(idParam)) params: { id: string },
+    @Body(new ZodValidationPipe(createCommentBody)) body: CreateCommentBody,
+  ) {
+    return this.comments.create(user.householdId, user.memberId, params.id, body.body);
+  }
+
+  @Patch("comments/:cid")
+  editComment(
+    @CurrentUser() user: AuthUser,
+    @Param("cid") cid: string,
+    @Body(new ZodValidationPipe(updateCommentBody)) body: CreateCommentBody,
+  ) {
+    return this.comments.update(user.householdId, user.memberId, cid, body.body);
+  }
+
+  @Delete("comments/:cid")
+  removeComment(@CurrentUser() user: AuthUser, @Param("cid") cid: string) {
+    return this.comments.remove(user.householdId, user.memberId, cid);
   }
 
   @Post(":id/duplicate")

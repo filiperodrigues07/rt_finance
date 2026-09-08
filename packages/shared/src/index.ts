@@ -23,4 +23,5 @@ export * from "./schemas/goal.js";
 export * from "./schemas/notification.js";
 export * from "./schemas/import.js";
 export * from "./schemas/attachment.js";
+export * from "./schemas/comment.js";
 export * from "./schemas/admin.js";

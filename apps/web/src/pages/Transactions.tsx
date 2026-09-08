@@ -18,6 +18,7 @@ import {
   User,
   FileDown,
   Paperclip,
+  MessageSquare,
   Rows3,
   Rows4,
 } from "lucide-react";
@@ -51,6 +52,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TransactionForm } from "./transactions/TransactionForm";
 import { ImportDialog } from "@/components/ImportDialog";
 import { Attachments } from "@/components/Attachments";
+import { Comments } from "@/components/Comments";
 import type { TransactionRow } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -124,6 +126,8 @@ export function TransactionsPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [payTarget, setPayTarget] = useState<TransactionRow | null>(null);
   const [attachTarget, setAttachTarget] = useState<TransactionRow | null>(null);
+  const [commentTarget, setCommentTarget] = useState<TransactionRow | null>(null);
+  const commentId = sp.get("comments");
   const [quick, setQuick] = useState("");
   // inputs de faixa de valor em reais (o commit p/ a URL é em centavos, no blur/Enter)
   const [minVal, setMinVal] = useState("");
@@ -274,6 +278,11 @@ export function TransactionsPage() {
           ? [{ label: "Marcar como pago", icon: <CheckCircle2 className="size-4" />, onClick: () => setPayTarget(t) }]
           : []),
         { label: "Anexos (boleto/comprovante)", icon: <Paperclip className="size-4" />, onClick: () => setAttachTarget(t) },
+        {
+          label: t._count?.comments ? `Comentários (${t._count.comments})` : "Comentar",
+          icon: <MessageSquare className="size-4" />,
+          onClick: () => setCommentTarget(t),
+        },
         { label: "Duplicar", icon: <Copy className="size-4" />, onClick: () => onDuplicate(t.id), disabled: !!t.transferGroupId },
         {
           label: "Editar",
@@ -579,7 +588,22 @@ export function TransactionsPage() {
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <div className="font-medium">{t.description}</div>
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span>{t.description}</span>
+                        {t._count?.attachments > 0 && (
+                          <Paperclip className="size-3 shrink-0 text-muted" aria-label="tem anexo" />
+                        )}
+                        {t._count?.comments > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setCommentTarget(t)}
+                            className="inline-flex items-center gap-0.5 rounded px-1 text-xs text-muted hover:text-fg"
+                            aria-label={`${t._count.comments} comentário(s)`}
+                          >
+                            <MessageSquare className="size-3" /> {t._count.comments}
+                          </button>
+                        )}
+                      </div>
                       <div className="text-xs text-muted">
                         {t.creditCard ? `${t.creditCard.icon} ${t.creditCard.name}` : (t.account?.name ?? "—")}
                         {t.installmentId ? " · parcela" : ""}
@@ -639,7 +663,16 @@ export function TransactionsPage() {
                     className="mt-1 size-4 shrink-0 accent-[rgb(var(--accent))] disabled:opacity-30"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{t.description}</div>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <span className="truncate">{t.description}</span>
+                      {t._count?.attachments > 0 && <Paperclip className="size-3 shrink-0 text-muted" />}
+                      {t._count?.comments > 0 && (
+                        <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted">
+                          <MessageSquare className="size-3" />
+                          {t._count.comments}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-muted">
                       {view === "apagar" && t.dueDate ? (
                         <span className={isOverdue(t) ? "text-negative" : ""}>vence {formatDate(t.dueDate)}</span>
@@ -830,6 +863,19 @@ export function TransactionsPage() {
             transactionId={attachTarget.id}
             defaultKind={attachTarget.status === "PENDING" ? "BOLETO" : "RECEIPT"}
           />
+        )}
+      </Sheet>
+
+      <Sheet
+        open={!!commentTarget || !!commentId}
+        onClose={() => {
+          setCommentTarget(null);
+          if (commentId) patch({ comments: undefined }, false);
+        }}
+        title={`Comentários — ${commentTarget?.description ?? "lançamento"}`}
+      >
+        {(commentTarget || commentId) && (
+          <Comments transactionId={commentTarget?.id ?? commentId!} />
         )}
       </Sheet>
     </div>

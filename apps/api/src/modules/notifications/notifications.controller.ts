@@ -4,9 +4,10 @@ import {
   updateNotificationPrefsBody,
   idParam,
   type UpdateNotificationPrefsBody,
+  type AuthUser,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { CurrentHousehold } from "../../common/decorators/current-user.decorator";
+import { CurrentHousehold, CurrentUser } from "../../common/decorators/current-user.decorator";
 import { NotificationsService } from "./notifications.service";
 
 @Controller("notifications")
@@ -15,16 +16,16 @@ export class NotificationsController {
 
   @Get()
   list(
-    @CurrentHousehold() householdId: string,
+    @CurrentUser() user: AuthUser,
     @Query(new ZodValidationPipe(listNotificationsQuery))
     query: { status: string; limit: number },
   ) {
-    return this.service.list(householdId, query);
+    return this.service.list(user.householdId, query, user.id);
   }
 
   @Get("unread-count")
-  unread(@CurrentHousehold() householdId: string) {
-    return this.service.unreadCount(householdId);
+  unread(@CurrentUser() user: AuthUser) {
+    return this.service.unreadCount(user.householdId, user.id);
   }
 
   @Get("preferences")
@@ -41,8 +42,8 @@ export class NotificationsController {
   }
 
   @Post("read-all")
-  readAll(@CurrentHousehold() householdId: string) {
-    return this.service.markAllRead(householdId);
+  readAll(@CurrentUser() user: AuthUser) {
+    return this.service.markAllRead(user.householdId, user.id);
   }
 
   @Patch(":id/read")

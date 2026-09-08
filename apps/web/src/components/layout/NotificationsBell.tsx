@@ -1,12 +1,26 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Check, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/lib/hooks";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/misc";
+import type { NotificationRow } from "@/lib/types";
+
+/** Rota de destino de uma notificação, quando dá pra deduzir do `data`. */
+function linkFor(n: NotificationRow): string | null {
+  const d = n.data ?? {};
+  if (n.type === "TRANSACTION_COMMENT" && typeof d.transactionId === "string") {
+    return `/transacoes?comments=${d.transactionId}`;
+  }
+  if (typeof d.budgetId === "string") return "/carteira?tab=orcamentos";
+  if (typeof d.invoiceId === "string") return "/carteira?tab=cartoes";
+  return null;
+}
 
 export function NotificationsBell() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { data: unread } = useUnreadCount();
   const { data: items } = useNotifications();
@@ -50,10 +64,21 @@ export function NotificationsBell() {
                     <EmptyState title="Nada por aqui" description="Alertas de fatura, orçamento e metas aparecem aqui." />
                   </div>
                 ) : (
-                  items.map((n) => (
+                  items.map((n) => {
+                    const link = linkFor(n);
+                    return (
                     <div
                       key={n.id}
-                      className={`group rounded-lg p-3 text-sm ${
+                      onClick={
+                        link
+                          ? () => {
+                              if (n.status !== "READ") read.mutate(n.id);
+                              setOpen(false);
+                              navigate(link);
+                            }
+                          : undefined
+                      }
+                      className={`group rounded-lg p-3 text-sm ${link ? "cursor-pointer" : ""} ${
                         n.status === "READ" || n.status === "DISMISSED" ? "opacity-60" : "bg-surface-2/50"
                       }`}
                     >
@@ -62,7 +87,7 @@ export function NotificationsBell() {
                         <span className="shrink-0 text-[10px] text-muted">{formatDate(n.createdAt)}</span>
                       </div>
                       <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{n.body}</p>
-                      <div className="mt-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                      <div className="mt-1 flex gap-1 opacity-0 transition group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
                         {n.status !== "READ" && (
                           <button className="text-[11px] text-accent" onClick={() => read.mutate(n.id)}>
                             marcar lida
@@ -73,7 +98,8 @@ export function NotificationsBell() {
                         </button>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

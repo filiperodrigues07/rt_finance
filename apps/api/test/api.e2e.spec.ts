@@ -918,3 +918,66 @@ describe("webhook do WhatsApp", () => {
     expect(outbound?.text).toContain("não está autorizado");
   });
 });
+
+describe("comentários em transação", () => {
+  let txId: string;
+  let commentId: string;
+  let partnerToken: string;
+  let partnerUserId: string;
+
+  beforeAll(async () => {
+    const tx = await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 34000, description: "Compra misteriosa", date: "2026-09-10", accountId: seed.accountId });
+    txId = tx.body.id;
+    const login = await http.post("/api/auth/login").send({ email: "partner@test.local", password: "test1234" });
+    partnerToken = login.body.tokens.accessToken;
+    partnerUserId = (await prisma.householdMember.findUnique({ where: { id: seed.partnerMemberId }, select: { userId: true } }))!.userId;
+  });
+
+  it("owner comenta → 201 com autor", async () => {
+    const res = await http.post(`/api/transactions/${txId}/comments`).set(auth()).send({ body: "que gasto é esse de 340?" });
+    expect(res.status).toBe(201);
+    expect(res.body.author.displayName).toBe("Owner");
+    commentId = res.body.id;
+  });
+
+  it("GET lista o comentário", async () => {
+    const res = await http.get(`/api/transactions/${txId}/comments`).set(auth());
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].body).toContain("que gasto");
+  });
+
+  it("cria notificação TRANSACTION_COMMENT direcionada ao outro membro", async () => {
+    const n = await prisma.notification.findFirst({ where: { type: "TRANSACTION_COMMENT" } });
+    expect(n).toBeTruthy();
+    expect(n!.userId).toBe(partnerUserId);
+  });
+
+  it("o autor NÃO vê a notificação; o outro membro vê", async () => {
+    const asOwner = await http.get("/api/notifications?status=ALL&limit=50").set(auth());
+    expect(asOwner.body.some((n: { type: string }) => n.type === "TRANSACTION_COMMENT")).toBe(false);
+    const asPartner = await http.get("/api/notifications?status=ALL&limit=50").set({ Authorization: `Bearer ${partnerToken}` });
+    expect(asPartner.body.some((n: { type: string }) => n.type === "TRANSACTION_COMMENT")).toBe(true);
+  });
+
+  it("GET /transactions traz _count.comments", async () => {
+    const res = await http.get(`/api/transactions?search=misteriosa`).set(auth());
+    const row = res.body.data.find((t: { id: string }) => t.id === txId);
+    expect(row._count.comments).toBe(1);
+  });
+
+  it("não-autor não edita nem apaga (403)", async () => {
+    const edit = await http.patch(`/api/transactions/comments/${commentId}`).set({ Authorization: `Bearer ${partnerToken}` }).send({ body: "hackeado" });
+    expect(edit.status).toBe(403);
+    const del = await http.delete(`/api/transactions/comments/${commentId}`).set({ Authorization: `Bearer ${partnerToken}` });
+    expect(del.status).toBe(403);
+  });
+
+  it("autor apaga o próprio comentário", async () => {
+    await http.delete(`/api/transactions/comments/${commentId}`).set(auth()).expect(200);
+    const res = await http.get(`/api/transactions/${txId}/comments`).set(auth());
+    expect(res.body).toHaveLength(0);
+  });
+});
