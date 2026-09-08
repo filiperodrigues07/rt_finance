@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type { Category, CreditCard } from "@prisma/client";
+import type { Account, Category, CreditCard } from "@prisma/client";
+import { BANKS } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { CategoriesService } from "../categories/categories.service";
 import { CreditCardsService } from "../credit-cards/credit-cards.service";
@@ -50,6 +51,28 @@ export class HintResolver {
   ): Promise<CreditCard | null> {
     if (!hint) return null;
     return this.cards.resolveByHint(householdId, hint);
+  }
+
+  /** Resolve um nome livre (vindo da IA) para uma conta. Match por nome ou banco. */
+  async resolveAccount(
+    householdId: string,
+    hint: string | null | undefined,
+  ): Promise<Account | null> {
+    const term = (hint ?? "").trim();
+    if (!term) return null;
+
+    const byName = await this.prisma.account.findFirst({
+      where: { householdId, archivedAt: null, name: { contains: term, mode: "insensitive" } },
+    });
+    if (byName) return byName;
+
+    // "saldo do nubank" quando a conta se chama "Conta corrente" mas o banco é Nubank
+    const low = term.toLowerCase();
+    const bank = BANKS.find((b) => b.id === low || b.name.toLowerCase().includes(low));
+    if (!bank) return null;
+    return this.prisma.account.findFirst({
+      where: { householdId, archivedAt: null, bankId: bank.id },
+    });
   }
 
   async resolveMember(

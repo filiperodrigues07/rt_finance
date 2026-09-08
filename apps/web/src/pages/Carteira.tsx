@@ -68,6 +68,7 @@ export function CarteiraPage() {
         {tab === "cartoes" && <CardsPage />}
         {tab === "recorrencias" && <RecurrencesPage />}
         {tab === "orcamentos" && <BudgetsPanel />}
+        {tab === "categorias" && <CategoriesPage />}
       </div>
     </div>
   );

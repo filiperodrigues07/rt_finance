@@ -12,6 +12,7 @@ import { dateOnly, toIsoDate } from "../../common/date-only";
 import { ReportsService } from "../reports/reports.service";
 import { InstallmentsService } from "../installments/installments.service";
 import { CreditCardsService } from "../credit-cards/credit-cards.service";
+import { AccountsService } from "../accounts/accounts.service";
 import { monthSummary } from "../whatsapp/formatters";
 
 @Injectable()
@@ -21,6 +22,7 @@ export class QueryExecutor {
     private readonly reports: ReportsService,
     private readonly installments: InstallmentsService,
     private readonly cards: CreditCardsService,
+    private readonly accounts: AccountsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -53,7 +55,12 @@ export class QueryExecutor {
   async run(
     householdId: string,
     q: QueryRequest,
-    resolved: { categoryId?: string | null; memberId?: string | null; creditCardId?: string | null },
+    resolved: {
+      categoryId?: string | null;
+      memberId?: string | null;
+      creditCardId?: string | null;
+      accountId?: string | null;
+    },
   ): Promise<string> {
     switch (q.template) {
       case "MONTHLY_SUMMARY": {
@@ -211,6 +218,21 @@ export class QueryExecutor {
             : `Vocês estão *${formatBRL(-left)}* no vermelho no mês.`,
           "_(orçamentos por categoria chegam na próxima etapa)_",
         ].join("\n");
+      }
+
+      case "ACCOUNT_BALANCE": {
+        if (resolved.accountId) {
+          const acc = await this.accounts.get(householdId, resolved.accountId);
+          return `🏦 *${acc.name}* — saldo atual: ${formatBRL(acc.balanceCents)}.`;
+        }
+        const all = await this.accounts.list(householdId);
+        if (all.length === 0) return "Nenhuma conta cadastrada.";
+        if (all.length === 1) {
+          return `🏦 *${all[0]!.name}* — saldo atual: ${formatBRL(all[0]!.balanceCents)}.`;
+        }
+        const total = all.reduce((a, x) => a + x.balanceCents, 0);
+        const lines = all.map((x) => `${x.name}: ${formatBRL(x.balanceCents)}`);
+        return [`🏦 *Saldo das contas:* ${formatBRL(total)}`, "", ...lines].join("\n");
       }
 
       default:

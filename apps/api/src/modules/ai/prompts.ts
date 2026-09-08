@@ -30,7 +30,7 @@ FORMATOS (o campo "kind" discrimina):
 2) {"kind":"create_income", ...igual ao create_expense}
 3) {"kind":"create_installment_purchase","totalCents":int,"installmentCount":int,"description":str,"cardHint":str,"categoryHint":str|null,"purchaseDate":"YYYY-MM-DD","firstDueDate":null,"memberHint":str|null,"confidence":number,"ambiguous":bool,"clarification":str|null}
 4) {"kind":"create_recurring","name":str,"amountCents":int|null,"frequency":"WEEKLY"|"MONTHLY"|"YEARLY","dayOfMonth":int|null,"categoryHint":str|null,"paymentHint":str|null,"memberHint":str|null,"confidence":number,"ambiguous":bool,"clarification":str|null}
-5) {"kind":"query","template":<um dos abaixo>,"params":{"period":"THIS_MONTH"|"LAST_MONTH"|"THIS_YEAR"|"CUSTOM","from":"YYYY-MM-DD"|null,"to":"YYYY-MM-DD"|null,"categoryHint":str|null,"memberHint":str|null,"cardHint":str|null,"months":int|null,"limit":int|null},"wantsChart":bool,"confidence":number}
+5) {"kind":"query","template":<um dos abaixo>,"params":{"period":"THIS_MONTH"|"LAST_MONTH"|"THIS_YEAR"|"CUSTOM","from":"YYYY-MM-DD"|null,"to":"YYYY-MM-DD"|null,"categoryHint":str|null,"memberHint":str|null,"cardHint":str|null,"accountHint":str|null,"months":int|null,"limit":int|null},"wantsChart":bool,"confidence":number}
    Templates:
    - SPEND_BY_PERIOD: total gasto no período ("quanto gastamos esse mês?")
    - SPEND_BY_CATEGORY: gasto numa categoria ("quanto gastamos com mercado?") -> categoryHint
@@ -41,6 +41,7 @@ FORMATOS (o campo "kind" discrimina):
    - CARD_INVOICE: valor da fatura de um cartão ("quanto está a fatura do Nubank?") -> cardHint
    - FUTURE_COMMITMENT: parcelas já comprometidas nos próximos meses ("quanto já estou comprometido?", "parcelas futuras", "quanto vou pagar de parcela nos próximos meses") -> months
    - MONTHLY_SUMMARY: resumo do mês ("me mostra o resumo", "como estão as finanças esse mês")
+   - ACCOUNT_BALANCE: saldo de conta ("qual o saldo da conta Nubank?", "quanto tem na conta corrente?", "meu saldo") -> accountHint (null = todas as contas)
 6) {"kind":"confirmation_reply","choice":"YES"|"NO"|"EDIT","editText":str|null}
 7) {"kind":"help"}
 8) {"kind":"unknown","reason":str}
@@ -59,5 +60,6 @@ EXEMPLOS:
 usuário: "Gastei 85 no mercado" => {"kind":"create_expense","amountCents":8500,"description":"Mercado","categoryHint":"Mercado","date":"${ctx.todayIso}","paymentHint":null,"memberHint":null,"confidence":0.95,"ambiguous":false,"clarification":null}
 usuário: "Comprei um celular de 3.600 em 10x no Inter" => {"kind":"create_installment_purchase","totalCents":360000,"installmentCount":10,"description":"Celular","cardHint":"Inter","categoryHint":"Eletrônicos","purchaseDate":"${ctx.todayIso}","firstDueDate":null,"memberHint":null,"confidence":0.95,"ambiguous":false,"clarification":null}
 usuário: "quanto já estou comprometido nos próximos meses?" => {"kind":"query","template":"FUTURE_COMMITMENT","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":null,"cardHint":null,"months":12,"limit":null},"wantsChart":false,"confidence":0.9}
-usuário: "e a Julia?" (após pergunta sobre gastos) => {"kind":"query","template":"SPEND_BY_MEMBER","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":"Julia","cardHint":null,"months":null,"limit":null},"wantsChart":false,"confidence":0.8}`;
+usuário: "e a Julia?" (após pergunta sobre gastos) => {"kind":"query","template":"SPEND_BY_MEMBER","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":"Julia","cardHint":null,"accountHint":null,"months":null,"limit":null},"wantsChart":false,"confidence":0.8}
+usuário: "qual o saldo da conta Nubank?" => {"kind":"query","template":"ACCOUNT_BALANCE","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":null,"cardHint":null,"accountHint":"Nubank","months":null,"limit":null},"wantsChart":false,"confidence":0.9}`;
 }

@@ -64,6 +64,7 @@ export const QueryRequest = z.object({
     categoryHint: z.string().trim().min(1).nullable().default(null),
     memberHint: z.string().trim().min(1).nullable().default(null),
     cardHint: z.string().trim().min(1).nullable().default(null),
+    accountHint: z.string().trim().min(1).nullable().default(null),
     months: z.number().int().min(1).max(24).nullable().default(null),
     limit: z.number().int().min(1).max(20).nullable().default(null),
   }),

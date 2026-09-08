@@ -14,6 +14,7 @@ export const QUERY_TEMPLATES = [
   "CARD_INVOICE",
   "FUTURE_COMMITMENT",
   "MONTHLY_SUMMARY",
+  "ACCOUNT_BALANCE",
 ] as const;
 export type QueryTemplate = (typeof QUERY_TEMPLATES)[number];
 

@@ -87,6 +87,16 @@ export function fastPath(
   }
 
   // consultas frequentes
+  // "saldo" / "qual o meu saldo" / "saldo das contas" — sem conta específica (com conta citada: deixa o LLM)
+  if (/^(qual\s+(o\s+)?)?(meu\s+|nosso\s+)?saldo(\s+(atual|total|das?\s+contas?))?\??$/.test(t)) {
+    return {
+      kind: "query",
+      template: "ACCOUNT_BALANCE",
+      params: emptyParams(),
+      wantsChart: false,
+      confidence: 0.9,
+    };
+  }
   if (/\bresumo\b/.test(t)) {
     return { kind: "query", template: "MONTHLY_SUMMARY", params: emptyParams(), wantsChart: /gr[aá]fico|imagem/.test(t), confidence: 0.9 };
   }
@@ -113,6 +123,7 @@ function emptyParams() {
     categoryHint: null,
     memberHint: null,
     cardHint: null,
+    accountHint: null,
     months: null,
     limit: null,
   };

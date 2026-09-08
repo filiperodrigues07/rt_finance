@@ -314,7 +314,7 @@ export class FinanceAssistant {
     memberId: string,
     r: Extract<AiResult, { kind: "query" }>,
   ): Promise<string> {
-    const [cat, mem, card] = await Promise.all([
+    const [cat, mem, card, account] = await Promise.all([
       r.params.categoryHint
         ? this.hints.resolveCategory(householdId, r.params.categoryHint, "EXPENSE")
         : Promise.resolve({ category: null }),
@@ -322,12 +322,14 @@ export class FinanceAssistant {
         ? this.hints.resolveMember(householdId, r.params.memberHint, memberId)
         : Promise.resolve(null),
       this.hints.resolveCard(householdId, r.params.cardHint),
+      this.hints.resolveAccount(householdId, r.params.accountHint),
     ]);
 
     return this.queries.run(householdId, r, {
       categoryId: cat.category?.id ?? null,
       memberId: mem,
       creditCardId: card?.id ?? null,
+      accountId: account?.id ?? null,
     });
   }
 

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ENV, type Env } from "../../config/env.schema";
 import { CategoriesModule } from "../categories/categories.module";
 import { CreditCardsModule } from "../credit-cards/credit-cards.module";
+import { AccountsModule } from "../accounts/accounts.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { InstallmentsModule } from "../installments/installments.module";
 import { ReportsModule } from "../reports/reports.module";
@@ -21,6 +22,7 @@ import { TranscriptionService } from "./transcription.service";
   imports: [
     CategoriesModule,
     CreditCardsModule,
+    AccountsModule,
     TransactionsModule,
     InstallmentsModule,
     ReportsModule,

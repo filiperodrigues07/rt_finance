@@ -100,12 +100,13 @@ export class MockAiProvider extends AIService {
       });
     }
 
-    if (/(quanto|quais|resumo|me mostra|gr[aá]fico|balan[cç]o|fatura|contas a pagar|comprometid)/.test(t)) {
+    if (/(quanto|quais|resumo|me mostra|gr[aá]fico|balan[cç]o|saldo|fatura|contas a pagar|comprometid)/.test(t)) {
       const wantsChart = /gr[aá]fico|imagem|mostra/.test(t);
       let template = "SPEND_BY_PERIOD";
       if (/resumo/.test(t)) template = "MONTHLY_SUMMARY";
       else if (/maiores|top/.test(t)) template = "TOP_EXPENSES";
       else if (/fatura/.test(t)) template = "CARD_INVOICE";
+      else if (/saldo|balan[cç]o/.test(t)) template = "ACCOUNT_BALANCE";
       else if (/contas? (a|para) pagar|vencer/.test(t)) template = "BILLS_DUE";
       else if (/comprometid|pr[oó]ximos meses|parcelas futuras/.test(t)) template = "FUTURE_COMMITMENT";
       else if (/ainda (temos|tenho)|sobra|dispon[ií]vel|or[cç]amento/.test(t)) template = "REMAINING_BUDGET";
@@ -115,6 +116,10 @@ export class MockAiProvider extends AIService {
 
       const memberHint = ctx.members.find((m) => t.includes(m.toLowerCase())) ?? null;
       const categoryHint = ctx.categories.find((c) => t.includes(c.name.toLowerCase()))?.name ?? null;
+      const accountHint =
+        template === "ACCOUNT_BALANCE"
+          ? ctx.accounts.find((a) => t.includes(a.toLowerCase())) ?? null
+          : null;
 
       return wrap({
         kind: "query",
@@ -126,6 +131,7 @@ export class MockAiProvider extends AIService {
           categoryHint,
           memberHint,
           cardHint,
+          accountHint,
           months: /comprometid|pr[oó]ximos/.test(t) ? 12 : null,
           limit: /maiores|top/.test(t) ? 5 : null,
         },

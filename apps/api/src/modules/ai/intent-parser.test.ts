@@ -46,6 +46,17 @@ describe("parseAiResult", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("aceita ACCOUNT_BALANCE com accountHint", () => {
+    const r = parseAiResult(
+      '{"kind":"query","template":"ACCOUNT_BALANCE","params":{"period":"THIS_MONTH","accountHint":"Nubank"},"wantsChart":false,"confidence":0.9}',
+    );
+    expect(r.ok).toBe(true);
+    if (r.value?.kind === "query") {
+      expect(r.value.template).toBe("ACCOUNT_BALANCE");
+      expect(r.value.params.accountHint).toBe("Nubank");
+    }
+  });
+
   it("rejeita kind desconhecido", () => {
     const r = parseAiResult('{"kind":"transfer_money","amountCents":100}');
     expect(r.ok).toBe(false);
