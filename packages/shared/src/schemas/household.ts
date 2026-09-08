@@ -45,6 +45,7 @@ const avatarDataUri = z
 
 export const updateProfileBody = z.object({
   name: z.string().trim().min(1).max(80).optional(),
+  email: z.string().trim().toLowerCase().email().max(160).optional(),
   phoneE164: z
     .string()
     .regex(/^\+[1-9]\d{7,14}$/, "esperado E.164, ex.: +5511999999999")

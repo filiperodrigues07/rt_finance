@@ -50,7 +50,9 @@ export function SettingsPage() {
   }
 
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [pwError, setPwError] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (profile) {
       setName(profile.name);
+      setEmail(profile.email);
       setPhone(profile.phoneE164 ?? "");
     }
   }, [profile]);
@@ -89,15 +92,21 @@ export function SettingsPage() {
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
+    setProfileError(null);
+    const mail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      return setProfileError("E-mail inválido");
+    }
     try {
       await updateProfile.mutateAsync({
         name: name.trim(),
+        email: mail,
         phoneE164: phone.trim() || null,
       });
       await refreshUser();
       toast.success("Perfil atualizado");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Erro ao salvar");
+      setProfileError(err instanceof ApiError ? err.message : "Erro ao salvar");
     }
   }
 
@@ -177,11 +186,20 @@ export function SettingsPage() {
             <Field label="Nome">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
+            <Field
+              label="E-mail"
+              hint="É o que você usa para entrar. Ao salvar, o próximo login já é com o novo e-mail."
+              error={profileError ?? undefined}
+            >
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </Field>
             <Field label="Telefone (WhatsApp, E.164)" hint="Ex.: +5511999999999 — usado para identificar você no WhatsApp">
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+55..." />
-            </Field>
-            <Field label="E-mail">
-              <Input value={profile?.email ?? ""} disabled />
             </Field>
             <Button type="submit" size="sm" loading={updateProfile.isPending}>
               Salvar perfil

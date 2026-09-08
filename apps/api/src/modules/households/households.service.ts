@@ -161,10 +161,18 @@ export class HouseholdsService {
         throw new DomainError("A imagem de perfil deve ter no máximo ~200 KB.");
       }
     }
+    if (body.email) {
+      const clash = await this.prisma.user.findFirst({
+        where: { email: body.email, id: { not: userId } },
+        select: { id: true },
+      });
+      if (clash) throw new ConflictError("Já existe um usuário com esse e-mail");
+    }
     return this.prisma.user.update({
       where: { id: userId },
       data: {
         name: body.name,
+        email: body.email,
         phoneE164: body.phoneE164,
         avatarColor: body.avatarColor,
         avatarUrl: body.avatarUrl,
