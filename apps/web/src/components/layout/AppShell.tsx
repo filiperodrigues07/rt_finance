@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun, Menu, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -41,8 +41,11 @@ function useSidebarCollapsed() {
 function Brand({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
-      <div className="rounded-lg bg-[#0B0D12] p-1.5 dark:bg-transparent dark:p-0">
-        <img src="/brand-logo.png" alt="RT Finance" className="h-7 w-auto" />
+      <div
+        className="grid size-9 place-items-center rounded-lg bg-[#0B0D12] text-sm font-bold tracking-tight text-white"
+        title="RT Finance"
+      >
+        RT
       </div>
     );
   }
@@ -141,22 +144,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       {/* sidebar desktop */}
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-border bg-surface p-3 lg:flex">
-        <div
-          className={cn(
-            "flex items-center gap-2 py-3",
-            collapsed ? "flex-col" : "justify-between",
-          )}
+        {/* seta central para recolher / expandir */}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+          title={collapsed ? "Expandir menu" : "Recolher menu"}
+          className="absolute -right-3 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded-full border border-border bg-surface text-muted shadow-card transition-colors hover:text-fg"
         >
+          {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+        </button>
+
+        <div className={cn("py-3", collapsed && "flex justify-center")}>
           <Brand compact={collapsed} />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-            title={collapsed ? "Expandir menu" : "Recolher menu"}
-          >
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </Button>
         </div>
         <div className="mt-2 flex-1 overflow-y-auto">
           <NavItems collapsed={collapsed} />

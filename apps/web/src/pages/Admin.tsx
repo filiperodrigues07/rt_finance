@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useAdminHouseholds, useAdminMutations } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
@@ -18,9 +18,10 @@ export function AdminPage() {
   const { user } = useAuth();
   const toast = useToast();
   const { data, isLoading } = useAdminHouseholds();
-  const { create, remove } = useAdminMutations();
+  const { create, update, remove } = useAdminMutations();
   const [newOpen, setNewOpen] = useState(false);
   const [toDelete, setToDelete] = useState<AdminHouseholdRow | null>(null);
+  const [toEdit, setToEdit] = useState<AdminHouseholdRow | null>(null);
   const [delName, setDelName] = useState("");
 
   if (user && !user.isSuperAdmin) return <Navigate to="/" replace />;
@@ -63,8 +64,8 @@ export function AdminPage() {
             <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Household</th>
-                <th className="px-4 py-3 text-right font-medium">Membros</th>
-                <th className="px-4 py-3 text-right font-medium">Lançamentos</th>
+                <th className="px-4 py-3 text-center font-medium">Membros</th>
+                <th className="px-4 py-3 text-center font-medium">Lançamentos</th>
                 <th className="px-4 py-3 text-left font-medium">WhatsApp</th>
                 <th className="px-4 py-3 text-left font-medium">Criado</th>
                 <th className="px-4 py-3" />
@@ -80,8 +81,8 @@ export function AdminPage() {
                       {h.isMine && <span className="ml-1 text-accent">· seu</span>}
                     </div>
                   </td>
-                  <td className="tnum px-4 py-3 text-right">{h.memberCount}</td>
-                  <td className="tnum px-4 py-3 text-right">{h.transactionCount}</td>
+                  <td className="tnum px-4 py-3 text-center">{h.memberCount}</td>
+                  <td className="tnum px-4 py-3 text-center">{h.transactionCount}</td>
                   <td className="px-4 py-3">
                     {h.whatsappInstance ? (
                       <Badge>{h.whatsappInstance}</Badge>
@@ -92,20 +93,32 @@ export function AdminPage() {
                   <td className="tnum whitespace-nowrap px-4 py-3 text-muted">
                     {formatDate(h.createdAt)}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {!h.isMine && (
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setToDelete(h);
-                          setDelName("");
-                        }}
-                        aria-label="Excluir household"
+                        onClick={() => setToEdit(h)}
+                        title="Editar household"
+                        aria-label="Editar household"
                       >
-                        <Trash2 className="size-4 text-negative" />
+                        <Pencil className="size-4" />
                       </Button>
-                    )}
+                      {!h.isMine && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setToDelete(h);
+                            setDelName("");
+                          }}
+                          title="Excluir household"
+                          aria-label="Excluir household"
+                        >
+                          <Trash2 className="size-4 text-negative" />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -123,6 +136,18 @@ export function AdminPage() {
         }}
         pending={create.isPending}
         create={create.mutateAsync}
+      />
+
+      <EditHouseholdDialog
+        row={toEdit}
+        onClose={() => setToEdit(null)}
+        pending={update.isPending}
+        save={(body) =>
+          update.mutateAsync({ id: toEdit!.id, body }).then(() => {
+            toast.success("Household atualizado");
+            setToEdit(null);
+          })
+        }
       />
 
       <Dialog
@@ -310,6 +335,72 @@ function NewHouseholdDialog({
           O dono entra com esse e-mail/senha e depois ajusta tudo. O número de WhatsApp é pareado
           por ele em Configurações → WhatsApp.
         </p>
+      </div>
+    </Dialog>
+  );
+}
+
+/** O super-admin edita qualquer household (nome + fuso). Donos comuns não veem esta tela. */
+function EditHouseholdDialog({
+  row,
+  onClose,
+  pending,
+  save,
+}: {
+  row: AdminHouseholdRow | null;
+  onClose: () => void;
+  pending: boolean;
+  save: (body: { name?: string; timezone?: string }) => Promise<unknown>;
+}) {
+  const [name, setName] = useState("");
+  const [tz, setTz] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!row) return;
+    setName(row.name);
+    setTz(row.timezone);
+    setErr(null);
+  }, [row]);
+
+  async function submit() {
+    setErr(null);
+    if (!name.trim()) return setErr("Informe o nome");
+    try {
+      await save({ name: name.trim(), timezone: tz.trim() || undefined });
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Não foi possível salvar");
+    }
+  }
+
+  return (
+    <Dialog
+      open={!!row}
+      onClose={onClose}
+      title={`Editar ${row?.name ?? "household"}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} loading={pending}>
+            Salvar
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {row?.isMine && (
+          <p className="text-xs text-muted">
+            Este é o seu household. Você também edita ele em <strong>Usuários</strong>.
+          </p>
+        )}
+        <Field label="Nome">
+          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus />
+        </Field>
+        <Field label="Fuso horário" error={err ?? undefined}>
+          <Input value={tz} onChange={(e) => setTz(e.target.value)} placeholder="America/Sao_Paulo" />
+        </Field>
       </div>
     </Dialog>
   );

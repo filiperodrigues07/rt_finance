@@ -43,8 +43,8 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
         aria-expanded={open}
         aria-label="Conta e preferências"
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-lg border border-border p-2 text-left transition-colors hover:bg-surface-2",
-          collapsed && "justify-center",
+          "flex w-full items-center gap-2.5 rounded-lg border border-border text-left transition-colors hover:bg-surface-2",
+          collapsed ? "justify-center p-1" : "p-2",
           open && "bg-surface-2",
         )}
       >
@@ -61,8 +61,10 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
         <div
           role="menu"
           className={cn(
-            "animate-in absolute bottom-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-pop",
-            collapsed ? "left-0" : "left-0 right-0",
+            "animate-in absolute z-50 w-64 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-pop",
+            collapsed
+              ? "bottom-0 left-[calc(100%+10px)]"
+              : "bottom-[calc(100%+8px)] left-0 right-0",
           )}
         >
           <div className="flex items-center gap-2.5 px-2 py-2">
