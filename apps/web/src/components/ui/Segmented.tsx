@@ -41,15 +41,15 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "inline-flex items-center justify-center gap-1.5 rounded-[7px] font-medium transition-colors",
-              size === "sm" ? "h-7 px-2.5 text-xs" : "h-9 px-3.5 text-sm",
-              full && "flex-1",
+              size === "sm" ? "h-7 text-xs" : "h-9 text-sm",
+              full ? "min-w-0 flex-1 px-2" : size === "sm" ? "px-2.5" : "px-3.5",
               active
                 ? "bg-surface text-fg shadow-card"
                 : "text-muted hover:text-fg",
             )}
           >
-            {o.icon}
-            {o.label}
+            <span className="shrink-0">{o.icon}</span>
+            <span className="truncate">{o.label}</span>
           </button>
         );
       })}

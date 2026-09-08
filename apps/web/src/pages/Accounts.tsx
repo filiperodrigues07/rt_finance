@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Wallet, Upload } from "lucide-react";
 import { toCents, fromCents } from "@rt-finance/shared";
-import { useAccountMutations, useAccounts } from "@/lib/hooks";
+import { useAccountMutations, useAccounts, useHousehold } from "@/lib/hooks";
 import { formatBRL } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
+import { Avatar } from "@/components/ui/Avatar";
+import { BankBadge } from "@/components/ui/BankBadge";
+import { BankPicker } from "@/components/ui/BankPicker";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ImportDialog } from "@/components/ImportDialog";
 import type { Account } from "@/lib/types";
@@ -52,10 +55,20 @@ export function AccountsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {data!.map((a) => (
-            <Card key={a.id} className="flex items-center justify-between gap-2 p-4">
-              <div className="min-w-0">
+            <Card key={a.id} className="flex items-center gap-3 p-4">
+              <BankBadge id={a.bankId} size={40} />
+              <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{a.name}</div>
-                <div className="text-xs text-muted">{TYPES.find((t) => t.value === a.type)?.label}</div>
+                <div className="flex items-center gap-1.5 text-xs text-muted">
+                  <span>{TYPES.find((t) => t.value === a.type)?.label}</span>
+                  {a.member && (
+                    <>
+                      <span>·</span>
+                      <Avatar name={a.member.displayName} src={a.member.user.avatarUrl} color={a.member.color} size={16} />
+                      <span className="truncate">{a.member.displayName}</span>
+                    </>
+                  )}
+                </div>
                 <div className="tnum mt-1 text-lg font-bold">{formatBRL(a.balanceCents)}</div>
               </div>
               <div className="flex shrink-0 gap-1">
@@ -119,9 +132,12 @@ function AccountForm({
 }) {
   const toast = useToast();
   const { create, update } = useAccountMutations();
+  const members = useHousehold().data?.members ?? [];
   const [name, setName] = useState("");
   const [type, setType] = useState("CHECKING");
   const [opening, setOpening] = useState("");
+  const [memberId, setMemberId] = useState("");
+  const [bankId, setBankId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +146,8 @@ function AccountForm({
     setName(editing?.name ?? "");
     setType(editing?.type ?? "CHECKING");
     setOpening(editing ? fromCents(editing.openingBalanceCents).toString().replace(".", ",") : "");
+    setMemberId(editing?.memberId ?? "");
+    setBankId(editing?.bankId ?? null);
   }, [open, editing]);
 
   async function submit(e: React.FormEvent) {
@@ -144,7 +162,13 @@ function AccountForm({
       }
     }
     try {
-      const body = { name: name.trim(), type, openingBalanceCents };
+      const body = {
+        name: name.trim(),
+        type,
+        openingBalanceCents,
+        memberId: memberId || null,
+        bankId,
+      };
       if (editing) await update.mutateAsync({ id: editing.id, body });
       else await create.mutateAsync(body);
       toast.success("Conta salva");
@@ -170,12 +194,25 @@ function AccountForm({
         <Field label="Nome">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Conta corrente" autoFocus />
         </Field>
-        <Field label="Tipo">
-          <Select value={type} onChange={(e) => setType(e.target.value)}>
-            {TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo">
+            <Select value={type} onChange={(e) => setType(e.target.value)}>
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Dono">
+            <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+              <option value="">Compartilhada</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName}</option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Banco">
+          <BankPicker value={bankId} onChange={setBankId} />
         </Field>
         <Field label="Saldo inicial (R$)" error={error ?? undefined}>
           <Input inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0,00" />

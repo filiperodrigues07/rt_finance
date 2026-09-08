@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Wallet, CreditCard, Repeat, Target, Upload } from "lucide-react";
+import { Wallet, CreditCard, Repeat, Target, Tag, Upload } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { useAccounts, useCreditCards, useRecurring } from "@/lib/hooks";
 import { PageHeader } from "@/components/ui/data";
@@ -10,6 +10,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { AccountsPage } from "./Accounts";
 import { CardsPage } from "./Cards";
 import { RecurrencesPage } from "./Recurrences";
+import { CategoriesPage } from "./Categories";
 import { BudgetsPanel } from "@/components/panels/BudgetsPanel";
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { value: "cartoes", label: "Cartões", icon: <CreditCard className="size-4" /> },
   { value: "recorrencias", label: "Recorrências", icon: <Repeat className="size-4" /> },
   { value: "orcamentos", label: "Orçamentos", icon: <Target className="size-4" /> },
+  { value: "categorias", label: "Categorias", icon: <Tag className="size-4" /> },
 ];
 
 export function CarteiraPage() {

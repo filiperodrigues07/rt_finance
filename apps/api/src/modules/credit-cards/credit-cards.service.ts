@@ -1,27 +1,56 @@
 import { Injectable } from "@nestjs/common";
 import type { CreateCreditCardBody, UpdateCreditCardBody, CreditCardLimits } from "@rt-finance/shared";
-import type { CreditCard } from "@prisma/client";
+import type { CreditCard, Prisma } from "@prisma/client";
 import { PrismaService } from "../../lib/prisma.service";
 import { NotFoundError } from "../../common/errors/domain-error";
 
+const MEMBER_SELECT = {
+  select: {
+    id: true,
+    displayName: true,
+    color: true,
+    user: { select: { avatarUrl: true } },
+  },
+} satisfies Prisma.HouseholdMemberDefaultArgs;
+
+type MemberDto = {
+  id: string;
+  displayName: string;
+  color: string;
+  user: { avatarUrl: string | null };
+} | null;
+
 export interface CreditCardWithLimits extends CreditCard {
   limits: CreditCardLimits;
+  member: MemberDto;
 }
 
 @Injectable()
 export class CreditCardsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async assertMember(householdId: string, memberId: string): Promise<void> {
+    const found = await this.prisma.householdMember.findFirst({
+      where: { id: memberId, householdId },
+      select: { id: true },
+    });
+    if (!found) throw new NotFoundError("Membro");
+  }
+
   async list(householdId: string): Promise<CreditCardWithLimits[]> {
     const cards = await this.prisma.creditCard.findMany({
       where: { householdId },
       orderBy: [{ status: "asc" }, { name: "asc" }],
+      include: { member: MEMBER_SELECT },
     });
     return Promise.all(cards.map((c) => this.withLimits(c)));
   }
 
   async get(householdId: string, id: string): Promise<CreditCardWithLimits> {
-    const card = await this.prisma.creditCard.findFirst({ where: { id, householdId } });
+    const card = await this.prisma.creditCard.findFirst({
+      where: { id, householdId },
+      include: { member: MEMBER_SELECT },
+    });
     if (!card) throw new NotFoundError("Cartão");
     return this.withLimits(card);
   }
@@ -33,7 +62,9 @@ export class CreditCardsService {
     return card;
   }
 
-  private async withLimits(card: CreditCard): Promise<CreditCardWithLimits> {
+  private async withLimits(
+    card: CreditCard & { member: MemberDto },
+  ): Promise<CreditCardWithLimits> {
     // Limite utilizado = despesas no cartão que ainda não foram pagas (fatura != PAID).
     const agg = await this.prisma.transaction.aggregate({
       where: {
@@ -56,11 +87,14 @@ export class CreditCardsService {
   }
 
   async create(householdId: string, body: CreateCreditCardBody): Promise<CreditCard> {
+    if (body.memberId) await this.assertMember(householdId, body.memberId);
     return this.prisma.creditCard.create({
       data: {
         householdId,
         name: body.name,
         bank: body.bank ?? null,
+        bankId: body.bankId ?? null,
+        memberId: body.memberId ?? null,
         brand: body.brand ?? null,
         last4: body.last4 ?? null,
         limitCents: body.limitCents,
@@ -75,11 +109,14 @@ export class CreditCardsService {
 
   async update(householdId: string, id: string, body: UpdateCreditCardBody): Promise<CreditCard> {
     const current = await this.getRaw(householdId, id);
+    if (body.memberId) await this.assertMember(householdId, body.memberId);
     return this.prisma.creditCard.update({
       where: { id: current.id },
       data: {
         name: body.name,
         bank: body.bank ?? undefined,
+        bankId: body.bankId === undefined ? undefined : body.bankId,
+        memberId: body.memberId === undefined ? undefined : body.memberId,
         brand: body.brand ?? undefined,
         last4: body.last4 ?? undefined,
         limitCents: body.limitCents,

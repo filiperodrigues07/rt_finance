@@ -24,3 +24,6 @@ apps/api/prisma/*.db
 
 # vite
 apps/web/dist/
+
+# staging de logos de bancos (cópias servidas ficam em apps/web/public/banks/)
+/bancos/

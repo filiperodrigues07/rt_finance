@@ -10,7 +10,6 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { Skeleton } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { PageHeader } from "@/components/ui/data";
 import type { Category } from "@/lib/types";
 
 const EMOJIS = ["🛒", "🍔", "🚗", "🏠", "💡", "💳", "🎮", "👕", "💊", "📱", "📚", "✈️", "🔌", "💰", "💵", "📦", "🐶", "🎁", "☕", "🏥", "⚽", "💇"];
@@ -27,15 +26,14 @@ export function CategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Categorias"
-        subtitle={`${(data ?? []).length} categoria${(data ?? []).length === 1 ? "" : "s"}`}
-        actions={
-          <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
-            <Plus className="size-4" /> Nova categoria
-          </Button>
-        }
-      />
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted">
+          {(data ?? []).length} categoria{(data ?? []).length === 1 ? "" : "s"}
+        </p>
+        <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
+          <Plus className="size-4" /> Nova categoria
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

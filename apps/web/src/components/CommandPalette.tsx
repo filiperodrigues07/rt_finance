@@ -35,7 +35,7 @@ export function CommandPalette() {
       { label: "Cartões", to: "/carteira?tab=cartoes", keywords: "carteira fatura credito" },
       { label: "Recorrências", to: "/carteira?tab=recorrencias", keywords: "carteira fixa assinatura" },
       { label: "Orçamentos", to: "/carteira?tab=orcamentos", keywords: "carteira limite categoria" },
-      { label: "Categorias", to: "/categorias", keywords: "tag etiqueta" },
+      { label: "Categorias", to: "/carteira?tab=categorias", keywords: "tag etiqueta" },
     ];
   }, [user?.isSuperAdmin]);
 

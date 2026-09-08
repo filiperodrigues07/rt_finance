@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { hexColor } from "./common.js";
+import { hexColor, cuid } from "./common.js";
 import { CardStatus } from "../enums.js";
+import { BANK_IDS } from "../banks.js";
 
 const dayOfMonth = z.number().int().min(1).max(31);
 
 export const createCreditCardBody = z.object({
   name: z.string().trim().min(1).max(60),
   bank: z.string().trim().max(60).nullable().optional(),
+  bankId: z.enum(BANK_IDS).nullable().optional(),
+  memberId: cuid.nullable().optional(),
   brand: z.string().trim().max(30).nullable().optional(),
   last4: z
     .string()

@@ -20,12 +20,22 @@ export interface Category {
   archivedAt: string | null;
 }
 
+export interface OwnerRef {
+  id: string;
+  displayName: string;
+  color: string;
+  user: { avatarUrl?: string | null };
+}
+
 export interface Account {
   id: string;
   name: string;
   type: AccountType;
   openingBalanceCents: number;
   balanceCents: number;
+  memberId: string | null;
+  bankId: string | null;
+  member: OwnerRef | null;
   archivedAt: string | null;
 }
 
@@ -33,6 +43,9 @@ export interface CreditCard {
   id: string;
   name: string;
   bank: string | null;
+  bankId: string | null;
+  memberId: string | null;
+  member: OwnerRef | null;
   brand: string | null;
   last4: string | null;
   limitCents: number;

@@ -61,7 +61,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
         <div
           role="menu"
           className={cn(
-            "animate-pop absolute z-50 w-64 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-pop",
+            "animate-pop absolute z-50 w-72 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-pop",
             collapsed
               ? "bottom-0 left-[calc(100%+10px)]"
               : "bottom-[calc(100%+8px)] left-0 right-0",
@@ -89,7 +89,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
               options={[
                 { value: "dark", label: "Escuro", icon: <Moon className="size-3.5" /> },
                 { value: "light", label: "Claro", icon: <Sun className="size-3.5" /> },
-                { value: "system", label: "Sistema", icon: <Monitor className="size-3.5" /> },
+                { value: "system", label: "Auto", icon: <Monitor className="size-3.5" /> },
               ]}
             />
             <div className="mt-2">

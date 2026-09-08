@@ -15,6 +15,9 @@ import { ApiError } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
+import { Avatar } from "@/components/ui/Avatar";
+import { BankBadge } from "@/components/ui/BankBadge";
+import { bankById } from "@rt-finance/shared";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CardForm } from "./cards/CardForm";
 import { InstallmentForm } from "./cards/InstallmentForm";
@@ -83,16 +86,31 @@ export function CardsPage() {
               <Card key={c.id} className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span
-                      className="grid size-9 shrink-0 place-items-center rounded-lg text-lg"
-                      style={{ background: `${c.color}22` }}
-                    >
-                      {c.icon}
-                    </span>
+                    {c.bankId ? (
+                      <BankBadge id={c.bankId} size={36} />
+                    ) : (
+                      <span
+                        className="grid size-9 shrink-0 place-items-center rounded-lg text-lg"
+                        style={{ background: `${c.color}22` }}
+                      >
+                        {c.icon}
+                      </span>
+                    )}
                     <div className="min-w-0">
-                      <div className="truncate font-semibold">{c.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-semibold">{c.name}</span>
+                        {c.member && (
+                          <Avatar
+                            name={c.member.displayName}
+                            src={c.member.user.avatarUrl}
+                            color={c.member.color}
+                            size={16}
+                          />
+                        )}
+                      </div>
                       <div className="truncate text-xs text-muted">
-                        {c.bank ?? "—"} {c.last4 ? `· final ${c.last4}` : ""}
+                        {bankById(c.bankId)?.name ?? c.bank ?? "—"}
+                        {c.last4 ? ` · final ${c.last4}` : ""}
                       </div>
                     </div>
                   </div>

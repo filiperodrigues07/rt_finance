@@ -10,7 +10,6 @@ import { NotFoundPage } from "@/pages/NotFound";
 const DashboardPage = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.DashboardPage })));
 const TransactionsPage = lazy(() => import("@/pages/Transactions").then((m) => ({ default: m.TransactionsPage })));
 const CarteiraPage = lazy(() => import("@/pages/Carteira").then((m) => ({ default: m.CarteiraPage })));
-const CategoriesPage = lazy(() => import("@/pages/Categories").then((m) => ({ default: m.CategoriesPage })));
 const UsersPage = lazy(() => import("@/pages/Users").then((m) => ({ default: m.UsersPage })));
 const SettingsPage = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const GoalsPage = lazy(() => import("@/pages/Goals").then((m) => ({ default: m.GoalsPage })));
@@ -59,7 +58,7 @@ export function App() {
           <Route path="/metas" element={<GoalsPage />} />
           <Route path="/relatorios" element={<ReportsPage />} />
           <Route path="/importar/:id" element={<ImportReviewPage />} />
-          <Route path="/categorias" element={<CategoriesPage />} />
+          <Route path="/categorias" element={<Navigate to="/carteira?tab=categorias" replace />} />
           <Route path="/usuarios" element={<UsersPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />

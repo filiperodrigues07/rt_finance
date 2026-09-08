@@ -126,7 +126,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [mobileOpen]);
   // rótulos de rotas que não estão no menu (só para o <title> da aba)
   const EXTRA_TITLES: Record<string, string> = {
-    "/categorias": "Categorias",
     "/importar": "Revisar importação",
   };
   const current =

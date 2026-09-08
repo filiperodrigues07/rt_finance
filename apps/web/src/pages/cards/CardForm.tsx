@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { toCents, fromCents } from "@rt-finance/shared";
-import { useCreditCardMutations } from "@/lib/hooks";
+import { toCents, fromCents, bankById } from "@rt-finance/shared";
+import { useCreditCardMutations, useHousehold } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, Select } from "@/components/ui/Field";
+import { BankPicker } from "@/components/ui/BankPicker";
 import type { CreditCard } from "@/lib/types";
 
 const COLORS = ["#8B5CF6", "#3B82F6", "#EC4899", "#F97316", "#10B981", "#EF4444", "#64748B"];
@@ -21,24 +22,29 @@ export function CardForm({
 }) {
   const toast = useToast();
   const { create, update } = useCreditCardMutations();
+  const members = useHousehold().data?.members ?? [];
   const [f, setF] = useState({
     name: "",
-    bank: "",
+    bankId: null as string | null,
+    memberId: "",
     last4: "",
     limit: "",
     closingDay: "10",
     dueDay: "17",
     color: COLORS[0]!,
   });
+  const [colorTouched, setColorTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setColorTouched(false);
     if (editing) {
       setF({
         name: editing.name,
-        bank: editing.bank ?? "",
+        bankId: editing.bankId ?? null,
+        memberId: editing.memberId ?? "",
         last4: editing.last4 ?? "",
         limit: fromCents(editing.limitCents).toString().replace(".", ","),
         closingDay: String(editing.closingDay),
@@ -46,9 +52,19 @@ export function CardForm({
         color: editing.color,
       });
     } else {
-      setF({ name: "", bank: "", last4: "", limit: "", closingDay: "10", dueDay: "17", color: COLORS[0]! });
+      setF({ name: "", bankId: null, memberId: "", last4: "", limit: "", closingDay: "10", dueDay: "17", color: COLORS[0]! });
     }
   }, [open, editing]);
+
+  function pickBank(id: string | null) {
+    const bank = bankById(id);
+    setF((prev) => ({
+      ...prev,
+      bankId: id,
+      // preenche cor pela marca do banco (se o usuário não mexeu na cor)
+      color: !colorTouched && bank ? bank.color : prev.color,
+    }));
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +72,9 @@ export function CardForm({
     if (!f.name.trim()) return setError("Informe o nome");
     const body = {
       name: f.name.trim(),
-      bank: f.bank.trim() || null,
+      bankId: f.bankId,
+      bank: bankById(f.bankId)?.name ?? null, // mantém o texto legado (match da IA)
+      memberId: f.memberId || null,
       last4: f.last4.trim() || null,
       limitCents: f.limit ? safeCents(f.limit) : 0,
       closingDay: Number(f.closingDay),
@@ -102,10 +120,18 @@ export function CardForm({
           <Field label="Nome">
             <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Nubank" autoFocus />
           </Field>
-          <Field label="Banco">
-            <Input value={f.bank} onChange={(e) => setF({ ...f, bank: e.target.value })} placeholder="Nu" />
+          <Field label="Dono">
+            <Select value={f.memberId} onChange={(e) => setF({ ...f, memberId: e.target.value })}>
+              <option value="">Compartilhado</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName}</option>
+              ))}
+            </Select>
           </Field>
         </div>
+        <Field label="Banco">
+          <BankPicker value={f.bankId} onChange={pickBank} />
+        </Field>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Final (4 díg.)">
             <Input value={f.last4} maxLength={4} onChange={(e) => setF({ ...f, last4: e.target.value.replace(/\D/g, "") })} placeholder="1234" />
@@ -127,7 +153,10 @@ export function CardForm({
               <button
                 key={c}
                 type="button"
-                onClick={() => setF({ ...f, color: c })}
+                onClick={() => {
+                  setColorTouched(true);
+                  setF({ ...f, color: c });
+                }}
                 className={`size-7 rounded-full ${f.color === c ? "ring-2 ring-offset-2 ring-offset-surface" : ""}`}
                 style={{ background: c, boxShadow: f.color === c ? `0 0 0 2px ${c}` : undefined }}
               />

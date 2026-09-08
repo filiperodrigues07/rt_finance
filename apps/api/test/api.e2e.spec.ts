@@ -174,6 +174,62 @@ describe("cartão + fatura + parcelamento", () => {
   });
 });
 
+describe("dono + banco em contas/cartões", () => {
+  it("cria conta com memberId + bankId e o GET devolve os dois + member", async () => {
+    const res = await http
+      .post("/api/accounts")
+      .set(auth())
+      .send({
+        name: "Conta do casal",
+        type: "CHECKING",
+        openingBalanceCents: 0,
+        memberId: seed.partnerMemberId,
+        bankId: "nubank",
+      });
+    expect(res.status).toBe(201);
+
+    const list = await http.get("/api/accounts").set(auth());
+    const acc = list.body.find((a: { id: string }) => a.id === res.body.id);
+    expect(acc.bankId).toBe("nubank");
+    expect(acc.memberId).toBe(seed.partnerMemberId);
+    expect(acc.member?.displayName).toBe("Partner");
+  });
+
+  it("recusa conta com memberId inexistente (404)", async () => {
+    const res = await http
+      .post("/api/accounts")
+      .set(auth())
+      .send({
+        name: "Conta ruim",
+        type: "CHECKING",
+        openingBalanceCents: 0,
+        memberId: "clnotarealmemberid00000000",
+      });
+    expect(res.status).toBe(404);
+  });
+
+  it("cria cartão com bankId + memberId e persiste", async () => {
+    const res = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({
+        name: "C6",
+        limitCents: 300_000,
+        closingDay: 5,
+        dueDay: 12,
+        bankId: "c6",
+        memberId: seed.ownerMemberId,
+      });
+    expect(res.status).toBe(201);
+
+    const list = await http.get("/api/credit-cards").set(auth());
+    const card = list.body.find((c: { id: string }) => c.id === res.body.id);
+    expect(card.bankId).toBe("c6");
+    expect(card.memberId).toBe(seed.ownerMemberId);
+    expect(card.member?.displayName).toBe("Owner");
+  });
+});
+
 describe("recorrências + orçamentos", () => {
   it("gera lançamentos de recorrência (idempotente)", async () => {
     const created = await http

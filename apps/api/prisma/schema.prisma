@@ -220,6 +220,8 @@ model HouseholdMember {
   goalContributions GoalContribution[]
   budgets           Budget[]
   aiConversations   AiConversation[]
+  accounts          Account[]
+  creditCards       CreditCard[]
 
   @@unique([householdId, userId])
   @@index([householdId])
@@ -274,12 +276,15 @@ model Account {
   name                String
   type                AccountType @default(CHECKING)
   openingBalanceCents Int         @default(0)
+  memberId            String?
+  bankId              String?
   archivedAt          DateTime?   @db.Timestamptz(6)
   createdAt           DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt           DateTime    @updatedAt @db.Timestamptz(6)
 
-  household     Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  transactions  Transaction[]
+  household     Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member       HouseholdMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
 
   @@unique([householdId, name])
   @@index([householdId])
@@ -291,6 +296,8 @@ model CreditCard {
   householdId String
   name        String
   bank        String?
+  bankId      String?
+  memberId    String?
   brand       String?
   last4       String?
   limitCents  Int        @default(0)
@@ -303,6 +310,7 @@ model CreditCard {
   updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
 
   household         Household           @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  member           HouseholdMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
   invoices         CreditCardInvoice[]
   installmentPlans InstallmentPlan[]
   transactions     Transaction[]
