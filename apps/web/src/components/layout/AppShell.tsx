@@ -124,6 +124,47 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
+
+  // gesto: arrastar da borda esquerda para dentro abre o menu (só no mobile)
+  useEffect(() => {
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+    const onStart = (e: TouchEvent) => {
+      if (window.innerWidth >= 1024 || mobileOpen) return;
+      const t = e.touches[0];
+      if (!t) return;
+      startX = t.clientX;
+      startY = t.clientY;
+      tracking = startX <= 28;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = t.clientX - startX;
+      const dy = Math.abs(t.clientY - startY);
+      if (dx > 55 && dy < 45) {
+        tracking = false;
+        setMobileOpen(true);
+      } else if (dx < -10 || dy > 60) {
+        tracking = false;
+      }
+    };
+    const stop = () => {
+      tracking = false;
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", stop, { passive: true });
+    document.addEventListener("touchcancel", stop, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", stop);
+      document.removeEventListener("touchcancel", stop);
+    };
+  }, [mobileOpen]);
   // rótulos de rotas que não estão no menu (só para o <title> da aba)
   const EXTRA_TITLES: Record<string, string> = {
     "/importar": "Revisar importação",
@@ -170,7 +211,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="animate-in absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="pt-safe animate-drawer absolute inset-y-0 left-0 flex w-[min(20rem,82vw)] flex-col border-r border-border bg-surface p-3">
+          <div
+            onTouchStart={(e) => {
+              (e.currentTarget as HTMLElement).dataset.sx = String(e.touches[0]?.clientX ?? 0);
+            }}
+            onTouchEnd={(e) => {
+              const sx = Number((e.currentTarget as HTMLElement).dataset.sx ?? 0);
+              const ex = e.changedTouches[0]?.clientX ?? sx;
+              if (sx - ex > 55) setMobileOpen(false);
+            }}
+            className="pt-safe animate-drawer absolute inset-y-0 left-0 flex w-[min(20rem,82vw)] flex-col border-r border-border bg-surface p-3"
+          >
             <div className="flex items-center justify-between py-3">
               <Brand />
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Fechar menu">
@@ -187,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-dvh flex-col">
         {/* topbar */}
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-bg/80 px-4 backdrop-blur">
+        <header className="pt-safe sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-bg/80 px-4 backdrop-blur">
           <Button
             variant="ghost"
             size="icon"
