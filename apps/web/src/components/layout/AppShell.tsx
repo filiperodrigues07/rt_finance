@@ -196,11 +196,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
-            className="hidden items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-2.5 py-1.5 text-xs text-muted transition-colors hover:text-fg sm:flex"
+            className="hidden items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-fg/20 hover:text-fg sm:flex lg:h-10 lg:w-80 lg:px-3 lg:text-sm"
           >
-            <Search className="size-3.5" />
+            <Search className="size-3.5 lg:size-4" />
             <span>Buscar</span>
-            <kbd className="rounded border border-border px-1 py-px text-[10px]">Ctrl K</kbd>
+            <kbd className="rounded border border-border px-1 py-px text-[10px] lg:ml-auto lg:px-1.5 lg:py-0.5 lg:text-[11px]">
+              Ctrl K
+            </kbd>
           </button>
           <Button
             variant="ghost"
