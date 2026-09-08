@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PageHeader } from "@/components/ui/data";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
 import type { FinancialGoal } from "@/lib/types";
@@ -181,7 +182,7 @@ function GoalCreateForm({
     <form id="goal-form" onSubmit={submit} className="space-y-4">
       <Field label="Nome"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Viagem, Reserva…" autoFocus /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Valor alvo (R$)"><Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="10.000,00" /></Field>
+        <Field label="Valor alvo (R$)"><MoneyInput value={target} onChange={setTarget} placeholder="10.000,00" /></Field>
         <Field label="Prazo (opcional)"><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
       </div>
       {error && <p className="text-xs text-negative">{error}</p>}
@@ -238,7 +239,7 @@ function ContributionDialog({
           Atual: {formatBRL(goal.currentCents)} / {formatBRL(goal.targetCents)}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Valor (R$)"><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" autoFocus /></Field>
+          <Field label="Valor (R$)"><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
           <Field label="Data"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
         <Field label="Nota (opcional)"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>

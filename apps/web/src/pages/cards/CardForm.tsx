@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { toCents, fromCents, bankById } from "@rt-finance/shared";
+import { toCents, bankById } from "@rt-finance/shared";
 import { useCreditCardMutations, useHousehold } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
+import { centsToMasked } from "@/lib/format";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { BankPicker } from "@/components/ui/BankPicker";
 import type { CreditCard } from "@/lib/types";
 
@@ -46,7 +48,7 @@ export function CardForm({
         bankId: editing.bankId ?? null,
         memberId: editing.memberId ?? "",
         last4: editing.last4 ?? "",
-        limit: fromCents(editing.limitCents).toString().replace(".", ","),
+        limit: centsToMasked(editing.limitCents),
         closingDay: String(editing.closingDay),
         dueDay: String(editing.dueDay),
         color: editing.color,
@@ -144,7 +146,7 @@ export function CardForm({
           </Field>
         </div>
         <Field label="Limite (R$)" error={error ?? undefined}>
-          <Input inputMode="decimal" value={f.limit} onChange={(e) => setF({ ...f, limit: e.target.value })} placeholder="5.000,00" />
+          <MoneyInput value={f.limit} onChange={(v) => setF({ ...f, limit: v })} placeholder="5.000,00" />
         </Field>
         <div>
           <span className="label">Cor</span>

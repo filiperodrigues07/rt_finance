@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { toCents, fromCents, todayIso, APP_TZ } from "@rt-finance/shared";
+import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import type { CreateTransactionBody } from "@rt-finance/shared";
 import { useAccounts, useCategories, useCreditCards, useTransactionMutations } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { useHousehold } from "@/lib/hooks";
 import { ApiError } from "@/lib/api";
+import { centsToMasked } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { TransactionRow } from "@/lib/types";
 
 type Mode = "EXPENSE" | "INCOME";
@@ -52,7 +54,7 @@ export function TransactionForm({
     setError(null);
     if (editing) {
       setType(editing.type === "INCOME" ? "INCOME" : "EXPENSE");
-      setAmount(fromCents(editing.amountCents).toString().replace(".", ","));
+      setAmount(centsToMasked(editing.amountCents));
       setDescription(editing.description);
       setDate(editing.date.slice(0, 10));
       setCategoryId(editing.categoryId ?? "");
@@ -190,13 +192,7 @@ export function TransactionForm({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Valor (R$)">
-            <Input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
-              autoFocus
-            />
+            <MoneyInput value={amount} onChange={setAmount} autoFocus />
           </Field>
           <Field label={when === "scheduled" ? "Vencimento" : "Data"}>
             <Input

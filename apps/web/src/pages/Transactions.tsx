@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useDensity } from "@/lib/useDensity";
 import type { ListTransactionsQuery } from "@rt-finance/shared";
-import { resolvePeriod, APP_TZ, toCents, fromCents } from "@rt-finance/shared";
+import { resolvePeriod, APP_TZ, toCents } from "@rt-finance/shared";
 import {
   useCategories,
   useCreditCards,
@@ -33,12 +33,13 @@ import {
   useTransactions,
   useReportExport,
 } from "@/lib/hooks";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, centsToMasked } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Field } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Badge, EmptyState, Skeleton, RowSkeleton } from "@/components/ui/misc";
 import { PageHeader, Stat } from "@/components/ui/data";
 import { Menu } from "@/components/ui/Menu";
@@ -100,7 +101,7 @@ function reaisToCentsParam(s: string): string | undefined {
   }
 }
 const centsParamToReais = (v: string | number | undefined) =>
-  v ? String(fromCents(Number(v))).replace(".", ",") : "";
+  v ? centsToMasked(Number(v)) : "";
 
 export function TransactionsPage() {
   const toast = useToast();
@@ -466,22 +467,20 @@ export function TransactionsPage() {
               <Input type="date" value={filters.to ?? ""} onChange={(e) => patch({ to: e.target.value || undefined })} />
             </div>
             <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
-              <Input
-                inputMode="decimal"
+              <MoneyInput
                 placeholder="de R$"
                 aria-label="Valor mínimo"
                 value={minVal}
-                onChange={(e) => setMinVal(e.target.value)}
+                onChange={setMinVal}
                 onBlur={commitRange}
                 onKeyDown={(e) => e.key === "Enter" && commitRange()}
               />
               <span className="text-xs text-muted">até</span>
-              <Input
-                inputMode="decimal"
+              <MoneyInput
                 placeholder="R$"
                 aria-label="Valor máximo"
                 value={maxVal}
-                onChange={(e) => setMaxVal(e.target.value)}
+                onChange={setMaxVal}
                 onBlur={commitRange}
                 onKeyDown={(e) => e.key === "Enter" && commitRange()}
               />

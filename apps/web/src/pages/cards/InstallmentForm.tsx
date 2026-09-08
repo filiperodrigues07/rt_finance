@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 
 export function InstallmentForm({
   open,
@@ -102,7 +103,7 @@ export function InstallmentForm({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Valor total (R$)">
-            <Input inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="2.400,00" />
+            <MoneyInput value={total} onChange={setTotal} placeholder="2.400,00" />
           </Field>
           <Field label="Parcelas">
             <Input type="number" min={2} max={60} value={count} onChange={(e) => setCount(e.target.value)} />

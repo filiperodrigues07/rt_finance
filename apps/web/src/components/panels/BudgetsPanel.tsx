@@ -8,7 +8,8 @@ import { ApiError, api } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Field, Select } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { BulletBudget } from "@/components/ui/data";
 
@@ -188,13 +189,7 @@ function BudgetForm({
         </Select>
       </Field>
       <Field label="Limite mensal (R$)" error={error ?? undefined}>
-        <Input
-          inputMode="decimal"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="1.500,00"
-          autoFocus
-        />
+        <MoneyInput value={amount} onChange={setAmount} placeholder="1.500,00" autoFocus />
       </Field>
     </form>
   );

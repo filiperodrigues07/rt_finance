@@ -24,3 +24,21 @@ export function initials(name: string): string {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/**
+ * Máscara de dinheiro para inputs (pt-BR): acumula os dígitos como centavos.
+ * "" quando não há dígito. Ex.: "1" → "0,01" · "10000" → "100,00" · "123456" → "1.234,56".
+ */
+export function maskMoney(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 15);
+  if (!digits) return "";
+  const padded = digits.padStart(3, "0");
+  const intPart = padded.slice(0, -2).replace(/^0+(?=\d)/, "");
+  return `${intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${padded.slice(-2)}`;
+}
+
+/** Centavos inteiros → string já mascarada, para pré-preencher um `MoneyInput`. 0/null → "". */
+export function centsToMasked(cents: number | null | undefined): string {
+  if (cents == null || cents === 0) return "";
+  return maskMoney(String(Math.round(Math.abs(cents))));
+}

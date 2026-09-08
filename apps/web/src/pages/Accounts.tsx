@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Wallet, Upload } from "lucide-react";
-import { toCents, fromCents } from "@rt-finance/shared";
+import { toCents } from "@rt-finance/shared";
 import { useAccountMutations, useAccounts, useHousehold } from "@/lib/hooks";
-import { formatBRL } from "@/lib/format";
+import { centsToMasked, formatBRL } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { Avatar } from "@/components/ui/Avatar";
 import { BankBadge } from "@/components/ui/BankBadge";
@@ -145,7 +146,7 @@ function AccountForm({
     setError(null);
     setName(editing?.name ?? "");
     setType(editing?.type ?? "CHECKING");
-    setOpening(editing ? fromCents(editing.openingBalanceCents).toString().replace(".", ",") : "");
+    setOpening(editing ? centsToMasked(editing.openingBalanceCents) : "");
     setMemberId(editing?.memberId ?? "");
     setBankId(editing?.bankId ?? null);
   }, [open, editing]);
@@ -215,7 +216,7 @@ function AccountForm({
           <BankPicker value={bankId} onChange={setBankId} />
         </Field>
         <Field label="Saldo inicial (R$)" error={error ?? undefined}>
-          <Input inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0,00" />
+          <MoneyInput value={opening} onChange={setOpening} />
         </Field>
       </form>
     </Dialog>

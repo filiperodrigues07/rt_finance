@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Power, RefreshCw, Repeat } from "lucide-react";
-import { toCents, fromCents, todayIso, APP_TZ } from "@rt-finance/shared";
+import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import { useAccounts, useCategories, useCreditCards, useRecurring, useRecurringMutations } from "@/lib/hooks";
-import { formatBRL } from "@/lib/format";
+import { centsToMasked, formatBRL } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
 import type { RecurringExpense } from "@/lib/types";
 
@@ -136,7 +137,7 @@ function RecurrenceForm({
     if (editing) {
       setF({
         name: editing.name,
-        amount: editing.amountCents != null ? fromCents(editing.amountCents).toString().replace(".", ",") : "",
+        amount: editing.amountCents != null ? centsToMasked(editing.amountCents) : "",
         categoryId: editing.category.id,
         frequency: editing.frequency,
         dayOfMonth: String(editing.dayOfMonth ?? 10),
@@ -205,7 +206,7 @@ function RecurrenceForm({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Valor (R$) — vazio = variável">
-            <Input inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="0,00" />
+            <MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} />
           </Field>
           <Field label="Categoria">
             <Select value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
