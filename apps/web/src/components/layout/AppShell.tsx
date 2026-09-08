@@ -190,6 +190,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu className="size-5" />
           </Button>
 
+          <div className="flex-1" />
+
           {/* busca global — abre a paleta de comandos (⌘/Ctrl + K) */}
           <button
             type="button"
