@@ -110,11 +110,11 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
             role="menuitem"
             onClick={() => {
               setOpen(false);
-              navigate("/configuracoes");
+              navigate("/usuarios");
             }}
             className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-fg transition-colors hover:bg-surface-2"
           >
-            <UserCog className="size-4" /> Editar perfil
+            <UserCog className="size-4" /> Meu perfil
           </button>
           <button
             role="menuitem"

@@ -13,6 +13,8 @@ export const updateMemberBody = z.object({
   displayName: z.string().trim().min(1).max(40).optional(),
   color: hexColor.optional(),
   role: MemberRole.optional(),
+  /** e-mail de login do membro (OWNER pode ajustar o de outro; o próprio via /me/profile) */
+  email: z.string().trim().toLowerCase().email().max(160).optional(),
   /** número de WhatsApp do membro — quem pode falar com o bot deste household */
   phoneE164: z
     .string()

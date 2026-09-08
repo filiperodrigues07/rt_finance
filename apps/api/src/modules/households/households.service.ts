@@ -121,6 +121,8 @@ export class HouseholdsService {
       if (owners <= 1) throw new DomainError("O household precisa de ao menos um dono");
     }
 
+    const userData: { phoneE164?: string | null; email?: string } = {};
+
     if (body.phoneE164 !== undefined) {
       if (actor.role !== "OWNER" && member.userId !== actor.id) {
         throw new ForbiddenException("Só o dono pode alterar o telefone de outro membro");
@@ -132,10 +134,23 @@ export class HouseholdsService {
         });
         if (clash) throw new ConflictError("Esse número já está em uso por outro usuário");
       }
-      await this.prisma.user.update({
-        where: { id: member.userId },
-        data: { phoneE164: body.phoneE164 },
+      userData.phoneE164 = body.phoneE164;
+    }
+
+    if (body.email !== undefined) {
+      if (actor.role !== "OWNER" && member.userId !== actor.id) {
+        throw new ForbiddenException("Só o dono pode alterar o e-mail de outro membro");
+      }
+      const clash = await this.prisma.user.findFirst({
+        where: { email: body.email, id: { not: member.userId } },
+        select: { id: true },
       });
+      if (clash) throw new ConflictError("Já existe um usuário com esse e-mail");
+      userData.email = body.email;
+    }
+
+    if (Object.keys(userData).length > 0) {
+      await this.prisma.user.update({ where: { id: member.userId }, data: userData });
     }
 
     return this.prisma.householdMember.update({

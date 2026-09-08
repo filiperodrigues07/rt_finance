@@ -11,6 +11,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageHeader } from "@/components/ui/data";
+import { ProfilePanel } from "@/components/settings/ProfilePanel";
 import type { Member } from "@/lib/types";
 
 const COLORS = ["#7A6A55", "#3B82F6", "#EC4899", "#22C55E", "#F97316", "#8B5CF6", "#06B6D4"];
@@ -65,6 +66,13 @@ export function UsersPage() {
         )}
       </Card>
 
+      <div className="mb-4 space-y-4">
+        <ProfilePanel />
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-fg">
+        {isOwner ? "Membros do household" : "Membros"}
+      </h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {isLoading
           ? Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24" />)
@@ -208,6 +216,8 @@ function MemberDialog({
   const toast = useToast();
   const { updateMember } = useHouseholdMutations();
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [color, setColor] = useState(COLORS[0]!);
   const [role, setRole] = useState<"OWNER" | "MEMBER">("MEMBER");
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +225,8 @@ function MemberDialog({
   useEffect(() => {
     if (!member) return;
     setDisplayName(member.displayName);
+    setEmail(member.user.email);
+    setPhone(member.user.phoneE164 ?? "");
     setColor(member.color);
     setRole(member.role);
     setError(null);
@@ -223,10 +235,20 @@ function MemberDialog({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!member) return;
+    const mail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return setError("E-mail inválido");
     try {
       await updateMember.mutateAsync({
         id: member.id,
-        body: { displayName: displayName.trim(), color, ...(canSetRole ? { role } : {}) },
+        body: {
+          displayName: displayName.trim(),
+          color,
+          ...(mail !== member.user.email ? { email: mail } : {}),
+          ...(phone.trim() !== (member.user.phoneE164 ?? "")
+            ? { phoneE164: phone.trim() || null }
+            : {}),
+          ...(canSetRole ? { role } : {}),
+        },
       });
       toast.success("Membro atualizado");
       onClose();
@@ -254,6 +276,20 @@ function MemberDialog({
       <form id="member-form" onSubmit={submit} className="space-y-4">
         <Field label="Nome de exibição" error={error ?? undefined}>
           <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus />
+        </Field>
+        <Field label="E-mail (login)">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="off"
+          />
+        </Field>
+        <Field
+          label="Telefone (WhatsApp, E.164)"
+          hint="Ex.: +5511999999999 — quem pode falar com o bot"
+        >
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+55..." />
         </Field>
         {canSetRole && (
           <Field label="Papel">
