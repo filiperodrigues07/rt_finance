@@ -10,9 +10,19 @@ export interface Slice {
 
 const W = 900;
 const H = 520;
-const BG = "#0B0F1A";
-const FG = "#EDF0F5";
-const MUTED = "#94A3B8";
+
+type Theme = "dark" | "light";
+interface Palette {
+  bg: string;
+  fg: string;
+  muted: string;
+  axis: string;
+  bar: string;
+}
+const THEMES: Record<Theme, Palette> = {
+  dark: { bg: "#0B0F1A", fg: "#EDF0F5", muted: "#94A3B8", axis: "#232B3D", bar: "#3B82F6" },
+  light: { bg: "#FFFFFF", fg: "#0A0C10", muted: "#64748B", axis: "#E2E8F0", bar: "#1560E8" },
+};
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -29,7 +39,8 @@ export class ChartRendererService {
   }
 
   /** Donut de composição (ex.: gastos por categoria). */
-  async donut(title: string, slices: Slice[]): Promise<Buffer> {
+  async donut(title: string, slices: Slice[], opts: { theme?: Theme } = {}): Promise<Buffer> {
+    const { bg: BG, fg: FG, muted: MUTED } = THEMES[opts.theme ?? "dark"];
     const data = slices.filter((s) => s.value > 0).slice(0, 8);
     const total = data.reduce((a, s) => a + s.value, 0) || 1;
     const cx = 260;
@@ -81,7 +92,8 @@ export class ChartRendererService {
   }
 
   /** Barras verticais (ex.: evolução mensal / comprometimento futuro). */
-  async bars(title: string, points: { label: string; value: number }[]): Promise<Buffer> {
+  async bars(title: string, points: { label: string; value: number }[], opts: { theme?: Theme } = {}): Promise<Buffer> {
+    const { bg: BG, fg: FG, muted: MUTED, axis: AXIS, bar: BAR } = THEMES[opts.theme ?? "dark"];
     const data = points.slice(0, 12);
     const max = Math.max(1, ...data.map((p) => p.value));
     const plotX = 70;
@@ -97,7 +109,7 @@ export class ChartRendererService {
         const x = plotX + i * (bw + gap) + gap / 2;
         const y = plotY + plotH - h;
         return `<g font-family="sans-serif">
-          <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="6" fill="#3B82F6"/>
+          <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="6" fill="${BAR}"/>
           <text x="${x + bw / 2}" y="${plotY + plotH + 26}" fill="${MUTED}" font-size="14" text-anchor="middle">${esc(p.label)}</text>
           <text x="${x + bw / 2}" y="${y - 8}" fill="${FG}" font-size="13" text-anchor="middle">${brl(p.value)}</text>
         </g>`;
@@ -108,7 +120,7 @@ export class ChartRendererService {
       <rect width="${W}" height="${H}" fill="${BG}"/>
       <text x="40" y="56" fill="${FG}" font-size="28" font-weight="700" font-family="sans-serif">${esc(title)}</text>
       <text x="40" y="86" fill="${MUTED}" font-size="16" font-family="sans-serif">RT Finance</text>
-      <line x1="${plotX}" y1="${plotY + plotH}" x2="${plotX + plotW}" y2="${plotY + plotH}" stroke="#232B3D"/>
+      <line x1="${plotX}" y1="${plotY + plotH}" x2="${plotX + plotW}" y2="${plotY + plotH}" stroke="${AXIS}"/>
       ${bars}
     </svg>`;
     return this.toPng(svg);

@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit";
 import { fromCents, resolvePeriod, todayIso } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { dateOnly, toIsoDate } from "../../common/date-only";
 import { ChartRendererService } from "../charts/chart-renderer.service";
 import { ReportsService } from "./reports.service";
+import { PdfKitReport, type PdfFonts, type TxRow } from "./pdf/pdf-kit-report";
+import { renderLogoPng } from "./pdf/brand";
 
 export interface ExportOpts {
   from?: string;
@@ -26,37 +27,43 @@ const brl = (cents: number) =>
   fromCents(cents).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const brDate = (iso: string) => iso.split("-").reverse().join("/");
 
-/**
- * Fonte TTF com acentuação pt-BR completa. Procura, em ordem: DejaVu (Linux),
- * Segoe UI / Arial (Windows). Sem nenhuma → usa a Helvetica embutida do pdfkit.
- */
-const FONT_CANDIDATES: [regular: string, bold: string][] = [
-  ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
-  ["/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
-  ["C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\segoeuib.ttf"],
-  ["C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\arialbd.ttf"],
-];
-
-function loadFonts(): { regular: Buffer; bold: Buffer } | null {
-  for (const [r, b] of FONT_CANDIDATES) {
-    try {
-      return { regular: readFileSync(r), bold: readFileSync(b) };
-    } catch {
-      /* tenta o próximo */
-    }
+/** Carrega a fonte Inter empacotada (@fontsource/inter — .woff, lida pelo pdfkit/fontkit). */
+function loadInterFonts(): PdfFonts | null {
+  try {
+    const file = (weight: number) =>
+      readFileSync(require.resolve(`@fontsource/inter/files/inter-latin-${weight}-normal.woff`));
+    return { regular: file(400), semibold: file(600), bold: file(700) };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 @Injectable()
 export class ReportExportService {
-  private readonly fonts = loadFonts();
+  private readonly logger = new Logger(ReportExportService.name);
+  private readonly fonts = loadInterFonts();
+  private logoPng: Buffer | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly reports: ReportsService,
     private readonly charts: ChartRendererService,
-  ) {}
+  ) {
+    if (!this.fonts) {
+      this.logger.warn("Inter não encontrada — PDF usará Helvetica (sem cobertura completa de acentos)");
+    }
+  }
+
+  private async logo(): Promise<Buffer | null> {
+    if (this.logoPng) return this.logoPng;
+    try {
+      this.logoPng = await renderLogoPng(900);
+    } catch (err) {
+      this.logger.warn(`falha ao rasterizar o logo: ${(err as Error).message}`);
+      this.logoPng = null;
+    }
+    return this.logoPng;
+  }
 
   private async range(householdId: string, opts: ExportOpts): Promise<{ from: string; to: string }> {
     if (opts.from && opts.to) return { from: opts.from, to: opts.to };
@@ -167,131 +174,68 @@ export class ReportExportService {
   // -------------------------------------------------------------------- PDF
   async pdf(householdId: string, opts: ExportOpts): Promise<Buffer> {
     const range = await this.range(householdId, opts);
-    const [rows, dash, household] = await Promise.all([
+    const [rows, dash, household, tzRow, logoPng] = await Promise.all([
       this.fetchRows(householdId, opts, range),
       this.reports.dashboard(householdId, { from: range.from, to: range.to }),
       this.prisma.household.findUnique({ where: { id: householdId }, select: { name: true } }),
+      this.prisma.household.findUnique({ where: { id: householdId }, select: { timezone: true } }),
+      this.logo(),
     ]);
+    const tz = tzRow?.timezone ?? "America/Sao_Paulo";
 
+    const topCats = dash.byCategory.filter((c) => c.cents > 0).slice(0, 10);
     const donutPng =
-      dash.byCategory.filter((c) => c.cents > 0).length > 0
+      topCats.length > 0
         ? await this.charts
             .donut(
               "Gastos por categoria",
-              dash.byCategory
-                .filter((c) => c.cents > 0)
-                .slice(0, 8)
-                .map((c) => ({ label: c.name, value: c.cents, color: c.color })),
+              topCats.slice(0, 8).map((c) => ({ label: c.name, value: c.cents, color: c.color })),
+              { theme: "light" },
             )
             .catch(() => null)
         : null;
 
-    const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: "Relatório RT Finance" } });
-    if (this.fonts) {
-      doc.registerFont("body", this.fonts.regular);
-      doc.registerFont("bold", this.fonts.bold);
-      doc.font("body");
-    }
-    const F = (weight: "body" | "bold") => (this.fonts ? weight : weight === "bold" ? "Helvetica-Bold" : "Helvetica");
-    const chunks: Buffer[] = [];
-    doc.on("data", (c: Buffer) => chunks.push(c));
-    const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
-
-    const accent = "#2563EB";
-    const muted = "#6B7280";
-    const L = 48;
-
-    // cabeçalho
-    doc.font(F("bold")).fillColor(accent).fontSize(22).text("RT", L, doc.y, { continued: true });
-    doc.fillColor("#111827").text(" Finance");
-    doc.moveDown(0.2);
-    doc.font(F("bold")).fillColor("#111827").fontSize(15).text("Relatório do período");
-    doc
-      .font(F("body"))
-      .fillColor(muted)
-      .fontSize(10)
-      .text(`${household?.name ?? ""} · ${brDate(range.from)} a ${brDate(range.to)}`)
-      .text(`Gerado em ${brDate(todayIso())}`);
-    doc.moveDown(1);
-
-    // KPIs — linha horizontal, mesmo Y
-    const kpis: [string, string][] = [
-      ["Receitas", brl(dash.incomeCents)],
-      ["Despesas", brl(dash.expenseCents)],
-      ["Resultado", brl(dash.incomeCents - dash.expenseCents)],
-      ["Saldo em contas", brl(dash.balanceCents)],
-      ["Faturas abertas", brl(dash.invoicesOpenCents)],
-    ];
-    const kw = (doc.page.width - 2 * L) / kpis.length;
-    const ky = doc.y;
-    kpis.forEach(([k, v], i) => {
-      const kx = L + i * kw;
-      doc.font(F("body")).fillColor(muted).fontSize(7.5).text(k.toUpperCase(), kx, ky, { width: kw - 6 });
-      doc.font(F("bold")).fillColor("#111827").fontSize(11).text(v, kx, ky + 12, { width: kw - 6 });
+    const resultCents = dash.incomeCents - dash.expenseCents;
+    const report = new PdfKitReport({
+      householdName: household?.name ?? "RT Finance",
+      range,
+      tz,
+      fonts: this.fonts,
+      logoPng,
     });
-    doc.x = L;
-    doc.y = ky + 40;
 
-    if (donutPng) {
-      try {
-        doc.image(donutPng, { fit: [doc.page.width - 96, 240], align: "center" });
-        doc.moveDown(1);
-      } catch {
-        /* ignora imagem inválida */
-      }
-    }
+    report
+      .cover()
+      .kpis([
+        { label: "Receitas", value: brl(dash.incomeCents), tone: "pos" },
+        { label: "Despesas", value: brl(dash.expenseCents), tone: "neg" },
+        { label: "Resultado", value: brl(resultCents), tone: resultCents >= 0 ? "pos" : "neg" },
+        { label: "Saldo em contas", value: brl(dash.balanceCents) },
+        { label: "Faturas abertas", value: brl(dash.invoicesOpenCents) },
+      ])
+      .image(donutPng, 220)
+      .barList(
+        "Gastos por categoria",
+        topCats.map((c) => ({ label: c.name, value: c.cents, percent: c.percent })),
+      )
+      .barList(
+        "Gastos por pessoa",
+        dash.byMember
+          .filter((m) => m.cents > 0)
+          .map((m) => ({ label: m.displayName, value: m.cents })),
+        "Ninguém registrou gastos no período.",
+      );
 
-    // resumo por categoria
-    doc.font(F("bold")).fillColor("#111827").fontSize(12).text("Gastos por categoria", L, doc.y);
-    doc.moveDown(0.4);
-    doc.font(F("body"));
-    for (const c of dash.byCategory.filter((x) => x.cents > 0).slice(0, 12)) {
-      doc
-        .fillColor("#374151")
-        .fontSize(10)
-        .text(c.name, L, doc.y, { continued: true })
-        .fillColor(muted)
-        .text(`   ${brl(c.cents)}  (${(c.percent ?? 0).toFixed(0)}%)`);
-    }
-    doc.moveDown(1);
+    const txRows: TxRow[] = rows.map((t) => ({
+      date: toIsoDate(t.date),
+      description: t.description,
+      category: t.category?.name ?? "—",
+      amountCents: t.amountCents,
+      isExpense: t.type === "EXPENSE",
+      status: STATUS_LABEL[t.status] ?? t.status,
+    }));
+    report.transactions(txRows);
 
-    // transações
-    doc.addPage();
-    doc.font(F("bold")).fillColor("#111827").fontSize(12).text(`Transações (${rows.length})`, L, doc.y);
-    doc.moveDown(0.5);
-    doc.font(F("body"));
-    const cols = [
-      { label: "Data", w: 55 },
-      { label: "Descrição", w: 200 },
-      { label: "Categoria", w: 95 },
-      { label: "Valor", w: 80 },
-      { label: "Status", w: 65 },
-    ];
-    const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
-    const charBudget = [10, 34, 16, 13, 11];
-    const drawRow = (cells: string[], opts2: { header?: boolean } = {}) => {
-      const y = doc.y;
-      let x = L;
-      doc.font(F(opts2.header ? "bold" : "body")).fontSize(8).fillColor(opts2.header ? muted : "#374151");
-      cells.forEach((cell, i) => {
-        doc.text(clip(cell, charBudget[i]!), x, y, { width: cols[i]!.w - 4, lineBreak: false });
-        x += cols[i]!.w;
-      });
-      doc.y = y + 12;
-      if (doc.y > doc.page.height - 60) doc.addPage();
-    };
-    drawRow(cols.map((c) => c.label), { header: true });
-    for (const t of rows) {
-      drawRow([
-        brDate(toIsoDate(t.date)),
-        t.description,
-        t.category?.name ?? "—",
-        `${t.type === "EXPENSE" ? "-" : "+"}${brl(t.amountCents)}`,
-        STATUS_LABEL[t.status] ?? t.status,
-      ]);
-    }
-
-    doc.end();
-    return done;
+    return report.build();
   }
 }
