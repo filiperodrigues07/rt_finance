@@ -152,7 +152,7 @@ function MemberTile({ m, onClick }: { m: Member; onClick?: () => void }) {
     <Card
       className={cn(
         "flex items-center gap-3 p-4 text-left",
-        onClick && "cursor-pointer transition-colors hover:bg-surface-2",
+        onClick && "card-hover cursor-pointer hover:bg-surface-2",
       )}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}

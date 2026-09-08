@@ -1,17 +1,20 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { Money } from "./Money";
 
-/** KPI / número grande — sans, tabular, legível. */
+/** KPI / número grande — sans, tabular, legível. Passe `cents` p/ dinheiro (com count-up). */
 export function Stat({
   label,
   value,
+  cents,
   hint,
   icon,
   tone,
   className,
 }: {
   label: ReactNode;
-  value: ReactNode;
+  value?: ReactNode;
+  cents?: number;
   hint?: ReactNode;
   icon?: ReactNode;
   tone?: "positive" | "negative" | "muted";
@@ -25,13 +28,14 @@ export function Stat({
       </div>
       <div
         className={cn(
-          "tnum mt-2 text-2xl font-semibold tracking-tight",
+          "mt-2 text-2xl font-semibold tracking-tight",
+          cents == null && "tnum",
           tone === "positive" && "text-positive",
           tone === "negative" && "text-negative",
           tone === "muted" && "text-muted",
         )}
       >
-        {value}
+        {cents != null ? <Money cents={cents} animate /> : value}
       </div>
       {hint && <div className="mt-0.5 text-[11px] text-muted">{hint}</div>}
     </div>

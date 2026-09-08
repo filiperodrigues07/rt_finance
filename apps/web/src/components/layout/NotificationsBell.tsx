@@ -32,7 +32,7 @@ export function NotificationsBell() {
         createPortal(
           <div className="fixed inset-0 z-[80]">
             <div className="absolute inset-0" onClick={() => setOpen(false)} />
-            <div className="animate-in absolute right-2 top-14 flex max-h-[70vh] w-[min(94vw,380px)] flex-col rounded-2xl border border-border bg-surface shadow-card sm:right-4">
+            <div className="animate-pop absolute right-2 top-14 flex max-h-[70vh] w-[min(94vw,380px)] flex-col rounded-2xl border border-border bg-surface shadow-pop sm:right-4">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <span className="text-sm font-semibold">Notificações</span>
                 <div className="flex gap-1">

@@ -53,7 +53,7 @@ export function Menu({
         <div
           role="menu"
           className={cn(
-            "animate-in absolute z-50 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-pop",
+            "animate-pop absolute z-50 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-pop",
             align === "end" ? "right-0" : "left-0",
           )}
         >

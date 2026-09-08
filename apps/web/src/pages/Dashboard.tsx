@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { resolvePeriod, type PeriodPreset } from "@rt-finance/shared";
 import { useDashboard, useFutureCommitment } from "@/lib/hooks";
-import { formatBRL } from "@/lib/format";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Field";
 import { Skeleton } from "@/components/ui/misc";
@@ -18,6 +17,9 @@ const PRESETS: { value: PeriodPreset; label: string }[] = [
   { value: "LAST_MONTH", label: "Mês passado" },
   { value: "THIS_YEAR", label: "Este ano" },
 ];
+
+/** índice do stagger de entrada */
+const si = (i: number) => ({ "--rt-i": i }) as CSSProperties;
 
 export function DashboardPage() {
   const [preset, setPreset] = useState<PeriodPreset>("THIS_MONTH");
@@ -58,37 +60,37 @@ export function DashboardPage() {
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24" />)
         ) : (
           <>
-            <Stat label="Saldo atual" value={formatBRL(data.balanceCents)} />
-            <Stat label="Receitas" value={formatBRL(data.incomeCents)} tone="positive" />
-            <Stat label="Despesas" value={formatBRL(data.expenseCents)} tone="negative" />
-            <Stat label="Faturas em aberto" value={formatBRL(data.invoicesOpenCents)} />
-            <Stat label="Vence em 15 dias" value={formatBRL(data.upcomingDueCents)} hint="faturas de cartão" />
+            <Stat label="Saldo atual" cents={data.balanceCents} />
+            <Stat label="Receitas" cents={data.incomeCents} tone="positive" />
+            <Stat label="Despesas" cents={data.expenseCents} tone="negative" />
+            <Stat label="Faturas em aberto" cents={data.invoicesOpenCents} />
+            <Stat label="Vence em 15 dias" cents={data.upcomingDueCents} hint="faturas de cartão" />
           </>
         )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="stagger-item" style={si(0)}>
           <CardHeader title="Gastos por categoria" description="No período selecionado" />
           {isLoading || !data ? <Skeleton className="h-44" /> : <DonutCategories data={data.byCategory} />}
         </Card>
 
-        <Card>
+        <Card className="stagger-item" style={si(1)}>
           <CardHeader title="Evolução mensal" description="Receitas, despesas e saldo — 6 meses" />
           {isLoading || !data ? <Skeleton className="h-64" /> : <MonthlyEvolutionChart data={data.monthly} />}
         </Card>
 
-        <Card>
+        <Card className="stagger-item" style={si(2)}>
           <CardHeader title="Gastos por pessoa" />
           {isLoading || !data ? <Skeleton className="h-32" /> : <BreakdownBar data={data.byMember} />}
         </Card>
 
-        <Card>
+        <Card className="stagger-item" style={si(3)}>
           <CardHeader title="Gastos por cartão" />
           {isLoading || !data ? <Skeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="stagger-item lg:col-span-2" style={si(4)}>
           <CardHeader title="Comprometimento futuro" description="Parcelas a vencer nos próximos 12 meses" />
           {future.isLoading || !future.data ? (
             <Skeleton className="h-56" />

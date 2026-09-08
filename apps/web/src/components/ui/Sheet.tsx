@@ -37,7 +37,7 @@ export function Sheet({
         aria-modal="true"
         className={cn(
           "animate-sheet-up relative z-10 flex max-h-[88vh] w-full flex-col rounded-t-2xl border border-border bg-surface shadow-pop",
-          "sm:max-w-md sm:rounded-2xl sm:[animation:none]",
+          "sm:max-w-md sm:rounded-2xl sm:animate-pop",
         )}
       >
         <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-border sm:hidden" />

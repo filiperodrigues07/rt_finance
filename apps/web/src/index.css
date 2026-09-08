@@ -23,7 +23,9 @@
   --warning: 176 120 30;
 
   --radius: 0.625rem;
-  --shadow-card: 0 1px 2px rgb(15 18 25 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 18 25 / 0.06), 0 1px 3px rgb(15 18 25 / 0.04);
+  /* linha de luz no topo do card (quase nula no claro, marcada no escuro) */
+  --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.5);
 }
 
 .dark {
@@ -40,7 +42,8 @@
   --negative: 240 130 120;
   --warning: 220 180 110;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 16px -6px rgb(0 0 0 / 0.35);
+  --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
 }
 
 /* --- HUE: só o acento muda (azul do Filipe / rosa da Julia) --- */
@@ -83,10 +86,27 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-/* números: sans, tabulares, sem ambiguidade */
+/* números: sans, tabulares, zero cortado, tracking levemente fechado */
 .tnum {
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-variant-numeric: tabular-nums slashed-zero lining-nums;
+  font-feature-settings: "tnum" 1, "zero" 1, "lnum" 1;
+  letter-spacing: -0.01em;
+}
+/* dinheiro: símbolo e centavos menores/apagados; base tabular */
+.money {
+  font-variant-numeric: tabular-nums slashed-zero lining-nums;
+  font-feature-settings: "tnum" 1, "zero" 1, "lnum" 1;
+  letter-spacing: -0.015em;
+}
+.money .money-sym {
+  font-size: 0.62em;
+  font-weight: 500;
+  opacity: 0.6;
+  margin-right: 0.16em;
+}
+.money .money-cents {
+  font-size: 0.7em;
+  opacity: 0.58;
 }
 
 /* scrollbar discreta */
@@ -106,7 +126,13 @@ body {
 @layer components {
   .card {
     @apply rounded-xl border border-border bg-surface;
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-card), var(--card-top);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  /* cards/linhas clicáveis: leve elevação no hover */
+  .card-hover:hover {
+    transform: translateY(-1px);
+    border-color: rgb(var(--fg) / 0.16);
   }
   .input {
     @apply w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg;
@@ -131,7 +157,7 @@ body {
   }
 }
 
-/* animação de entrada — respeitando reduced-motion */
+/* animações — respeitando reduced-motion */
 @keyframes rt-fade-in {
   from {
     opacity: 0;
@@ -142,8 +168,27 @@ body {
     transform: none;
   }
 }
+@keyframes rt-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .animate-in {
   animation: rt-fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* diálogos / menus: entra com um leve zoom */
+.animate-pop {
+  animation: rt-pop-in 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* itens de lista em cascata: style={{ "--rt-i": index }} (limitar ~8) */
+.stagger-item {
+  animation: rt-fade-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--rt-i, 0) * 32ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -154,8 +199,13 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  .animate-in {
+  .animate-in,
+  .animate-pop,
+  .stagger-item {
     animation: none;
+  }
+  .card-hover:hover {
+    transform: none;
   }
 }
 
