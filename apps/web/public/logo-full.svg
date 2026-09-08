@@ -1,13 +1,46 @@
-<svg width="360" height="88" viewBox="0 0 360 88" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- monograma -->
-  <rect x="1" y="1" width="86" height="86" rx="20" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="1.5"/>
-  <g fill="none" stroke-width="8">
-    <path d="M22 22V64" stroke="#C6A667"/>
-    <path d="M22 22h10a11 11 0 0 1 0 22H22" stroke="#C6A667"/>
-    <path d="M31 43 45 64" stroke="#C6A667"/>
+<svg width="560" height="180" viewBox="0 0 560 180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lf-blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#31CCF7"/>
+      <stop offset="1" stop-color="#1560E8"/>
+    </linearGradient>
+    <linearGradient id="lf-silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#BAC1CB"/>
+    </linearGradient>
+    <linearGradient id="lf-bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#54D4F8"/>
+      <stop offset="1" stop-color="#1A61EA"/>
+    </linearGradient>
+  </defs>
+
+  <!-- R -->
+  <path fill="url(#lf-blue)" fill-rule="evenodd"
+    d="M12 20h84c37 0 61 21 61 53 0 22-12 39-32 47l37 70h-53l-30-61h-18v61H12V20zm50 47v35h24c13 0 21-6 21-17s-8-18-21-18H62z"/>
+  <!-- T -->
+  <path fill="url(#lf-silver)" d="M116 20h106l-10 47h-27v113h-45V67h-34z"/>
+
+  <!-- chart -->
+  <g fill="url(#lf-bar)">
+    <rect x="244" y="106" width="22" height="54" rx="3"/>
+    <rect x="276" y="80" width="22" height="80" rx="3"/>
+    <rect x="308" y="52" width="22" height="108" rx="3"/>
+    <rect x="340" y="26" width="22" height="134" rx="3"/>
   </g>
-  <path d="M49 22h23v8h-7.5v34h-8V30H49z" fill="currentColor"/>
-  <!-- wordmark -->
-  <text x="108" y="42" font-family="'Playfair Display', Georgia, serif" font-size="34" font-weight="600" letter-spacing="1" fill="currentColor">RT</text>
-  <text x="108" y="66" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="500" letter-spacing="7" fill="currentColor" fill-opacity="0.65">FINANCE</text>
+  <g fill="none" stroke="#2E9BF0" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="244,86 278,58 310,40 356,8"/>
+    <polyline points="330,6 362,4 360,34"/>
+  </g>
+  <g fill="#2E9BF0">
+    <circle cx="244" cy="86" r="7"/>
+    <circle cx="278" cy="58" r="7"/>
+    <circle cx="310" cy="40" r="7"/>
+  </g>
+  <circle cx="336" cy="120" r="34" fill="#0A0C10" stroke="#2E9BF0" stroke-width="8"/>
+  <text x="336" y="124" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="42" fill="#2E9BF0">$</text>
+
+  <!-- FINANCE -->
+  <text x="14" y="176" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="600"
+    letter-spacing="18" fill="currentColor" fill-opacity="0.72">FINANCE</text>
 </svg>

@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { ToastProvider } from "@/lib/toast";
 import { App } from "@/App";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "@/index.css";
 
 // service worker (PWA) — autoUpdate; avisa quando há versão nova
@@ -27,7 +28,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <AuthProvider>
             <ToastProvider>
-              <App />
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
             </ToastProvider>
           </AuthProvider>
         </BrowserRouter>

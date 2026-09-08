@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/misc";
 import { AppShell } from "@/components/layout/AppShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoginPage } from "@/pages/Login";
+import { NotFoundPage } from "@/pages/NotFound";
 
 const DashboardPage = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.DashboardPage })));
 const TransactionsPage = lazy(() => import("@/pages/Transactions").then((m) => ({ default: m.TransactionsPage })));
@@ -68,7 +69,7 @@ export function App() {
           <Route path="/recorrencias" element={<Navigate to="/carteira?tab=recorrencias" replace />} />
           <Route path="/orcamentos" element={<Navigate to="/carteira?tab=orcamentos" replace />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </Suspense>
       </ErrorBoundary>

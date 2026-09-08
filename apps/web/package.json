@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\""
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "gen:icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

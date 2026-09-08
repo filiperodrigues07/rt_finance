@@ -1,11 +1,50 @@
-<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1.5" y="1.5" width="93" height="93" rx="22" fill="#0B0D12" stroke="#232833" stroke-width="1.5"/>
-  <g stroke-linecap="butt" stroke-linejoin="miter" fill="none" stroke-width="9">
-    <!-- R -->
-    <path d="M24 24V72" stroke="#3B82F6"/>
-    <path d="M24 24h11a12 12 0 0 1 0 24H24" stroke="#3B82F6"/>
-    <path d="M34 47 49 72" stroke="#3B82F6"/>
-  </g>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#31CCF7"/>
+      <stop offset="1" stop-color="#1560E8"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#BAC1CB"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#54D4F8"/>
+      <stop offset="1" stop-color="#1A61EA"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="500" height="500" rx="112" fill="#0A0C10"/>
+
+  <!-- R -->
+  <path fill="url(#blue)" fill-rule="evenodd"
+    d="M40 116h104c46 0 76 26 76 66 0 28-15 48-40 58l46 86h-66l-38-76h-22v76H40V116zm62 58v44h30c16 0 26-8 26-22s-10-22-26-22h-30z"/>
+
   <!-- T -->
-  <path d="M53 24h25v9h-8v39h-9V33h-8z" fill="#F5F7FA"/>
+  <path fill="url(#silver)"
+    d="M170 116h132l-12 58h-34v226h-56V174h-42z"/>
+
+  <!-- bar chart -->
+  <g fill="url(#bar)">
+    <rect x="312" y="326" width="28" height="74" rx="4"/>
+    <rect x="352" y="286" width="28" height="114" rx="4"/>
+    <rect x="392" y="242" width="28" height="158" rx="4"/>
+    <rect x="432" y="198" width="28" height="202" rx="4"/>
+  </g>
+
+  <!-- trend line + arrow (acima das barras) -->
+  <g fill="none" stroke="#2E9BF0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="312,286 356,244 396,210 452,150"/>
+    <polyline points="420,146 458,144 456,182"/>
+  </g>
+  <g fill="#2E9BF0">
+    <circle cx="312" cy="286" r="10"/>
+    <circle cx="356" cy="244" r="10"/>
+    <circle cx="396" cy="210" r="10"/>
+  </g>
+
+  <!-- $ coin (frente, canto inferior direito) -->
+  <circle cx="426" cy="372" r="50" fill="#0A0C10" stroke="#2E9BF0" stroke-width="11"/>
+  <text x="426" y="378" text-anchor="middle" dominant-baseline="central"
+    font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="62" fill="#2E9BF0">$</text>
 </svg>

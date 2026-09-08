@@ -41,29 +41,7 @@ function useSidebarCollapsed() {
 
 function Brand({ compact = false }: { compact?: boolean }) {
   if (compact) {
-    return (
-      <svg
-        viewBox="0 0 36 36"
-        className="size-9"
-        role="img"
-        aria-label="RT Finance"
-      >
-        <rect width="36" height="36" rx="9" fill="rgb(var(--accent))" />
-        <text
-          x="18"
-          y="19"
-          textAnchor="middle"
-          dominantBaseline="central"
-          fill="rgb(var(--accent-fg))"
-          fontSize="15"
-          fontWeight="700"
-          letterSpacing="-0.5"
-          fontFamily="Inter, system-ui, sans-serif"
-        >
-          RT
-        </text>
-      </svg>
-    );
+    return <img src="/favicon.svg" alt="RT Finance" className="size-9 rounded-lg" />;
   }
   return (
     <div className="px-1">

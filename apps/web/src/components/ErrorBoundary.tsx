@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { ErrorScreen } from "@/components/ui/ErrorScreen";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 
@@ -7,7 +8,12 @@ interface State {
   info: ErrorInfo | null;
 }
 
-/** Captura erros de render e mostra o stack em vez de tela branca. */
+const isChunkError = (e: Error) =>
+  /loading chunk|dynamically imported module|failed to fetch|importing a module script failed/i.test(
+    `${e.message} ${e.name}`,
+  );
+
+/** Captura erros de render e mostra uma tela com a cara do app (não a tela branca). */
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   override state: State = { error: null, info: null };
 
@@ -21,21 +27,47 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     console.error("ErrorBoundary:", error, info.componentStack);
   }
 
+  private reset = () => this.setState({ error: null, info: null });
+
   override render(): ReactNode {
     const { error, info } = this.state;
     if (!error) return this.props.children;
-    return (
-      <div className="mx-auto max-w-2xl p-6">
-        <ErrorState
-          title="A tela travou"
-          error={Object.assign(error, { stack: `${error.stack ?? ""}\n\n${info?.componentStack ?? ""}` })}
+
+    if (isChunkError(error)) {
+      return (
+        <ErrorScreen
+          title="Uma atualização foi publicada"
+          description="Recarregue a página para pegar a versão nova."
+          actions={
+            <Button size="sm" onClick={() => window.location.reload()}>
+              Recarregar agora
+            </Button>
+          }
         />
-        <div className="mt-3">
-          <Button size="sm" onClick={() => this.setState({ error: null, info: null })}>
-            Recarregar a tela
-          </Button>
-        </div>
-      </div>
+      );
+    }
+
+    const withStack = Object.assign(error, {
+      stack: `${error.stack ?? ""}\n\n${info?.componentStack ?? ""}`,
+    });
+
+    return (
+      <ErrorScreen
+        code="Ops"
+        title="Algo quebrou nesta tela"
+        description="O erro foi registrado no console. Você pode tentar de novo ou voltar ao início."
+        actions={
+          <>
+            <Button size="sm" onClick={this.reset}>
+              Tentar de novo
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => (window.location.href = "/")}>
+              Voltar ao início
+            </Button>
+          </>
+        }
+        details={<ErrorState title="Detalhes técnicos" error={withStack} />}
+      />
     );
   }
 }
