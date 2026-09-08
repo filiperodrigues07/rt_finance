@@ -99,8 +99,16 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
                 value={hue}
                 onChange={setHue}
                 options={[
-                  { value: "blue", label: "Azul", icon: <span className="size-2.5 rounded-full bg-[#3B82F6]" /> },
-                  { value: "pink", label: "Rosa", icon: <span className="size-2.5 rounded-full bg-[#EC4899]" /> },
+                  {
+                    value: "blue",
+                    label: "Azul",
+                    icon: <span className="block size-2.5 rounded-full bg-[#3B82F6] ring-1 ring-white/20" />,
+                  },
+                  {
+                    value: "pink",
+                    label: "Rosa",
+                    icon: <span className="block size-2.5 rounded-full bg-[#EC4899] ring-1 ring-white/20" />,
+                  },
                 ]}
               />
             </div>
