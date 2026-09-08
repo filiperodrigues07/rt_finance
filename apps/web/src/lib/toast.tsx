@@ -39,10 +39,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              "animate-in pointer-events-auto flex items-start gap-2 rounded-xl border bg-surface p-3 text-sm shadow-card",
-              t.kind === "success" && "border-positive/40",
-              t.kind === "error" && "border-negative/40",
-              t.kind === "info" && "border-border",
+              "animate-pop pointer-events-auto flex items-start gap-2 rounded-xl border border-l-2 bg-surface p-3 text-sm shadow-pop",
+              t.kind === "success" && "border-positive/30 border-l-positive",
+              t.kind === "error" && "border-negative/30 border-l-negative",
+              t.kind === "info" && "border-border border-l-accent",
             )}
           >
             {t.kind === "success" && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-positive" />}

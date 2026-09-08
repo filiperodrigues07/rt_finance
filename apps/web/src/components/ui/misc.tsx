@@ -46,7 +46,11 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border px-6 py-12 text-center">
-      {icon && <div className="text-muted">{icon}</div>}
+      {icon && (
+        <div className="mb-1 grid size-11 place-items-center rounded-full bg-accent/10 text-accent">
+          {icon}
+        </div>
+      )}
       <p className="text-sm font-medium text-fg">{title}</p>
       {description && <p className="max-w-xs text-xs text-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
