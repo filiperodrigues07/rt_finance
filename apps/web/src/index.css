@@ -259,3 +259,16 @@ body {
 .pt-safe {
   padding-top: env(safe-area-inset-top);
 }
+
+/*
+ * iOS dá zoom automático ao focar um campo com fonte < 16px. No mobile forçamos
+ * 16px em qualquer controle de formulário (o layout continua compacto no desktop).
+ */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea,
+  .input {
+    font-size: 16px !important;
+  }
+}
