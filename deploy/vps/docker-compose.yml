@@ -1,0 +1,140 @@
+# RT Finance na VPS (Hostinger KVM1, Ubuntu). As imagens vêm prontas do GHCR
+# (o GitHub Actions builda) — a VPS só faz `docker compose pull && up -d`, sem build.
+#
+#   cd ~/rt_finance/deploy/vps
+#   cp .env.prod.example .env.prod   # e preencha
+#   docker compose --env-file .env.prod pull
+#   docker compose --env-file .env.prod up -d
+#   # se as portas 80/443 estiverem livres (nenhum outro proxy no host):
+#   docker compose --env-file .env.prod --profile edge up -d
+#
+# Containers prefixados com `rtf-` pra não colidir com o outro projeto.
+
+name: rtfinance
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rtf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-rtfinance}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?defina no .env.prod}"
+      POSTGRES_DB: "${POSTGRES_DB:-rtfinance}"
+    volumes:
+      - rtf_pgdata:/var/lib/postgresql/data
+      - ./init-evolution-db.sql:/docker-entrypoint-initdb.d/10-evolution.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rtfinance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: rtf-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - rtf_redisdata:/data
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    container_name: rtf-evolution
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SERVER_URL: "http://rtf-evolution:8080"
+      AUTHENTICATION_API_KEY: "${EVOLUTION_API_KEY:?defina no .env.prod}"
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: "postgresql://${POSTGRES_USER:-rtfinance}:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=public"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_rtfinance
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379/1"
+      CACHE_REDIS_PREFIX_KEY: "evrt"
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: "RT Finance"
+      CONFIG_SESSION_PHONE_VERSION: "2.3000.1023204200"
+      QRCODE_LIMIT: "30"
+      LOG_LEVEL: "ERROR"
+      DEL_INSTANCE: "false"
+    volumes:
+      - rtf_evolution:/evolution/instances
+
+  api:
+    image: "${API_IMAGE:-ghcr.io/filiperodrigues07/rt_finance-api:latest}"
+    container_name: rtf-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: "3333"
+      API_PUBLIC_URL: "http://rtf-api:3333"
+      WEB_ORIGIN: "${WEB_ORIGIN:?defina no .env.prod}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-rtfinance}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rtfinance}?schema=public"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?defina no .env.prod}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?defina no .env.prod}"
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_COOKIE_DOMAIN: "${AUTH_COOKIE_DOMAIN:?defina no .env.prod}"
+      AI_PROVIDER: "nvidia"
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY}"
+      NVIDIA_MODEL: "nvidia/nemotron-3-super-120b-a12b"
+      GROQ_API_KEY: "${GROQ_API_KEY}"
+      AI_CONFIRM_THRESHOLD_CENTS: "${AI_CONFIRM_THRESHOLD_CENTS:-500000}"
+      WHATSAPP_PROVIDER: evolution
+      EVOLUTION_BASE_URL: "http://evolution:8080"
+      EVOLUTION_API_KEY: "${EVOLUTION_API_KEY}"
+      EVOLUTION_INSTANCE: "rtfinance"
+      WHATSAPP_WEBHOOK_TOKEN: "${WHATSAPP_WEBHOOK_TOKEN:?defina no .env.prod}"
+      WHATSAPP_ALLOWLIST: "${WHATSAPP_ALLOWLIST:-}"
+      LOG_LEVEL: info
+
+  web:
+    image: "${WEB_IMAGE:-ghcr.io/filiperodrigues07/rt_finance-web:latest}"
+    container_name: rtf-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_UPSTREAM: "rtf-api:3333"
+      NGINX_RESOLVER: "127.0.0.11"
+    # exposto só no loopback do host — um proxy no host (o do outro projeto, ou o
+    # Caddy do profile `edge`) encaminha rtfinance.filiperodrigues.tech pra cá.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8088}:80"
+
+  # TLS + roteamento. Só suba (--profile edge) se NADA mais usa 80/443 no host.
+  caddy:
+    image: caddy:2-alpine
+    container_name: rtf-caddy
+    restart: unless-stopped
+    profiles: ["edge"]
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - rtf_caddy_data:/data
+      - rtf_caddy_config:/config
+
+volumes:
+  rtf_pgdata:
+  rtf_redisdata:
+  rtf_evolution:
+  rtf_caddy_data:
+  rtf_caddy_config:

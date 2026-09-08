@@ -1,0 +1,8 @@
+# Só usado se você subir o profile `edge` (Caddy próprio pegando 80/443).
+# Se o outro projeto já tem um proxy no host, NÃO use isto — aponte esse proxy
+# para 127.0.0.1:8088.
+
+rtfinance.filiperodrigues.tech {
+	encode zstd gzip
+	reverse_proxy web:80
+}
