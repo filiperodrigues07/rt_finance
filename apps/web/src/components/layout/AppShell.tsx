@@ -277,31 +277,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu className="size-5" />
           </Button>
 
-          <div className="flex-1" />
+          <div className="hidden flex-1 lg:block" />
 
           {/* busca global — abre a paleta de comandos (⌘/Ctrl + K) */}
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
-            className="hidden h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted transition-colors hover:border-fg/25 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:flex lg:h-10 lg:w-96"
+            aria-label="Buscar transações e telas"
+            className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted transition-colors hover:border-fg/25 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 lg:h-10 lg:w-96 lg:flex-none"
           >
-            <Search className="size-4" />
-            <span>Buscar transações, telas…</span>
-            <kbd className="ml-auto rounded border border-border bg-bg/50 px-1.5 py-0.5 font-sans text-[11px] text-muted">
+            <Search className="size-4 shrink-0" />
+            <span className="truncate">Buscar transações, telas…</span>
+            <kbd className="ml-auto hidden shrink-0 rounded border border-border bg-bg/50 px-1.5 py-0.5 font-sans text-[11px] text-muted sm:inline-block">
               Ctrl K
             </kbd>
           </button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="sm:hidden"
-            onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
-            aria-label="Buscar"
-          >
-            <Search className="size-4" />
-          </Button>
 
-          <div className="flex-1" />
+          <div className="hidden flex-1 lg:block" />
           <div className="flex items-center gap-0.5">
             <NotificationsBell />
             <ThemeToggle />
