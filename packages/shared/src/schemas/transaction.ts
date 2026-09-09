@@ -91,6 +91,12 @@ export interface BulkActionResult {
   skipped: { id: string; reason: string }[];
 }
 
+/** Totais do conjunto filtrado (todas as páginas), no `GET /transactions`. */
+export interface TransactionsSummary {
+  incomeCents: number;
+  expenseCents: number;
+}
+
 export const updateTransactionBody = z.object({
   amountCents: amountCents.optional(),
   description: z.string().trim().min(1).max(280).optional(),

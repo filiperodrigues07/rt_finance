@@ -87,6 +87,17 @@ describe("transações", () => {
     expect(res.body.data.length).toBeLessThanOrEqual(5);
   });
 
+  it("summary reflete os filtros e cobre todas as páginas", async () => {
+    const all = await http.get("/api/transactions?pageSize=1").set(auth());
+    expect(all.body.summary).toBeDefined();
+    expect(typeof all.body.summary.incomeCents).toBe("number");
+    expect(typeof all.body.summary.expenseCents).toBe("number");
+    // só despesas → income zera, expense mantém
+    const exp = await http.get("/api/transactions?type=EXPENSE&pageSize=1").set(auth());
+    expect(exp.body.summary.incomeCents).toBe(0);
+    expect(exp.body.summary.expenseCents).toBe(all.body.summary.expenseCents);
+  });
+
   it("busca ampla (nota / valor) e faixa de valor", async () => {
     // sem categoria e em janeiro: não interfere no teste de orçamento (set/2026, categoria Mercado)
     await http
@@ -675,6 +686,12 @@ describe("relatórios", () => {
     expect(res.body.prev).toBeDefined();
     expect(typeof res.body.prev.expenseCents).toBe("number");
     expect(Array.isArray(res.body.prev.expenseByCategory)).toBe(true);
+    expect(Array.isArray(res.body.incomeByCategory)).toBe(true);
+    const incSum = res.body.incomeByCategory.reduce(
+      (a: number, c: { cents: number }) => a + c.cents,
+      0,
+    );
+    expect(incSum).toBe(res.body.incomeCents);
   });
 
   it("dashboard aceita filtros (pessoa, categoria, conta)", async () => {

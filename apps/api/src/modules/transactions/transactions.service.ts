@@ -10,6 +10,7 @@ import {
   type PayTransactionBody,
   type BulkActionResult,
   type Paginated,
+  type TransactionsSummary,
 } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { DomainError, NotFoundError } from "../../common/errors/domain-error";
@@ -70,7 +71,10 @@ export class TransactionsService {
   }
 
   // ---------- leitura ----------
-  async list(householdId: string, q: ListTransactionsQuery): Promise<Paginated<Transaction>> {
+  async list(
+    householdId: string,
+    q: ListTransactionsQuery,
+  ): Promise<Paginated<Transaction> & { summary: TransactionsSummary }> {
     const searchCents = q.search ? this.centsFromSearch(q.search) : null;
     const where: Prisma.TransactionWhereInput = {
       householdId,
@@ -111,7 +115,7 @@ export class TransactionsService {
         dueDate: { dueDate: effectiveOrder },
       };
 
-    const [data, total] = await this.prisma.$transaction([
+    const [data, total, byType] = await this.prisma.$transaction([
       this.prisma.transaction.findMany({
         where,
         include: TX_INCLUDE,
@@ -120,9 +124,23 @@ export class TransactionsService {
         take: q.pageSize,
       }),
       this.prisma.transaction.count({ where }),
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where,
+        orderBy: { type: "asc" },
+        _sum: { amountCents: true },
+      }),
     ]);
 
-    return paginate(data, total, q.page, q.pageSize);
+    const sumOf = (t: "INCOME" | "EXPENSE") =>
+      (byType as { type: string; _sum: { amountCents: number | null } }[]).find(
+        (r) => r.type === t,
+      )?._sum.amountCents ?? 0;
+
+    return {
+      ...paginate(data, total, q.page, q.pageSize),
+      summary: { incomeCents: sumOf("INCOME"), expenseCents: sumOf("EXPENSE") },
+    };
   }
 
   async get(householdId: string, id: string): Promise<Transaction> {

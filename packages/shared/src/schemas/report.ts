@@ -60,6 +60,8 @@ export interface DashboardReport {
   invoicesOpenCents: number;
   upcomingDueCents: number;
   byCategory: CategorySlice[];
+  /** receitas por categoria no período (para o detalhe de entradas/saídas) */
+  incomeByCategory: CategorySlice[];
   byMember: MemberSlice[];
   byCard: CardSlice[];
   monthly: MonthlyPoint[];

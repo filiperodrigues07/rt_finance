@@ -96,6 +96,7 @@ export class ReportsService {
       accounts,
       accountMoves,
       byCategoryRaw,
+      incomeByCategoryRaw,
       byMemberRaw,
       byCardRaw,
       invoices,
@@ -124,6 +125,11 @@ export class ReportsService {
       this.prisma.transaction.groupBy({
         by: ["categoryId"],
         where: { ...inRange, type: "EXPENSE", ...scope },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.transaction.groupBy({
+        by: ["categoryId"],
+        where: { ...inRange, type: "INCOME", ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.transaction.groupBy({
@@ -169,27 +175,39 @@ export class ReportsService {
       .filter((i) => toIsoDate(i.dueDate) <= horizon)
       .reduce((acc, i) => acc + i.totalCents, 0);
 
-    // categorias
-    const catIds = byCategoryRaw.map((r) => r.categoryId).filter(Boolean) as string[];
+    // categorias (despesa + receita)
+    const catIds = [
+      ...new Set(
+        [...byCategoryRaw, ...incomeByCategoryRaw]
+          .map((r) => r.categoryId)
+          .filter(Boolean) as string[],
+      ),
+    ];
     const cats = await this.prisma.category.findMany({
       where: { id: { in: catIds } },
       select: { id: true, name: true, icon: true, color: true },
     });
     const catMap = new Map(cats.map((c) => [c.id, c]));
-    const byCategory = byCategoryRaw
-      .map((r) => {
-        const c = r.categoryId ? catMap.get(r.categoryId) : undefined;
-        const cents = r._sum.amountCents ?? 0;
-        return {
-          categoryId: r.categoryId,
-          name: c?.name ?? "Sem categoria",
-          icon: c?.icon ?? "❔",
-          color: c?.color ?? "#94A3B8",
-          cents,
-          percent: percentOf(cents, expenseCents),
-        };
-      })
-      .sort((a, b) => b.cents - a.cents);
+    const toSlices = (
+      rows: { categoryId: string | null; _sum: { amountCents: number | null } }[],
+      totalCents: number,
+    ) =>
+      rows
+        .map((r) => {
+          const c = r.categoryId ? catMap.get(r.categoryId) : undefined;
+          const cents = r._sum.amountCents ?? 0;
+          return {
+            categoryId: r.categoryId,
+            name: c?.name ?? "Sem categoria",
+            icon: c?.icon ?? "❔",
+            color: c?.color ?? "#94A3B8",
+            cents,
+            percent: percentOf(cents, totalCents),
+          };
+        })
+        .sort((a, b) => b.cents - a.cents);
+    const byCategory = toSlices(byCategoryRaw, expenseCents);
+    const incomeByCategory = toSlices(incomeByCategoryRaw, incomeCents);
 
     // membros
     const members = await this.prisma.householdMember.findMany({
@@ -232,6 +250,7 @@ export class ReportsService {
       invoicesOpenCents,
       upcomingDueCents,
       byCategory,
+      incomeByCategory,
       byMember,
       byCard,
       monthly,
