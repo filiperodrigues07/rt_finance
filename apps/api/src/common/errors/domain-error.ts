@@ -20,3 +20,10 @@ export class ConflictError extends HttpException {
     super({ message, error: "Conflict" }, HttpStatus.CONFLICT);
   }
 }
+
+/** Dependência externa fora do ar (503). Mensagem segura para exibir ao usuário. */
+export class ServiceUnavailableError extends HttpException {
+  constructor(message: string, code = "ServiceUnavailable") {
+    super({ message, error: code }, HttpStatus.SERVICE_UNAVAILABLE);
+  }
+}

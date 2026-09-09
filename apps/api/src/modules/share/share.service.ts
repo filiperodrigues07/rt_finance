@@ -1,6 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../lib/prisma.service";
-import { NotFoundError, DomainError } from "../../common/errors/domain-error";
+import {
+  NotFoundError,
+  DomainError,
+  ServiceUnavailableError,
+} from "../../common/errors/domain-error";
 import { ReportsService } from "../reports/reports.service";
 import { WhatsAppService } from "../whatsapp/whatsapp.types";
 import {
@@ -18,6 +22,8 @@ const INVOICE_STATUS_LABEL: Record<string, string> = {
 
 @Injectable()
 export class ShareService {
+  private readonly logger = new Logger(ShareService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reports: ReportsService,
@@ -114,12 +120,20 @@ export class ShareService {
       throw new DomainError(`${target.displayName} não tem WhatsApp cadastrado`);
     }
 
-    const res = await this.whatsapp.sendImage(
-      target.user.phoneE164,
-      png,
-      caption,
-      household?.whatsappInstance || undefined,
-    );
+    let res: Awaited<ReturnType<typeof this.whatsapp.sendImage>>;
+    try {
+      res = await this.whatsapp.sendImage(
+        target.user.phoneE164,
+        png,
+        caption,
+        household?.whatsappInstance || undefined,
+      );
+    } catch (err) {
+      this.logger.warn(`envio pelo WhatsApp falhou: ${(err as Error).message}`);
+      throw new ServiceUnavailableError(
+        'Não consegui enviar pelo WhatsApp agora. Tente de novo em instantes ou use "Baixar imagem".',
+      );
+    }
     await this.prisma.whatsappMessage.create({
       data: {
         householdId,
