@@ -231,15 +231,17 @@ export function CashFlowChart({ data }: { data: CashFlowMonth[] }) {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer>
-        <ComposedChart data={rows} margin={{ left: -12, right: 8, top: 6 }}>
+        <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 6 }}>
           <CartesianGrid stroke={t.grid} strokeDasharray={gridDash} vertical={false} />
           <XAxis dataKey="month" tick={axisTick(t.axis)} axisLine={false} tickLine={false} />
           <YAxis
-            tickFormatter={(v) => Number(v).toLocaleString("pt-BR", { notation: "compact" })}
+            tickFormatter={(v) =>
+              Number(v).toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 0 })
+            }
             tick={axisTick(t.axis)}
             axisLine={false}
             tickLine={false}
-            width={46}
+            width={56}
           />
           <Tooltip content={<ChartTooltip formatter={(v) => brl(Math.abs(v))} />} {...cursorProps} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -307,7 +309,7 @@ export function NetWorthChart({ data }: { data: { month: string; cents: number }
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer>
-        <AreaChart data={rows} margin={{ left: -12, right: 8, top: 6 }}>
+        <AreaChart data={rows} margin={{ left: 0, right: 8, top: 6 }}>
           <defs>
             <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={t.accent} stopOpacity={0.35} />
@@ -317,11 +319,13 @@ export function NetWorthChart({ data }: { data: { month: string; cents: number }
           <CartesianGrid stroke={t.grid} strokeDasharray={gridDash} vertical={false} />
           <XAxis dataKey="month" tick={axisTick(t.axis)} axisLine={false} tickLine={false} />
           <YAxis
-            tickFormatter={(v) => Number(v).toLocaleString("pt-BR", { notation: "compact" })}
+            tickFormatter={(v) =>
+              Number(v).toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 0 })
+            }
             tick={axisTick(t.axis)}
             axisLine={false}
             tickLine={false}
-            width={46}
+            width={56}
           />
           <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           <Area

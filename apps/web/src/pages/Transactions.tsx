@@ -772,7 +772,7 @@ export function TransactionsPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <Money
                         cents={t.type === "INCOME" ? t.amountCents : -t.amountCents}
-                        tone={t.type === "INCOME" ? "positive" : undefined}
+                        tone={t.type === "INCOME" ? "positive" : "negative"}
                         className="text-[15px] font-semibold"
                       />
                     </td>
@@ -848,7 +848,7 @@ export function TransactionsPage() {
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <Money
                       cents={t.type === "INCOME" ? t.amountCents : -t.amountCents}
-                      tone={t.type === "INCOME" ? "positive" : undefined}
+                      tone={t.type === "INCOME" ? "positive" : "negative"}
                       className="font-semibold"
                     />
                     <div className="flex items-center">
