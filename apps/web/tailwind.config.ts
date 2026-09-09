@@ -10,6 +10,8 @@ export default {
         bg: "rgb(var(--bg) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",
         "surface-2": "rgb(var(--surface-2) / <alpha-value>)",
+        sidebar: "rgb(var(--sidebar) / <alpha-value>)",
+        elevated: "rgb(var(--elevated) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
         muted: "rgb(var(--muted) / <alpha-value>)",
         fg: "rgb(var(--fg) / <alpha-value>)",
@@ -35,8 +37,12 @@ export default {
         sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
         display: ['"Playfair Display"', "Georgia", "Times New Roman", "serif"],
       },
+      transitionTimingFunction: {
+        smooth: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
       boxShadow: {
-        card: "0 1px 2px 0 rgb(0 0 0 / 0.06)",
+        sm: "0 1px 2px rgb(0 0 0 / 0.14)",
+        card: "0 1px 2px rgb(0 0 0 / 0.12), 0 6px 20px -12px rgb(0 0 0 / 0.4)",
         pop: "0 1px 2px rgb(0 0 0 / 0.2), 0 12px 40px -12px rgb(0 0 0 / 0.5)",
       },
       keyframes: {

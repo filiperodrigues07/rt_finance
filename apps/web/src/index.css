@@ -13,37 +13,45 @@
   --bg: 250 249 246;
   --surface: 255 255 255;
   --surface-2: 245 243 238;
+  --sidebar: 247 245 240;
+  --elevated: 255 255 255;
   --border: 229 226 219;
   --muted: 106 102 95;
   --fg: 26 23 20;
   --accent: 37 99 235; /* azul (padrão) */
   --accent-fg: 255 255 255;
+  --ring: var(--accent);
   --positive: 22 122 74;
   --negative: 190 50 50;
   --warning: 176 120 30;
 
   --radius: 0.625rem;
-  --shadow-card: 0 1px 2px rgb(15 18 25 / 0.06), 0 1px 3px rgb(15 18 25 / 0.04);
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow-sm: 0 1px 2px rgb(15 18 25 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 18 25 / 0.05), 0 4px 14px -6px rgb(15 18 25 / 0.08);
   /* linha de luz no topo do card (quase nula no claro, marcada no escuro) */
   --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.5);
 }
 
 .dark {
   /* dark (padrão) — quase preto + acento claro */
-  --bg: 9 10 13;
-  --surface: 16 18 23;
-  --surface-2: 24 27 33;
-  --border: 38 42 50;
-  --muted: 148 152 160;
-  --fg: 232 234 238;
+  --bg: 8 10 15;
+  --surface: 17 20 27;
+  --surface-2: 22 26 35;
+  --sidebar: 13 16 22;
+  --elevated: 27 32 42;
+  --border: 34 39 51;
+  --muted: 139 149 167;
+  --fg: 241 245 249;
   --accent: 96 165 250; /* azul claro */
-  --accent-fg: 9 10 13;
+  --accent-fg: 8 10 15;
   --positive: 110 200 150;
   --negative: 240 130 120;
   --warning: 220 180 110;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 16px -6px rgb(0 0 0 / 0.35);
-  --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.45), 0 6px 20px -10px rgb(0 0 0 / 0.4);
+  --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.035);
 }
 
 /* --- HUE: só o acento muda (azul do Filipe / rosa da Julia) --- */
@@ -127,12 +135,18 @@ body {
   .card {
     @apply rounded-xl border border-border bg-surface;
     box-shadow: var(--shadow-card), var(--card-top);
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.16s var(--ease-smooth), border-color 0.16s var(--ease-smooth),
+      box-shadow 0.16s var(--ease-smooth);
   }
   /* cards/linhas clicáveis: leve elevação no hover */
-  .card-hover:hover {
+  .card-hover:hover,
+  .card-interactive:hover {
     transform: translateY(-1px);
-    border-color: rgb(var(--fg) / 0.16);
+    border-color: rgb(var(--fg) / 0.14);
+    box-shadow: var(--shadow-card), var(--card-top), 0 8px 24px -14px rgb(0 0 0 / 0.5);
+  }
+  .card-interactive {
+    @apply cursor-pointer;
   }
   /* botão primário com um leve volume (luz no topo, sombra embaixo) */
   .accent-surface {
@@ -143,13 +157,9 @@ body {
     );
     box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.18);
   }
-  /* pill de navegação ativo — gradiente sutil do acento */
+  /* pill de navegação ativo — fundo sólido discreto do acento */
   .nav-active {
-    background-image: linear-gradient(
-      to right,
-      rgb(var(--accent) / 0.16),
-      rgb(var(--accent) / 0.05)
-    );
+    background-color: rgb(var(--accent) / 0.12);
   }
   .input {
     @apply w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg;
@@ -174,14 +184,31 @@ body {
     color: rgb(var(--muted));
   }
   .input:focus {
-    border-color: rgb(var(--accent));
-    box-shadow: 0 0 0 2px rgb(var(--accent) / 0.2);
+    border-color: rgb(var(--ring));
+    box-shadow: 0 0 0 2px rgb(var(--ring) / 0.28);
   }
   .label {
     @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
   }
   .skeleton {
     @apply animate-pulse rounded-md bg-surface-2;
+  }
+  /* skeleton com forma: sweep de gradiente por cima do bloco */
+  .skeleton-shimmer {
+    @apply relative overflow-hidden rounded-md bg-surface-2;
+  }
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--fg) / 0.06),
+      transparent
+    );
+    animation: rt-shimmer 1.4s var(--ease-smooth) infinite;
   }
   .hairline {
     @apply border-t border-border;
@@ -229,6 +256,20 @@ body {
     transform: none;
   }
 }
+@keyframes rt-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes rt-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+.animate-toast-out {
+  animation: rt-toast-out 0.18s ease forwards;
+}
 .animate-in {
   animation: rt-fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -258,10 +299,13 @@ body {
   .animate-pop,
   .stagger-item,
   .animate-drawer,
-  .animate-sheet-up {
+  .animate-sheet-up,
+  .animate-toast-out,
+  .skeleton-shimmer::after {
     animation: none;
   }
-  .card-hover:hover {
+  .card-hover:hover,
+  .card-interactive:hover {
     transform: none;
   }
 }
