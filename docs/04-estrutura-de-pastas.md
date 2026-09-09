@@ -24,10 +24,7 @@ rt-finance/
 │  ├─ 06-decisoes-adr.md
 │  └─ 07-roadmap-etapas.md
 │
-├─ fly/                         # infra de produção (ETAPA 7)
-│  ├─ api.fly.toml
-│  ├─ web.fly.toml
-│  └─ evolution.fly.toml
+├─ deploy/                      # compose de produção (VPS) + init do banco da Evolution
 │
 ├─ packages/
 │  ├─ shared/                   # @rt-finance/shared — SEM dependência de Nest/React

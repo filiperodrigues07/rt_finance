@@ -111,7 +111,7 @@ Detalhes: [`docs/01-arquitetura.md`](docs/01-arquitetura.md) ·
 | **Frontend** | React 18 · Vite 5 · Tailwind CSS 3 · Recharts · TanStack Query 5 · react-router 6 · lucide-react · PWA · componentes de UI próprios |
 | **Importação** | `tesseract.js` (OCR) · `sharp` (pré-processo de imagem) · `pdfjs-dist` + `pdf-parse` (PDF) · parser OFX próprio |
 | **Integrações** | **Evolution API** v2.3.1 (WhatsApp self-hosted, Baileys) · **NVIDIA NIM** `nemotron-3-super-120b` (interpretação, endpoint OpenAI-compatível) · **Groq** `whisper-large-v3` (transcrição de áudio) |
-| **Infra** | Monorepo **pnpm 9 + Turborepo** · Docker Compose (dev e prod) · Redis (cache da sessão) · Fly.io como alternativa (`fly/*.toml`) |
+| **Infra** | Monorepo **pnpm 9 + Turborepo** · Docker Compose (dev e prod) · Redis (cache da sessão) · VPS + Docker Compose em produção |
 
 ---
 
@@ -221,8 +221,7 @@ rt_finance/
 │  ├─ eslint-config/
 │  └─ tsconfig/
 ├─ docs/                   # arquitetura, banco, fluxos, ADRs, runbook, deploy
-├─ deploy/                 # init do banco da Evolution
-├─ fly/                    # fly.io toml (alternativa de deploy)
+├─ deploy/                 # compose de produção (VPS) + init do banco da Evolution
 ├─ docker-compose.yml      # dev: postgres (profile db) · evolution+redis (profile whatsapp)
 └─ docker-compose.prod.yml # prod: api + web (nginx) + postgres + evolution + redis
 ```
@@ -288,9 +287,9 @@ Passo a passo (DNS, TLS, migrations, backups): [`docs/05-deploy.md`](docs/05-dep
 **Antes de subir, siga o [`SECURITY.md`](SECURITY.md)** — rotacionar chaves, segredos
 JWT fortes, `AUTH_COOKIE_SECURE=true`, `WEB_ORIGIN` real, backup do Postgres.
 
-**Fly.io** — 4 apps (`api` · `web` · `evolution` · Postgres) + Upstash Redis (plano
-Free) para a sessão do WhatsApp. Configs em [`fly/`](fly/), runbook completo em
-[`docs/05-deploy.md`](docs/05-deploy.md#1-flyio--passo-a-passo).
+**Produção** — VPS com `docker-compose.prod.yml` (`api` · `web`/nginx · `postgres` ·
+`evolution` · `redis`). A API roda `prisma migrate deploy` no start. Runbook completo
+em [`docs/05-deploy.md`](docs/05-deploy.md) e [`docs/08-runbook.md`](docs/08-runbook.md).
 
 ---
 
@@ -313,7 +312,7 @@ Free) para a sessão do WhatsApp. Configs em [`fly/`](fly/), runbook completo em
 | [`docs/02-banco-de-dados.md`](docs/02-banco-de-dados.md) | Schema Prisma anotado, ER, regras de dinheiro, competência de fatura |
 | [`docs/03-fluxo-whatsapp-ia.md`](docs/03-fluxo-whatsapp-ia.md) | Fluxo WhatsApp → IA → Backend, máquina de confirmação, contrato `AiResult` |
 | [`docs/04-estrutura-de-pastas.md`](docs/04-estrutura-de-pastas.md) | Árvore do monorepo comentada |
-| [`docs/05-deploy.md`](docs/05-deploy.md) | Deploy VPS/Compose e Fly.io, Evolution, backups |
+| [`docs/05-deploy.md`](docs/05-deploy.md) | Deploy na VPS (Docker Compose), Evolution, backups |
 | [`docs/06-decisoes-adr.md`](docs/06-decisoes-adr.md) | Decisões arquiteturais (ADRs) |
 | [`docs/07-roadmap-etapas.md`](docs/07-roadmap-etapas.md) | Roadmap por etapas |
 | [`docs/08-runbook.md`](docs/08-runbook.md) | Operação em produção (WhatsApp caiu, reprocessar fatura, rollback) |

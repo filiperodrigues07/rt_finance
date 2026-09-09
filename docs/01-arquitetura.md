@@ -30,7 +30,7 @@ flowchart TB
         NV["NVIDIA NIM<br/>(build.nvidia.com)"]
     end
 
-    subgraph Fly["Fly.io"]
+    subgraph Prod["VPS · Docker Compose"]
         EVO["Evolution API<br/>(self-hosted, volume de sessão)"]
         subgraph API["rt-finance-api (NestJS + Fastify)"]
             WH["WhatsappModule<br/>webhook + router"]
@@ -79,7 +79,7 @@ flowchart TB
 | Confirmação | Estado em `AiConversation` (Postgres) | TTL por job de expiração; sem dependência de cache externo ([ADR‑0008](06-decisoes-adr.md#adr-0008)) |
 | Frontend | React + Vite + Tailwind + shadcn/ui + Recharts + lucide | Componentes acessíveis (Radix), dark mode por tokens, gráficos interativos ([ADR‑0012](06-decisoes-adr.md#adr-0012)) |
 | Gráfico no WhatsApp | chartjs-node-canvas | Render server-side leve; sem headless Chrome ([ADR‑0013](06-decisoes-adr.md#adr-0013)) |
-| Deploy | Fly.io (3 apps + Postgres gerenciado) | HTTPS automático para o webhook; volume para a Evolution ([ADR‑0007b](06-decisoes-adr.md#adr-0007b)) |
+| Deploy | VPS + Docker Compose (`docker-compose.prod.yml`) | api + web/nginx + postgres + evolution + redis numa rede interna; proxy TLS do host ([ADR‑0007b](06-decisoes-adr.md#adr-0007b)) |
 | Validação | Zod em toda fronteira | env, DTOs, payload do webhook, saída da IA — um só sistema ([ADR‑0002](06-decisoes-adr.md#adr-0002)) |
 | Logs | pino + request id | Estruturado; correlação de requisições |
 | Testes | Vitest + Supertest/Nest testing + Playwright | Unit ambos os lados, integração da API, 2–3 E2E felizes |

@@ -49,7 +49,7 @@ categorias, lançar despesas/receitas e compras parceladas via REST, consultar f
 - Filtros globais (período/mês/ano/categoria/usuário/cartão/tipo) que atualizam todos
   os gráficos.
 - Estados: skeleton loading, estados vazios, feedback de erro/sucesso.
-- Decisão pendente: nginx no Fly vs Cloudflare Pages para servir o build.
+- Decisão pendente: nginx próprio vs CDN estática para servir o build.
 - E2E Playwright: login→dashboard, criar transação, criar cartão.
 
 **Funciona ao fim:** casal usa o painel para tudo que hoje seria feito "no sistema",
@@ -69,8 +69,8 @@ estruturado).
   allowlist.
 - `MessageRouter` (esqueleto): sem IA ainda, reconhece comandos simples e responde;
   `formatters.ts` (textos pt-BR: ✅ despesa, 🧾 confirmação, 📊 resumo).
-- `fly/evolution.fly.toml` + volume; script de criação de instância e configuração de
-  webhook; procedimento de pareamento (doc 05 §4).
+- serviço `evolution` no compose + volume; script de criação de instância e
+  configuração de webhook; procedimento de pareamento (doc 05).
 - Rate limit específico do webhook.
 
 **Funciona ao fim:** mensagem do casal chega ao backend, é identificada e recebe
@@ -121,7 +121,7 @@ WhatsApp.
   `QueryRequest.wantsChart`.
 - `reports`: exportação CSV/XLSX/PDF; telas `bills`, `recurrences`, `goals`, `reports`
   no web.
-- Decisão pendente: worker de jobs no mesmo processo vs app Fly separado.
+- Decisão pendente: worker de jobs no mesmo processo vs serviço separado.
 
 **Funciona ao fim:** todos os módulos do enunciado ativos; alertas chegando; "me mostra
 os gastos do mês" responde com gráfico.
@@ -138,7 +138,7 @@ os gastos do mês" responde com gráfico.
   rate limits, mascaramento de PII nos logs, headers.
 - Performance: índices revisados sob dados reais, N+1 no `reports`, cache curto de
   agregações do dashboard.
-- `fly/*.toml` finais, `Dockerfile`s, `release_command` de migrations, health checks.
+- `docker-compose.prod.yml`, `Dockerfile`s, `prisma migrate deploy` no start, health checks.
 - Evolution API em produção + pareamento + volume + snapshot.
 - Backups (`backup.job`) + procedimento de restore testado.
 - Observabilidade: Sentry, alerta no job de fechamento de fatura.
@@ -158,4 +158,4 @@ Redis/BullMQ se necessário).
 | ETAPA 2 | Nomes/emails/senhas iniciais de Filipe e esposa para o seed (via `.env`), e os 2 telefones em E.164 |
 | ETAPA 4 | Aparelho/linha para parear a Evolution API; versão da imagem Evolution que prefere fixar |
 | ETAPA 5 | `NVIDIA_API_KEY` e o nome do modelo disponível na sua conta NVIDIA |
-| ETAPA 7 | Conta Fly.io (org, região), destino dos backups, `SENTRY_DSN` (opcional) |
+| ETAPA 7 | VPS (host, acesso SSH), destino dos backups, `SENTRY_DSN` (opcional) |

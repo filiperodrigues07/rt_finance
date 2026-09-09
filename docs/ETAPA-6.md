@@ -25,7 +25,7 @@ export CSV. Verificado ponta a ponta (REST + WhatsApp com provider `console`).
 | `0 9 * * 1` | resumo semanal (`WEEKLY_SUMMARY`) |
 
 > Decisão: `@nestjs/schedule` no lugar de pg-boss (ADR-0007). Cron em processo é mais
-> simples e cobre uma instância Fly. Migrar para pg-boss/BullMQ se houver múltiplas
+> simples e cobre uma instância. Migrar para pg-boss/BullMQ se houver múltiplas
 > réplicas. Alertas de orçamento rodam no job diário (+ botão "Verificar alertas" no
 > painel), não a cada transação — evita um ciclo de dependência entre módulos.
 

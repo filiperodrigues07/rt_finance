@@ -7,7 +7,7 @@
 # do serviço `postgres` daqui — deixe o DATABASE_URL da API apontando para o seu, e rode
 # apenas a Evolution:  docker compose --profile whatsapp up -d evolution
 #
-# Requer Docker Desktop. Em produção tudo isso é gerenciado pelo Fly.io (docs/05-deploy.md).
+# Requer Docker Desktop. Em produção use docker-compose.prod.yml na VPS (docs/05-deploy.md).
 
 services:
   postgres:

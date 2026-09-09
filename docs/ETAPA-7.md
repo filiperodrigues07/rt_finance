@@ -33,11 +33,11 @@ Total do projeto: **21 (shared) + 10 (parser IA) + 16 (integração) = 47 testes
 | Rate limit estrito no auth | `@Throttle({ limit: 10, ttl: 60s })` no `AuthController` (verificado: 10º/11º req → 429) |
 | Rate limit no webhook | já em `WhatsappController` |
 | Trilha de auditoria | `AuditInterceptor` global — grava `AuditLog` (ator + entidade + id + método) em toda mutação `POST/PATCH/DELETE` de rotas de dinheiro |
-| Cookie de refresh | `AUTH_COOKIE_SECURE=true` em produção (`fly/api.fly.toml`), `httpOnly`, `SameSite=Lax` |
+| Cookie de refresh | `AUTH_COOKIE_SECURE=true` em produção (`.env.prod`), `httpOnly`, `SameSite=Lax` |
 | CORS | restrito a `WEB_ORIGIN` (env) |
 | Helmet + compressão | `@fastify/helmet` + `@fastify/compress` (gzip > 1 KB — verificado) |
 | Env validado no boot | `env.schema.ts` (Zod) — processo não sobe sem `JWT_*` / `DATABASE_URL` |
-| Segredos | só no backend; `NVIDIA_API_KEY` etc via `fly secrets`, nunca no repo/`.env.example` |
+| Segredos | só no backend; `NVIDIA_API_KEY` etc no `.env.prod` da VPS, nunca no repo/`.env.example` |
 | SQL | Prisma parametriza; a IA nunca emite SQL (só `queryTemplate`) |
 
 ## Otimização
@@ -46,84 +46,40 @@ Total do projeto: **21 (shared) + 10 (parser IA) + 16 (integração) = 47 testes
   `react`, `recharts` (434 KB → só carrega no Dashboard/Relatórios) e
   `@tanstack/react-query`. Carga inicial de páginas sem gráfico caiu de ~900 KB para
   ~350 KB.
-- **API**: `@fastify/compress` global; `auto_stop_machines` no Fly para o web.
+- **API**: `@fastify/compress` global.
 - Índices do Prisma revisados (já definidos no schema: `(householdId,date)`,
   `(householdId,categoryId,date)`, `(creditCardId,date)`, `(invoiceId)`, etc).
 
-## Deploy — Fly.io
+## Deploy — VPS + Docker Compose
 
 Arquivos:
 
 ```
 apps/api/Dockerfile         multi-stage (deps → build → runtime node:22-slim + openssl)
 apps/web/Dockerfile         build Vite → nginx:1.27-alpine
-apps/web/nginx.conf         :8080, /assets cache 1a, proxy /api → rt-finance-api.internal, SPA fallback
+apps/web/nginx.conf.template :8080, /assets cache 1a, proxy /api → api:3333, SPA fallback
 .dockerignore
-fly/api.fly.toml            release_command = prisma migrate deploy · health /health · 512 MB
-fly/web.fly.toml            256 MB · auto-stop
-fly/evolution.fly.toml      imagem atendai/evolution-api:v2.1.1 · volume evolution_data · NÃO escalar
+docker-compose.prod.yml     api + web(nginx) + postgres + evolution + redis numa rede interna
 .github/workflows/ci.yml    lint/typecheck/unit/integração/build com Postgres de serviço
+.github/workflows/publish-images.yml  build/push das imagens api/web para o GHCR
 ```
 
-### Passo a passo (primeiro deploy)
-
-```bash
-fly auth login
-fly launch --no-deploy --copy-config -c fly/api.fly.toml        # cria rt-finance-api
-fly launch --no-deploy --copy-config -c fly/web.fly.toml        # cria rt-finance-web
-fly launch --no-deploy --copy-config -c fly/evolution.fly.toml  # cria rt-finance-evolution
-fly volumes create evolution_data -a rt-finance-evolution -r gru -n 1 -s 1
-
-# Postgres gerenciado
-fly mpg create --name rt-finance-db --region gru                # anote a connection string
-
-# segredos
-fly secrets set -a rt-finance-api \
-  DATABASE_URL="postgres://…rt-finance-db…" \
-  JWT_ACCESS_SECRET="$(openssl rand -base64 48)" \
-  JWT_REFRESH_SECRET="$(openssl rand -base64 48)" \
-  NVIDIA_API_KEY="nvapi-…" \
-  EVOLUTION_API_KEY="$(openssl rand -hex 24)" \
-  WHATSAPP_WEBHOOK_TOKEN="$(openssl rand -hex 24)" \
-  WHATSAPP_ALLOWLIST="+55XXXXXXXXXXX,+55YYYYYYYYYYY"
-fly secrets set -a rt-finance-evolution AUTHENTICATION_API_KEY="<mesmo EVOLUTION_API_KEY>"
-
-# deploy (a API roda `prisma migrate deploy` no release_command)
-fly deploy -c fly/api.fly.toml
-fly deploy -c fly/web.fly.toml
-fly deploy -c fly/evolution.fly.toml
-
-# seed inicial (uma vez) — SSH na máquina da API
-fly ssh console -a rt-finance-api -C "node -e \"process.exit(0)\""   # smoke
-fly ssh console -a rt-finance-api
-  cd /app/apps/api && node --import tsx prisma/seed.ts   # ou rodar o seed compilado
-```
-
-> Preencher `SEED_OWNER_*` / `SEED_PARTNER_*` como secrets antes de rodar o seed, ou
-> criar os usuários direto pelo painel depois e ajustar telefones em Configurações.
+Passo a passo completo (config, subir, seed, proxy TLS): **`docs/05-deploy.md`**.
+Resumo: `git clone` → `cp .env.prod.example .env.prod` (preencher) →
+`docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` →
+`... exec api pnpm --filter @rt-finance/api db:seed`. A API roda
+`prisma migrate deploy` no start.
 
 ### Evolution API (parear o WhatsApp)
 
-```bash
-E=https://rt-finance-evolution.fly.dev
-K=<EVOLUTION_API_KEY>
-curl -X POST $E/instance/create -H "apikey: $K" -H 'content-type: application/json' \
-  -d '{"instanceName":"rtfinance","integration":"WHATSAPP-BAILEYS"}'
-curl -X POST $E/webhook/set/rtfinance -H "apikey: $K" -H 'content-type: application/json' -d '{
-  "webhook":{"enabled":true,
-    "url":"https://rt-finance-api.fly.dev/api/whatsapp/webhook",
-    "events":["MESSAGES_UPSERT"],
-    "headers":{"x-webhook-token":"<WHATSAPP_WEBHOOK_TOKEN>"}}}'
-curl $E/instance/connect/rtfinance -H "apikey: $K"   # devolve o QR — parear no celular
-curl $E/instance/connectionState/rtfinance -H "apikey: $K"   # deve ficar "open"
-```
+O pareamento é feito pelo painel: **Configurações → WhatsApp → Conectar / Gerar QR**.
+Cada household cria a própria instância (`hh-xxxxxxxx`) e o webhook é configurado
+automaticamente. Diagnóstico manual está no `docs/08-runbook.md`.
 
 ## Backups
 
-- **Fly Managed Postgres** faz snapshots automáticos.
-- Dump manual: `fly mpg connect -a rt-finance-db` → `pg_dump` para um bucket
-  (Backblaze B2 / S3). Agendar via GitHub Action `schedule` ou um cron externo.
-- Restore: banco limpo → `pg_restore` → `prisma migrate deploy`.
+- `pg_dump` no cron do host (comando em `docs/08-runbook.md`).
+- Restore: banco limpo → `psql`/`pg_restore` → `prisma migrate deploy`.
 
 ## Runbook — ver `docs/08-runbook.md`
 

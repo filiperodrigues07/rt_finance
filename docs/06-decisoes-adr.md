@@ -102,8 +102,8 @@ fricção (app Meta, verificação, templates aprovados para proativo). Evolutio
 (Baileys) usa o número real e sobe rápido.
 
 **Decisão.** Interface `WhatsAppService` (`sendText`, `sendImage`, `verifyWebhook`,
-`parseInbound`). Provider inicial `EvolutionProvider`, rodando como app próprio no Fly
-com **volume de sessão**. Idempotência por `providerMessageId`; allowlist dos 2
+`parseInbound`). Provider inicial `EvolutionProvider`, rodando como serviço próprio no
+compose com **volume de sessão**. Idempotência por `providerMessageId`; allowlist dos 2
 telefones; token no webhook.
 
 **Alternativas.** (a) Meta Cloud API — escolhida como **destino de migração** para o
@@ -121,7 +121,7 @@ uma classe + configurar templates para as notificações proativas.
 **Contexto.** Precisamos de agendados (fechamento de fatura, recorrências, lembretes,
 alertas de orçamento, resumo semanal, expiração de confirmação) e de filas leves.
 
-**Decisão.** `pg-boss` sobre o mesmo PostgreSQL. Sem Redis. No Fly, o worker roda no
+**Decisão.** `pg-boss` sobre o mesmo PostgreSQL. Sem Redis. O worker roda no
 mesmo processo da API na ETAPA 6 (separável depois).
 
 **Alternativas.** (a) Redis + BullMQ — mais observável e robusto sob carga; +1 serviço
@@ -133,21 +133,23 @@ crescer muito, migrar para BullMQ.
 
 ---
 
-## ADR-0007b — Deploy no Fly.io {#adr-0007b}
+## ADR-0007b — Deploy em VPS com Docker Compose {#adr-0007b}
 
 **Contexto.** O webhook do WhatsApp precisa de URL HTTPS pública e estável. Queremos
-custo baixo e pouca operação.
+custo baixo e controle total do servidor.
 
-**Decisão.** Fly.io com 3 apps (`api`, `web`, `evolution`) + Managed Postgres, região
-`gru`. Segredos via `fly secrets`. Rede privada `*.internal` entre API e Evolution.
-Migrations no `release_command`.
+**Decisão.** VPS única com `docker-compose.prod.yml`: `api`, `web` (nginx que faz o
+proxy de `/api`), `postgres`, `evolution` e `redis` numa rede interna do compose. Só o
+`web` publica porta; um proxy TLS do host (Caddy/nginx) fica na frente. Migrations
+rodam no start da API (`prisma migrate deploy`).
 
-**Alternativas.** (a) VPS + Docker Compose + Caddy — mais barato e com controle total,
-mais admin de servidor. (b) Railway/Render — semelhante ao Fly, preferência do usuário
-pelo Fly. (c) Vercel (web) + API gerenciada — separa a operação.
+**Alternativas.** (a) PaaS (Railway / Render) — menos admin de servidor, mais caro e
+menos controle. (b) Vercel (web) + API gerenciada — separa a operação em dois lugares.
+Nenhuma foi adotada; o deploy ficou na VPS.
 
-**Consequências.** `evolution` precisa de instância fixa + volume (sessão única). Deploy
-em 3 passos. Custo previsível (poucos dólares/mês nesse porte).
+**Consequências.** `evolution` precisa de volume fixo (sessão única). Deploy = `git
+pull` + `docker compose up -d --build`. Backup do Postgres é responsabilidade do cron
+do host.
 
 ---
 

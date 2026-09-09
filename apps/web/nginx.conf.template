@@ -1,6 +1,6 @@
 # Template nginx — o entrypoint da imagem roda envsubst nas variáveis abaixo ao subir:
-#   ${API_UPSTREAM}    host:porta da API   (compose: api:3333 · Fly: rt-finance-api.internal:8080)
-#   ${NGINX_RESOLVER}  DNS interno         (compose: 127.0.0.11 · Fly: [fdaa::3]:53)
+#   ${API_UPSTREAM}    host:porta da API   (compose: api:3333)
+#   ${NGINX_RESOLVER}  DNS interno         (compose: 127.0.0.11)
 # proxy_pass com variável = resolução preguiçosa: o nginx sobe mesmo se a API ainda
 # não resolver (deploy fora de ordem, cold start).
 server {

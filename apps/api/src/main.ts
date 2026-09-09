@@ -53,7 +53,7 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("api", { exclude: ["health"] });
   app.enableShutdownHooks();
 
-  // "::" = dual-stack (IPv4 + IPv6). Necessário na Fly: o DNS .internal (6PN) é IPv6.
+  // "::" = dual-stack (IPv4 + IPv6) — cobre redes internas do compose em qualquer família.
   await app.listen(env.API_PORT, "::");
   NestLogger.log(`RT Finance API em http://localhost:${env.API_PORT}/api`, "Bootstrap");
 }
