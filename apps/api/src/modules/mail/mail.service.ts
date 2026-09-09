@@ -179,4 +179,30 @@ export class MailService {
   ): Promise<void> {
     await this.send(to, subject, text, html);
   }
+
+  /** Backup automático como anexo .json (chamado pelo scheduler). */
+  async sendBackup(to: string, filename: string, jsonBuffer: Buffer): Promise<void> {
+    const t = await this.resolve();
+    const subject = `Backup do RT Finance · ${new Date().toLocaleDateString("pt-BR")}`;
+    if (!t) {
+      this.logger.debug(`[mail:noop] backup para=${to} (${jsonBuffer.byteLength} bytes)`);
+      return;
+    }
+    const text =
+      "Segue o backup automático dos dados do casal em anexo. Guarde num lugar seguro.\n" +
+      "Para restaurar: Configurações → Backup → Restaurar de um arquivo.";
+    await t.transporter.sendMail({
+      from: t.from,
+      to,
+      subject,
+      text,
+      html: `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#0f172a">
+        <p>Segue o <strong>backup automático</strong> dos dados do casal em anexo (<code>${filename}</code>).</p>
+        <p style="color:#475569">Para restaurar: <em>Configurações → Backup → Restaurar de um arquivo</em>.</p>
+        <p style="font-size:12px;color:#94a3b8;margin-top:24px">RT Finance · assistente do casal</p>
+      </div>`,
+      attachments: [{ filename, content: jsonBuffer, contentType: "application/json" }],
+    });
+    this.logger.log(`Backup enviado para ${to} via ${t.source}`);
+  }
 }

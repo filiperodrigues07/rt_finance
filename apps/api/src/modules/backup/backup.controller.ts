@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Req, Res } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { AuthUser } from "@rt-finance/shared";
+import { backupSettingsSchema, type BackupSettingsBody, type AuthUser } from "@rt-finance/shared";
 import { CurrentHousehold, CurrentUser } from "../../common/decorators/current-user.decorator";
 import { DomainError } from "../../common/errors/domain-error";
+import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { readUpload } from "../../common/read-upload";
 import { BackupService } from "./backup.service";
 
@@ -40,5 +41,37 @@ export class BackupController {
       upload.fields.password ?? "",
       upload.fields.confirm ?? "",
     );
+  }
+
+  // ---------------- backup automático ----------------
+  @Get("backup/settings")
+  settings(@CurrentHousehold() householdId: string) {
+    return this.backup.getSettings(householdId);
+  }
+
+  @Put("backup/settings")
+  saveSettings(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(backupSettingsSchema)) body: BackupSettingsBody,
+  ) {
+    return this.backup.saveSettings(user, body);
+  }
+
+  @Get("backup/history")
+  history(@CurrentHousehold() householdId: string) {
+    return this.backup.listHistory(householdId);
+  }
+
+  @Get("backup/history/:id")
+  async historyFile(
+    @CurrentHousehold() householdId: string,
+    @Param("id") id: string,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ): Promise<Buffer> {
+    const json = await this.backup.getHistoryFile(householdId, id);
+    const today = new Date().toISOString().slice(0, 10);
+    void res.header("content-type", "application/json; charset=utf-8");
+    void res.header("content-disposition", `attachment; filename="rt-finance-backup-${today}.json"`);
+    return json;
   }
 }

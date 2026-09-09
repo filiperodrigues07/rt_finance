@@ -1,12 +1,33 @@
-import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { ForbiddenException, Inject, Injectable, Logger } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import * as argon2 from "argon2";
-import { backupFileSchema, type BackupFile, type RestoreResult, type AuthUser } from "@rt-finance/shared";
+import {
+  backupFileSchema,
+  todayIso,
+  type BackupFile,
+  type BackupHistoryItem,
+  type BackupSettingsBody,
+  type HouseholdBackupPrefs,
+  type RestoreResult,
+  type AuthUser,
+} from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
+import { ENV, type Env } from "../../config/env.schema";
 import { DomainError, NotFoundError } from "../../common/errors/domain-error";
 import { HouseholdsService } from "../households/households.service";
+import { MailService } from "../mail/mail.service";
 
 type Row = Record<string, unknown>;
+
+const BACKUP_KEY = "backup";
+const KEEP_IN_APP = 4;
+const DEFAULT_PREFS: HouseholdBackupPrefs = {
+  frequency: "off",
+  email: true,
+  keepInApp: true,
+  lastRunIso: null,
+};
 
 @Injectable()
 export class BackupService {
@@ -15,6 +36,8 @@ export class BackupService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly households: HouseholdsService,
+    private readonly mail: MailService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   // ---------------- export ----------------
@@ -201,5 +224,139 @@ export class BackupService {
 
     this.logger.log(`restore concluído p/ household ${hid}: ${JSON.stringify(restored)}`);
     return { restored };
+  }
+
+  // ---------------- configuração do backup automático ----------------
+  async getSettings(householdId: string): Promise<HouseholdBackupPrefs> {
+    const row = await this.prisma.setting.findUnique({
+      where: { householdId_key: { householdId, key: BACKUP_KEY } },
+    });
+    return { ...DEFAULT_PREFS, ...((row?.value as Partial<HouseholdBackupPrefs>) ?? {}) };
+  }
+
+  async saveSettings(actor: AuthUser, body: BackupSettingsBody): Promise<HouseholdBackupPrefs> {
+    if (actor.role !== "OWNER") {
+      throw new ForbiddenException("Apenas o dono pode configurar o backup automático");
+    }
+    const current = await this.getSettings(actor.householdId);
+    const value = { ...current, ...body } satisfies HouseholdBackupPrefs;
+    await this.prisma.setting.upsert({
+      where: { householdId_key: { householdId: actor.householdId, key: BACKUP_KEY } },
+      create: { householdId: actor.householdId, key: BACKUP_KEY, value },
+      update: { value },
+    });
+    return value;
+  }
+
+  // ---------------- snapshots guardados no app ----------------
+  async listHistory(householdId: string): Promise<BackupHistoryItem[]> {
+    const rows = await this.prisma.householdBackup.findMany({
+      where: { householdId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true, sizeBytes: true, trigger: true },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      sizeBytes: r.sizeBytes,
+      trigger: r.trigger,
+    }));
+  }
+
+  /** JSON descomprimido de um snapshot guardado (mesmo formato do backup manual). */
+  async getHistoryFile(householdId: string, id: string): Promise<Buffer> {
+    const row = await this.prisma.householdBackup.findFirst({
+      where: { id, householdId },
+      select: { data: true },
+    });
+    if (!row) throw new NotFoundError("Backup");
+    return gunzipSync(Buffer.from(row.data));
+  }
+
+  /**
+   * Gera um snapshot agora. Sempre devolve o JSON; grava no app (+ poda) quando
+   * `keepInApp`. Usado pelo job agendado.
+   */
+  async snapshot(
+    householdId: string,
+    trigger: "AUTO" | "MANUAL",
+    keepInApp: boolean,
+  ): Promise<{ json: string }> {
+    const data = await this.export(householdId);
+    const json = JSON.stringify(data);
+
+    if (keepInApp) {
+      await this.prisma.householdBackup.create({
+        data: {
+          householdId,
+          trigger,
+          sizeBytes: Buffer.byteLength(json),
+          data: gzipSync(json),
+        },
+      });
+      const keep = await this.prisma.householdBackup.findMany({
+        where: { householdId },
+        orderBy: { createdAt: "desc" },
+        take: KEEP_IN_APP,
+        select: { id: true },
+      });
+      await this.prisma.householdBackup.deleteMany({
+        where: { householdId, id: { notIn: keep.map((k) => k.id) } },
+      });
+    }
+    return { json };
+  }
+
+  // ---------------- job agendado ----------------
+  async runScheduledBackups(): Promise<void> {
+    const households = await this.prisma.household.findMany({
+      select: { id: true, timezone: true },
+    });
+    for (const h of households) {
+      try {
+        await this.runOne(h.id, h.timezone);
+      } catch (err) {
+        this.logger.error(`backup agendado (household ${h.id}): ${(err as Error).message}`);
+      }
+    }
+  }
+
+  private async runOne(householdId: string, timezone: string | null): Promise<void> {
+    const prefs = await this.getSettings(householdId);
+    if (prefs.frequency === "off") return;
+
+    const tz = timezone ?? this.env.APP_TIMEZONE;
+    const today = todayIso(tz);
+    if (prefs.lastRunIso === today) return; // idempotente por dia
+
+    const weekday = new Date(`${today}T12:00:00Z`).getUTCDay(); // 1 = segunda
+    const due =
+      prefs.frequency === "daily" ||
+      (prefs.frequency === "weekly" && weekday === 1) ||
+      (prefs.frequency === "monthly" && today.endsWith("-01"));
+    if (!due) return;
+
+    const { json } = await this.snapshot(householdId, "AUTO", prefs.keepInApp);
+
+    if (prefs.email) {
+      const owners = await this.prisma.householdMember.findMany({
+        where: { householdId, role: "OWNER" },
+        select: { user: { select: { email: true } } },
+      });
+      const emails = [...new Set(owners.map((o) => o.user.email).filter(Boolean))];
+      const filename = `rt-finance-backup-${today}.json`;
+      for (const to of emails) {
+        await this.mail.sendBackup(to, filename, Buffer.from(json, "utf8"));
+      }
+    }
+
+    await this.prisma.setting.upsert({
+      where: { householdId_key: { householdId, key: BACKUP_KEY } },
+      create: { householdId, key: BACKUP_KEY, value: { ...prefs, lastRunIso: today } },
+      update: { value: { ...prefs, lastRunIso: today } },
+    });
+    this.logger.log(
+      `backup ${prefs.frequency} do household ${householdId} (email=${prefs.email}, app=${prefs.keepInApp})`,
+    );
   }
 }

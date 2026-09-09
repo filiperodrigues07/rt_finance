@@ -33,3 +33,28 @@ export type BackupFile = z.infer<typeof backupFileSchema>;
 export interface RestoreResult {
   restored: Record<string, number>;
 }
+
+// ---------------- backup automático (agendado) ----------------
+
+export const backupFrequency = z.enum(["off", "daily", "weekly", "monthly"]);
+export type BackupFrequency = z.infer<typeof backupFrequency>;
+
+export const backupSettingsSchema = z.object({
+  frequency: backupFrequency.default("off"),
+  /** anexa o .json no e-mail do(s) dono(s) */
+  email: z.boolean().default(true),
+  /** guarda os últimos snapshots no próprio app (baixáveis em Configurações) */
+  keepInApp: z.boolean().default(true),
+});
+export type BackupSettingsBody = z.infer<typeof backupSettingsSchema>;
+
+export interface HouseholdBackupPrefs extends BackupSettingsBody {
+  lastRunIso: string | null;
+}
+
+export interface BackupHistoryItem {
+  id: string;
+  createdAt: string;
+  sizeBytes: number;
+  trigger: "AUTO" | "MANUAL" | string;
+}

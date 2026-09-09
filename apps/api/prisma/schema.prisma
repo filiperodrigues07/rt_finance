@@ -186,6 +186,22 @@ model Household {
   settings          Setting[]
   auditLogs         AuditLog[]
   importBatches     ImportBatch[]
+  backups           HouseholdBackup[]
+}
+
+/// Snapshot completo dos dados do household (backup automático ou manual guardado).
+/// `data` é o JSON do backup gzipado. Mantém-se só os últimos poucos por household.
+model HouseholdBackup {
+  id          String   @id @default(cuid())
+  householdId String
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  trigger     String // "AUTO" | "MANUAL"
+  sizeBytes   Int // tamanho do JSON descomprimido
+  data        Bytes // JSON do backup, gzipado
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, createdAt])
 }
 
 model User {
