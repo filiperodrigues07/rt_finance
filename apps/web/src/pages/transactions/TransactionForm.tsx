@@ -25,6 +25,7 @@ export function TransactionForm({
   editing,
   seedDescription,
   seedAmount,
+  defaultScheduled = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -32,6 +33,8 @@ export function TransactionForm({
   seedDescription?: string;
   /** valor já mascarado, ex.: "50,00" — usado pelo lançamento rápido */
   seedAmount?: string;
+  /** ao abrir na aba "A pagar", já vem marcado "Agendar como conta a pagar" */
+  defaultScheduled?: boolean;
 }) {
   const toast = useToast();
   const { user } = useAuth();
@@ -82,10 +85,10 @@ export function TransactionForm({
       setAccountId("");
       setCreditCardId("");
       setNotes("");
-      setWhen("paid");
+      setWhen(defaultScheduled ? "scheduled" : "paid");
       setDueDate(todayIso(APP_TZ));
     }
-  }, [open, editing, user?.memberId, seedDescription, seedAmount]);
+  }, [open, editing, user?.memberId, seedDescription, seedAmount, defaultScheduled]);
 
   const cats = (categories.data ?? []).filter((c) => c.kind === "BOTH" || c.kind === type);
   const members = household.data?.members ?? [];

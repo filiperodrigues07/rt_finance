@@ -987,6 +987,7 @@ export function TransactionsPage() {
         editing={editing}
         seedDescription={formSeed}
         seedAmount={formSeedAmount}
+        defaultScheduled={view === "apagar" && !editing}
       />
 
       {instSeed && (

@@ -418,9 +418,10 @@ describe("metas", () => {
 describe("contas a pagar + ações em massa + lançamento rápido", () => {
   let pendingId: string;
 
-  it("cria agendado (PENDING + dueDate) que não entra no saldo", async () => {
+  it("cria agendado (PENDING + dueDate) que não entra no saldo nem no totalizador", async () => {
     const before = await http.get("/api/accounts").set(auth());
     const bal0 = before.body.find((a: { id: string }) => a.id === seed.accountId).balanceCents;
+    const sum0 = (await http.get("/api/transactions?pageSize=1").set(auth())).body.summary;
 
     const res = await http
       .post("/api/transactions")
@@ -441,6 +442,13 @@ describe("contas a pagar + ações em massa + lançamento rápido", () => {
     const after = await http.get("/api/accounts").set(auth());
     const bal1 = after.body.find((a: { id: string }) => a.id === seed.accountId).balanceCents;
     expect(bal1).toBe(bal0); // agendado não mexe no saldo
+
+    // totalizador da aba "Todas" ignora o pendente; a aba "A pagar" o inclui
+    const sum1 = (await http.get("/api/transactions?pageSize=1").set(auth())).body.summary;
+    expect(sum1.expenseCents).toBe(sum0.expenseCents);
+    const sched = (await http.get("/api/transactions?scheduled=true&pageSize=1").set(auth())).body
+      .summary;
+    expect(sched.expenseCents).toBeGreaterThanOrEqual(9900);
   });
 
   it("lista em ?scheduled=true e some após pagar", async () => {

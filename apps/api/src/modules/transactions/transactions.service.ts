@@ -115,6 +115,13 @@ export class TransactionsService {
         dueDate: { dueDate: effectiveOrder },
       };
 
+    // Totais: na aba "A pagar" somam os agendados (o `where` já força PENDING);
+    // no resto, só o que é dinheiro de verdade (CONFIRMED/CLEARED) — agendado não
+    // mexe no saldo até ser marcado como pago. Um filtro de status explícito manda.
+    const summaryWhere: Prisma.TransactionWhereInput = q.scheduled
+      ? where
+      : { ...where, status: q.status ?? { in: ["CONFIRMED", "CLEARED"] } };
+
     const [data, total, byType] = await this.prisma.$transaction([
       this.prisma.transaction.findMany({
         where,
@@ -126,7 +133,7 @@ export class TransactionsService {
       this.prisma.transaction.count({ where }),
       this.prisma.transaction.groupBy({
         by: ["type"],
-        where,
+        where: summaryWhere,
         orderBy: { type: "asc" },
         _sum: { amountCents: true },
       }),
