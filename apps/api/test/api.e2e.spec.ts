@@ -354,6 +354,68 @@ describe("recorrências + orçamentos", () => {
     expect(g2.body.created).toBe(0); // idempotente
   });
 
+  it("recorrência gera em A pagar (PENDING + dueDate); só a do mês aparece em Todas", async () => {
+    const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
+    const r = await http
+      .post("/api/recurring-expenses")
+      .set(auth())
+      .send({
+        name: "Aluguel apto",
+        amountCents: 180000,
+        categoryId: catId,
+        frequency: "MONTHLY",
+        dayOfMonth: 10,
+        accountId: seed.accountId,
+        startDate: "2026-09-01",
+      });
+    expect(r.status).toBe(201);
+    expect(r.body.autoPost).toBe(false); // novo padrão
+
+    await http.post("/api/recurring-expenses/generate").set(auth());
+    const gen = await prisma.transaction.findMany({
+      where: { recurringExpenseId: r.body.id, source: "RECURRING" },
+      orderBy: { date: "asc" },
+    });
+    expect(gen.length).toBeGreaterThan(1);
+    expect(gen.every((t) => t.status === "PENDING" && t.dueDate != null)).toBe(true);
+
+    const sched = await http.get("/api/transactions?scheduled=true&pageSize=100").set(auth());
+    const schedIds = sched.body.data.map((t: { id: string }) => t.id);
+    expect(gen.every((t) => schedIds.includes(t.id))).toBe(true);
+
+    const todas = await http.get("/api/transactions?pageSize=100").set(auth());
+    const todasIds = new Set(todas.body.data.map((t: { id: string }) => t.id));
+    const thisMonth = gen.filter((t) => t.date.toISOString().slice(0, 7) === "2026-09");
+    const futureMonths = gen.filter((t) => t.date.toISOString().slice(0, 7) > "2026-09");
+    expect(thisMonth.every((t) => todasIds.has(t.id))).toBe(true);
+    expect(futureMonths.some((t) => todasIds.has(t.id))).toBe(false);
+  });
+
+  it("recorrência com lançar automático (autoPost) posta CONFIRMED em Todas", async () => {
+    const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
+    const r = await http
+      .post("/api/recurring-expenses")
+      .set(auth())
+      .send({
+        name: "Streaming auto",
+        amountCents: 3990,
+        categoryId: catId,
+        frequency: "MONTHLY",
+        dayOfMonth: 5,
+        accountId: seed.accountId,
+        startDate: "2026-09-01",
+        autoPost: true,
+      });
+    expect(r.body.autoPost).toBe(true);
+    await http.post("/api/recurring-expenses/generate").set(auth());
+    const gen = await prisma.transaction.findMany({
+      where: { recurringExpenseId: r.body.id },
+      orderBy: { date: "asc" },
+    });
+    expect(gen[0].status).toBe("CONFIRMED");
+    expect(gen[0].dueDate).toBeNull();
+  });
+
   it("recorrência com nº fixo de parcelas gera todas de uma vez e encerra", async () => {
     const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
     const created = await http

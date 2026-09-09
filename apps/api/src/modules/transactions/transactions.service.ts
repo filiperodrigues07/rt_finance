@@ -3,6 +3,8 @@ import { Injectable } from "@nestjs/common";
 import type { Prisma, Transaction } from "@prisma/client";
 import {
   toCents,
+  todayIso,
+  lastDayOfMonth,
   type CreateTransactionBody,
   type UpdateTransactionBody,
   type ListTransactionsQuery,
@@ -98,6 +100,17 @@ export class TransactionsService {
             ...(searchCents != null ? [{ amountCents: searchCents }] : []),
           ]
         : undefined,
+      // "Todas" não mostra ocorrência de recorrência agendada de mês futuro — só em "A pagar"
+      NOT: q.scheduled
+        ? undefined
+        : {
+            recurringExpenseId: { not: null },
+            status: "PENDING",
+            OR: [
+              { dueDate: { gt: dateOnly(lastDayOfMonth(todayIso())) } },
+              { dueDate: null, date: { gt: dateOnly(lastDayOfMonth(todayIso())) } },
+            ],
+          },
       // faixa de valor
       amountCents:
         q.minCents != null || q.maxCents != null

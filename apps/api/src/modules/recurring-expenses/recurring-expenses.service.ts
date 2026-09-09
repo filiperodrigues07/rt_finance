@@ -260,6 +260,8 @@ export class RecurringExpensesService {
               amountCents: r.amountCents!,
               description: r.name,
               date: dateOnly(dateIso),
+              // autoPost false → conta a pagar de verdade (com vencimento)
+              dueDate: r.autoPost ? null : dateOnly(dateIso),
               status: r.autoPost ? "CONFIRMED" : "PENDING",
               source: "RECURRING",
               categoryId: r.categoryId,
