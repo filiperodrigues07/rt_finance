@@ -109,4 +109,24 @@ export interface MonthPace {
   projectedSpendCents: number;
   projectedResultCents: number;
   netWorth: { month: string; cents: number }[]; // patrimônio (contas+metas) por mês
+
+  // --- projeção "realista" (v2): separa conta fixa/agendada do gasto do dia-a-dia ---
+  /** dias que ainda faltam no mês */
+  remainingDays: number;
+  /** já gasto no mês (= spentCents) */
+  spentSoFarCents: number;
+  /** já recebido no mês (= incomeCents) */
+  incomeSoFarCents: number;
+  /** contas fixas/agendadas/parcelas/faturas que ainda vão cair este mês (valor real) */
+  knownBillsRemainingCents: number;
+  /** receitas previsíveis que ainda entram este mês (recorrências + agendados) */
+  knownIncomeRemainingCents: number;
+  /** média diária do gasto variável (sem recorrência/parcela) nos últimos `basisDays` dias */
+  discretionaryPerDayCents: number;
+  /** discretionaryPerDay × remainingDays */
+  discretionaryRemainingCents: number;
+  /** receita projetada do mês (piso = mês anterior, p/ salário concentrado) */
+  projectedIncomeCents: number;
+  /** janela usada na média do gasto variável */
+  basisDays: number;
 }

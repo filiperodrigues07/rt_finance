@@ -683,6 +683,32 @@ describe("relatórios", () => {
     expect(res.body.length).toBeLessThanOrEqual(4);
   });
 
+  it("pace v2 separa conta fixa do gasto variável e fecha a conta", async () => {
+    const res = await http.get("/api/reports/pace").set(auth());
+    expect(res.status).toBe(200);
+    const p = res.body;
+    expect(p.basisDays).toBe(60);
+    expect(p.remainingDays).toBe(p.daysInMonth - p.daysElapsed);
+    expect(p.discretionaryRemainingCents).toBe(p.discretionaryPerDayCents * p.remainingDays);
+    expect(p.projectedSpendCents).toBe(
+      p.spentSoFarCents + p.knownBillsRemainingCents + p.discretionaryRemainingCents,
+    );
+    expect(p.projectedResultCents).toBe(p.projectedIncomeCents - p.projectedSpendCents);
+    // receita projetada nunca abaixo do que já entrou no mês
+    expect(p.projectedIncomeCents).toBeGreaterThanOrEqual(p.incomeSoFarCents);
+  });
+
+  it("fluxo de caixa projetado: mês 0 usa a projeção realista do mês", async () => {
+    const [cf, pace] = await Promise.all([
+      http.get("/api/reports/cash-flow?months=4").set(auth()),
+      http.get("/api/reports/pace").set(auth()),
+    ]);
+    expect(cf.status).toBe(200);
+    expect(cf.body.length).toBe(4);
+    expect(cf.body[0].incomeCents).toBe(pace.body.projectedIncomeCents);
+    expect(cf.body[0].expenseCents).toBe(pace.body.projectedSpendCents);
+  });
+
   it("exporta CSV", async () => {
     const res = await http.get("/api/reports/transactions.csv").set(auth());
     expect(res.status).toBe(200);

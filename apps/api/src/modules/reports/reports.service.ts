@@ -31,6 +31,11 @@ const REAL_MOVEMENT: Prisma.TransactionWhereInput = {
   transferGroupId: null,
 };
 
+/** Janela (dias) da média móvel do gasto variável usada na projeção do mês. */
+const PACE_BASIS_DAYS = 60;
+/** Meses cheios anteriores usados como baseline no fluxo de caixa projetado. */
+const CASHFLOW_BASELINE_MONTHS = 3;
+
 function brlCents(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -289,16 +294,20 @@ export class ReportsService {
     }
 
     // 3. projeção do mês
-    if (pace.projectedResultCents < 0) {
+    if (pace.projectedResultCents < 0 && pace.daysElapsed >= 5) {
       out.push({
         id: "pace-negative",
         severity: "bad",
         icon: "alert-triangle",
         title: "Projeção do mês no vermelho",
-        detail: `No ritmo atual o mês fecha em ${brlCents(pace.projectedResultCents)}.`,
+        detail:
+          `Fecha em ${brlCents(pace.projectedResultCents)}: ` +
+          `${brlCents(pace.knownBillsRemainingCents)} de contas ainda a vencer + ` +
+          `${brlCents(pace.discretionaryPerDayCents)}/dia de gasto variável.`,
         link: "/relatorios",
       });
     } else if (
+      pace.daysElapsed >= 5 &&
       dash.prev.expenseCents > 0 &&
       pace.projectedSpendCents - dash.prev.expenseCents >= MATERIAL
     ) {
@@ -426,13 +435,19 @@ export class ReportsService {
     return accounts.reduce((a, x) => a + x.openingBalanceCents, 0) + s("INCOME") - s("EXPENSE");
   }
 
-  /** Fluxo de caixa projetado: saldo previsto por mês somando previsíveis. */
+  /**
+   * Fluxo de caixa projetado. Mês 0 usa a projeção "realista" do mês (pace v2);
+   * meses seguintes somam recorrências + parcelas + faturas conhecidas e, quando
+   * não há recorrência de renda/gasto cadastrada, caem numa média dos últimos
+   * meses para não assumir renda zero.
+   */
   async cashFlow(householdId: string, months = 6): Promise<CashFlowMonth[]> {
     const tz = await this.timezone(householdId);
     const start = firstDayOfMonth(todayIso(tz), tz);
+    const baselineStart = firstDayOfMonth(addMonths(start, -CASHFLOW_BASELINE_MONTHS, tz), tz);
     let running = await this.currentBalanceCents(householdId);
 
-    const [recurring, installments, invoices] = await Promise.all([
+    const [recurring, installments, invoices, histAgg, histVariable, pace] = await Promise.all([
       this.prisma.recurringExpense.findMany({
         where: { householdId, active: true, amountCents: { not: null } },
         select: { amountCents: true, category: { select: { kind: true } } },
@@ -445,7 +460,31 @@ export class ReportsService {
         where: { creditCard: { householdId }, status: { not: "PAID" } },
         select: { totalCents: true, dueDate: true },
       }),
+      // últimos meses cheios: média de renda e de gasto real
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          householdId,
+          ...REAL_MOVEMENT,
+          date: { gte: dateOnly(baselineStart), lt: dateOnly(start) },
+        },
+        _sum: { amountCents: true },
+      }),
+      // gasto variável (sem recorrência/parcela) nos mesmos meses → baseline do dia-a-dia
+      this.prisma.transaction.aggregate({
+        where: {
+          householdId,
+          ...REAL_MOVEMENT,
+          type: "EXPENSE",
+          recurringExpenseId: null,
+          installmentId: null,
+          date: { gte: dateOnly(baselineStart), lt: dateOnly(start) },
+        },
+        _sum: { amountCents: true },
+      }),
+      this.pace(householdId),
     ]);
+
     const recurringIncome = recurring
       .filter((r) => r.category.kind === "INCOME")
       .reduce((a, r) => a + (r.amountCents ?? 0), 0);
@@ -453,24 +492,37 @@ export class ReportsService {
       .filter((r) => r.category.kind !== "INCOME")
       .reduce((a, r) => a + (r.amountCents ?? 0), 0);
 
+    const histSum = (t: "INCOME" | "EXPENSE") =>
+      histAgg.find((g) => g.type === t)?._sum.amountCents ?? 0;
+    const avgMonthlyIncome = Math.round(histSum("INCOME") / CASHFLOW_BASELINE_MONTHS);
+    const baselineVariableExpense = Math.round(
+      (histVariable._sum.amountCents ?? 0) / CASHFLOW_BASELINE_MONTHS,
+    );
+    // se não há recorrência de renda cadastrada, usa a média histórica
+    const incomeBaseline = recurringIncome > 0 ? recurringIncome : avgMonthlyIncome;
+
     const out: CashFlowMonth[] = [];
     for (let i = 0; i < months; i++) {
       const month = addMonths(start, i, tz);
       const monthEnd = lastDayOfMonth(month, tz);
-      const instThisMonth = installments
-        .filter((x) => toIsoDate(x.dueDate) >= month && toIsoDate(x.dueDate) <= monthEnd)
-        .reduce((a, x) => a + x.amountCents, 0);
-      const invThisMonth =
-        i === 0
-          ? invoices
-              .filter((x) => toIsoDate(x.dueDate) <= monthEnd)
-              .reduce((a, x) => a + x.totalCents, 0)
-          : invoices
-              .filter((x) => toIsoDate(x.dueDate) >= month && toIsoDate(x.dueDate) <= monthEnd)
-              .reduce((a, x) => a + x.totalCents, 0);
 
-      const incomeCents = recurringIncome;
-      const expenseCents = recurringExpense + instThisMonth + invThisMonth;
+      let incomeCents: number;
+      let expenseCents: number;
+      if (i === 0) {
+        // mês corrente: já realizado + conta fixa a vencer + dia-a-dia restante
+        incomeCents = pace.projectedIncomeCents;
+        expenseCents = pace.projectedSpendCents;
+      } else {
+        const instThisMonth = installments
+          .filter((x) => toIsoDate(x.dueDate) >= month && toIsoDate(x.dueDate) <= monthEnd)
+          .reduce((a, x) => a + x.amountCents, 0);
+        const invThisMonth = invoices
+          .filter((x) => toIsoDate(x.dueDate) >= month && toIsoDate(x.dueDate) <= monthEnd)
+          .reduce((a, x) => a + x.totalCents, 0);
+        incomeCents = incomeBaseline;
+        expenseCents = recurringExpense + baselineVariableExpense + instThisMonth + invThisMonth;
+      }
+
       const netCents = incomeCents - expenseCents;
       running += netCents;
       out.push({ month, incomeCents, expenseCents, netCents, runningBalanceCents: running });
@@ -612,20 +664,131 @@ export class ReportsService {
     const daysInMonth = Number(monthEnd.slice(-2));
     const daysElapsed = Number(today.slice(-2));
 
-    const grouped = await this.prisma.transaction.groupBy({
-      by: ["type"],
-      where: {
-        householdId,
-        ...REAL_MOVEMENT,
-        date: { gte: dateOnly(monthStart), lte: dateOnly(today) },
-      },
-      _sum: { amountCents: true },
-    });
-    const s = (t: "INCOME" | "EXPENSE") => grouped.find((g) => g.type === t)?._sum.amountCents ?? 0;
-    const spentCents = s("EXPENSE");
-    const incomeCents = s("INCOME");
+    // --- projeção "realista": separa conta fixa/agendada do gasto do dia-a-dia ---
+    const remainingDays = Math.max(0, daysInMonth - daysElapsed);
+    const prevMonthStart = firstDayOfMonth(addMonths(today, -1, tz), tz);
+    const prevMonthEnd = lastDayOfMonth(prevMonthStart, tz);
+    const win60Start = addDays(today, -(PACE_BASIS_DAYS - 1), tz);
+
+    const [
+      thisMonthAgg,
+      prevMonthAgg,
+      pendingRemaining,
+      recurring,
+      instRemaining,
+      invoicesRemaining,
+      variableWindow,
+    ] = await Promise.all([
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          householdId,
+          ...REAL_MOVEMENT,
+          date: { gte: dateOnly(monthStart), lte: dateOnly(today) },
+        },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          householdId,
+          ...REAL_MOVEMENT,
+          date: { gte: dateOnly(prevMonthStart), lte: dateOnly(prevMonthEnd) },
+        },
+        _sum: { amountCents: true },
+      }),
+      // agendados (PENDING) que ainda vencem este mês
+      this.prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          householdId,
+          status: "PENDING",
+          transferGroupId: null,
+          OR: [
+            { dueDate: { gt: dateOnly(today), lte: dateOnly(monthEnd) } },
+            { dueDate: null, date: { gt: dateOnly(today), lte: dateOnly(monthEnd) } },
+          ],
+        },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.recurringExpense.findMany({
+        where: {
+          householdId,
+          active: true,
+          frequency: "MONTHLY",
+          amountCents: { not: null },
+        },
+        select: { amountCents: true, dayOfMonth: true, category: { select: { kind: true } } },
+      }),
+      this.prisma.installment.aggregate({
+        where: {
+          plan: { householdId },
+          status: { in: ["SCHEDULED", "BILLED"] },
+          dueDate: { gt: dateOnly(today), lte: dateOnly(monthEnd) },
+        },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.creditCardInvoice.aggregate({
+        where: {
+          creditCard: { householdId },
+          status: { not: "PAID" },
+          dueDate: { lte: dateOnly(monthEnd) },
+        },
+        _sum: { totalCents: true },
+      }),
+      // gasto variável (sem recorrência / sem parcela) na janela de referência
+      this.prisma.transaction.aggregate({
+        where: {
+          householdId,
+          ...REAL_MOVEMENT,
+          type: "EXPENSE",
+          recurringExpenseId: null,
+          installmentId: null,
+          date: { gte: dateOnly(win60Start), lte: dateOnly(today) },
+        },
+        _sum: { amountCents: true },
+      }),
+    ]);
+
+    const s = (
+      rows: { type: string; _sum: { amountCents: number | null } }[],
+      t: "INCOME" | "EXPENSE",
+    ) => rows.find((g) => g.type === t)?._sum.amountCents ?? 0;
+
+    const spentCents = s(thisMonthAgg, "EXPENSE");
+    const incomeCents = s(thisMonthAgg, "INCOME");
+    const lastMonthIncomeCents = s(prevMonthAgg, "INCOME");
+
+    // recorrências mensais que ainda não caíram (dia futuro, ou sem dia definido)
+    const notYetThisMonth = (dayOfMonth: number | null) =>
+      dayOfMonth == null || dayOfMonth > daysElapsed;
+    const recExpenseRemaining = recurring
+      .filter((r) => r.category.kind !== "INCOME" && notYetThisMonth(r.dayOfMonth))
+      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
+    const recIncomeRemaining = recurring
+      .filter((r) => r.category.kind === "INCOME" && notYetThisMonth(r.dayOfMonth))
+      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
+
+    const knownBillsRemainingCents =
+      s(pendingRemaining, "EXPENSE") +
+      recExpenseRemaining +
+      (instRemaining._sum.amountCents ?? 0) +
+      (invoicesRemaining._sum.totalCents ?? 0);
+    const knownIncomeRemainingCents = s(pendingRemaining, "INCOME") + recIncomeRemaining;
+
+    const discretionaryPerDayCents = Math.round(
+      (variableWindow._sum.amountCents ?? 0) / PACE_BASIS_DAYS,
+    );
+    const discretionaryRemainingCents = discretionaryPerDayCents * remainingDays;
+
+    const projectedSpendCents =
+      spentCents + knownBillsRemainingCents + discretionaryRemainingCents;
+    const projectedIncomeCents = Math.max(
+      incomeCents + knownIncomeRemainingCents,
+      lastMonthIncomeCents,
+    );
+    const projectedResultCents = projectedIncomeCents - projectedSpendCents;
     const perDayCents = daysElapsed > 0 ? Math.round(spentCents / daysElapsed) : 0;
-    const projectedSpendCents = perDayCents * daysInMonth;
 
     // patrimônio por mês (12): openingBalance + acumulado (receita-despesa) + metas
     const monthsBack = 12;
@@ -686,8 +849,17 @@ export class ReportsService {
       incomeCents,
       perDayCents,
       projectedSpendCents,
-      projectedResultCents: incomeCents - projectedSpendCents,
+      projectedResultCents,
       netWorth,
+      remainingDays,
+      spentSoFarCents: spentCents,
+      incomeSoFarCents: incomeCents,
+      knownBillsRemainingCents,
+      knownIncomeRemainingCents,
+      discretionaryPerDayCents,
+      discretionaryRemainingCents,
+      projectedIncomeCents,
+      basisDays: PACE_BASIS_DAYS,
     };
   }
 }
