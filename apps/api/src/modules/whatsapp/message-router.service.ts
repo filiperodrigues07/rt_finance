@@ -151,12 +151,16 @@ export class MessageRouter {
       return;
     }
 
+    // Responder SEMPRE no endereço exato da conversa que o WhatsApp mandou. Remontar o
+    // número a partir do E.164 abre outra conversa e a resposta some para o destinatário.
+    const replyTo = msg.fromJid || msg.fromPhone;
+
     // Autorização = ter um número cadastrado num membro (gerido pela tela). O
     // WHATSAPP_ALLOWLIST do .env é só uma trava global EXTRA e opcional.
     const sender = await this.resolveSender(msg.fromPhone);
     if (!sender || !this.isAllowed(msg.fromPhone)) {
       this.logger.warn("número não autorizado");
-      await this.safeReply(msg.fromPhone, fmt.notAuthorized(), null, msg.instance);
+      await this.safeReply(replyTo, fmt.notAuthorized(), null, msg.instance);
       return;
     }
 
@@ -178,7 +182,7 @@ export class MessageRouter {
         ? await this.transcription.transcribe(Buffer.from(media.base64, "base64"), media.mimetype)
         : ({ ok: false, reason: "transient" } as const); // media null = não baixou (rede/instância/grande demais)
       if (!result.ok) {
-        await this.safeReply(msg.fromPhone, fmt.audioProblem(result.reason), sender);
+        await this.safeReply(replyTo, fmt.audioProblem(result.reason), sender);
         return;
       }
       this.logger.debug(`áudio transcrito (${result.text.length} chars)`);
@@ -196,20 +200,20 @@ export class MessageRouter {
 
     try {
       if (!text) {
-        await this.reply(msg.fromPhone, fmt.help(sender.displayName), sender);
+        await this.reply(replyTo, fmt.help(sender.displayName), sender);
         return;
       }
       if (["ajuda", "help", "menu", "oi", "olá", "ola", "start", "/start"].includes(cmd)) {
-        await this.reply(msg.fromPhone, fmt.help(sender.displayName), sender);
+        await this.reply(replyTo, fmt.help(sender.displayName), sender);
         return;
       }
       if (cmd === "ping") {
-        await this.reply(msg.fromPhone, "pong ✅", sender);
+        await this.reply(replyTo, "pong ✅", sender);
         return;
       }
       if (["id", "quem sou eu", "eu"].includes(cmd)) {
         await this.reply(
-          msg.fromPhone,
+          replyTo,
           fmt.whoAmI({
             displayName: sender.displayName,
             householdName: sender.householdName,
@@ -221,12 +225,12 @@ export class MessageRouter {
       }
       if (cmd === "saldo") {
         const report = await this.reports.dashboard(sender.householdId, { months: 6 });
-        await this.reply(msg.fromPhone, fmt.balance(report), sender);
+        await this.reply(replyTo, fmt.balance(report), sender);
         return;
       }
       if (["resumo", "resumo do mes", "resumo do mês", "resumo mensal"].includes(cmd)) {
         const report = await this.reports.dashboard(sender.householdId, { months: 6 });
-        await this.reply(msg.fromPhone, fmt.monthSummary(report), sender);
+        await this.reply(replyTo, fmt.monthSummary(report), sender);
         return;
       }
 
@@ -240,14 +244,14 @@ export class MessageRouter {
         messageId,
       });
       if (out.image) {
-        const res = await this.whatsapp.sendImage(msg.fromPhone, out.image, out.reply, sender.whatsappInstance || undefined);
+        const res = await this.whatsapp.sendImage(replyTo, out.image, out.reply, sender.whatsappInstance || undefined);
         await this.prisma.whatsappMessage.create({
           data: {
             householdId: sender.householdId,
             providerMessageId: res.providerMessageId,
             direction: "OUTBOUND",
             fromPhone: "",
-            toPhone: msg.fromPhone,
+            toPhone: replyTo,
             type: "IMAGE",
             text: out.reply,
             rawPayload: {},
@@ -255,12 +259,12 @@ export class MessageRouter {
           },
         });
       } else {
-        await this.reply(msg.fromPhone, out.reply, sender);
+        await this.reply(replyTo, out.reply, sender);
       }
     } catch (err) {
       this.logger.error(`erro ao processar mensagem ${msg.providerMessageId}: ${(err as Error).message}`);
       await this.safeReply(
-        msg.fromPhone,
+        replyTo,
         "Ops, algo deu errado ao processar sua mensagem. Tente novamente.",
         sender,
       );

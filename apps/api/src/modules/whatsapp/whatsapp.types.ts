@@ -2,6 +2,13 @@
 export interface InboundMessage {
   providerMessageId: string;
   fromPhone: string; // E.164
+  /**
+   * Endereço EXATO da conversa no WhatsApp (`key.remoteJid`), como veio do provider.
+   * Pode ser `...@s.whatsapp.net` ou `...@lid`. É para cá que a resposta tem que ir:
+   * remontar o número a partir do E.164 manda a mensagem para outra conversa, que o
+   * destinatário nunca vê. Vazio se o provider não informar.
+   */
+  fromJid: string;
   toPhone: string; // E.164 (número da instância) — pode ficar vazio se o provider não informar
   text: string | null;
   type: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "INTERACTIVE" | "OTHER";

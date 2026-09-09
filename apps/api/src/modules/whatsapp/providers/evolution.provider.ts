@@ -11,9 +11,15 @@ import { WhatsAppService, type InboundMessage, type SendResult } from "../whatsa
  *   - entrada:      webhook evento "messages.upsert" com { data: { key, message, pushName, ... } }
  * Autenticação da API: header "apikey". Autenticação do webhook: token compartilhado nosso.
  */
+
+/** Quanto tempo guardamos o JID resolvido de um telefone (raramente muda). */
+const JID_TTL_MS = 6 * 60 * 60 * 1000;
+
 @Injectable()
 export class EvolutionProvider extends WhatsAppService {
   private readonly logger = new Logger(EvolutionProvider.name);
+  /** `instância:dígitosDoTelefone` → JID da conversa no WhatsApp. */
+  private readonly jidCache = new Map<string, { number: string; at: number }>();
 
   constructor(@Inject(ENV) private readonly env: Env) {
     super();
@@ -77,10 +83,66 @@ export class EvolutionProvider extends WhatsAppService {
     return instance || this.env.EVOLUTION_INSTANCE;
   }
 
+  /**
+   * Guarda "telefone que conhecemos" → "JID da conversa", aprendido de uma mensagem
+   * recebida. É a fonte de verdade: veio do próprio WhatsApp. Serve para os envios que
+   * partem do sistema (alertas, resumo semanal, card compartilhado), onde só temos o
+   * telefone salvo no cadastro.
+   */
+  private rememberJid(phone: string, jid: string, instance?: string | null): void {
+    if (!jid.includes("@")) return;
+    const inst = this.inst(instance ?? undefined);
+    const at = Date.now();
+    for (const variant of new Set([digits(phone), digits(jid)])) {
+      if (variant) this.jidCache.set(`${inst}:${variant}`, { number: jid, at });
+    }
+  }
+
+  /**
+   * Devolve o endereço de envio para a Evolution.
+   *
+   * Se já for um JID (`...@s.whatsapp.net` / `...@lid`), passa direto — o `createJid`
+   * da Evolution repassa JIDs sem tocar. Isso importa porque o WhatsApp novo endereça
+   * conversas por LID: responder no telefone quando a conversa é LID devolve 201 com um
+   * id de mensagem normal, mas nada aparece para o destinatário.
+   *
+   * Só temos o telefone (alerta, resumo, card)? Usa o JID aprendido de uma mensagem
+   * anterior; se não houver, pergunta o JID canônico à Evolution. Em último caso devolve
+   * os dígitos — melhor tentar enviar do que falhar.
+   */
+  private async resolveTarget(target: string, instance?: string): Promise<string> {
+    if (target.includes("@")) return target;
+
+    const raw = digits(target);
+    if (!raw) return raw;
+
+    const inst = this.inst(instance);
+    const cacheKey = `${inst}:${raw}`;
+    const hit = this.jidCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < JID_TTL_MS) return hit.number;
+
+    try {
+      const rows = await this.call<{ jid?: string; exists?: boolean }[]>(
+        `/chat/whatsappNumbers/${inst}`,
+        { numbers: [raw] },
+      );
+      const found = Array.isArray(rows) ? rows.find((r) => r?.exists && r?.jid) : undefined;
+      if (found?.jid) {
+        this.jidCache.set(cacheKey, { number: found.jid, at: Date.now() });
+        return found.jid;
+      }
+      this.logger.warn(`número ${raw} não existe no WhatsApp; enviando assim mesmo`);
+    } catch (err) {
+      this.logger.warn(`falha ao resolver o JID de ${raw}: ${(err as Error).message}`);
+    }
+    return raw;
+  }
+
   async sendText(toPhone: string, text: string, instance?: string): Promise<SendResult> {
+    const number = await this.resolveTarget(toPhone, instance);
     const json = await this.callRetry<{ key?: { id?: string } }>(
       `/message/sendText/${this.inst(instance)}`,
-      { number: digits(toPhone), text },
+      { number, text },
     );
     return { providerMessageId: json.key?.id ?? `out_${Date.now()}` };
   }
@@ -91,10 +153,11 @@ export class EvolutionProvider extends WhatsAppService {
     caption?: string,
     instance?: string,
   ): Promise<SendResult> {
+    const number = await this.resolveTarget(toPhone, instance);
     const json = await this.call<{ key?: { id?: string } }>(
       `/message/sendMedia/${this.inst(instance)}`,
       {
-        number: digits(toPhone),
+        number,
         mediatype: "image",
         mimetype: "image/png",
         media: png.toString("base64"),
@@ -212,9 +275,21 @@ export class EvolutionProvider extends WhatsAppService {
       const tsRaw = Number(m?.messageTimestamp ?? 0);
       const timestamp = tsRaw > 0 ? new Date(tsRaw * 1000) : new Date();
 
+      const fromPhone = toE164BR(jid);
+      // Endereço da conversa: o que o WhatsApp usou, não o que deduzimos do telefone.
+      // Com o WhatsApp novo isso costuma ser um "@lid" — responder no telefone nesse
+      // caso cai numa conversa que o destinatário não vê.
+      const fromJid = remoteJid || jid;
+      this.rememberJid(
+        fromPhone,
+        fromJid,
+        (typeof m?.instance === "string" && m.instance) || rootInstance,
+      );
+
       out.push({
         providerMessageId: String(key.id ?? `in_${timestamp.getTime()}`),
-        fromPhone: toE164BR(jid),
+        fromPhone,
+        fromJid,
         toPhone: root["sender"] ? toE164BR(String(root["sender"])) : "",
         text: text?.trim() ?? null,
         type,
