@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import { Wallet, CreditCard, Repeat, Target, Upload } from "lucide-react";
+import { Wallet, CreditCard, Target, Upload } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { useAccounts, useCreditCards, useRecurring } from "@/lib/hooks";
 import { PageHeader } from "@/components/ui/data";
@@ -9,20 +9,20 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ImportDialog } from "@/components/ImportDialog";
 import { AccountsPage } from "./Accounts";
 import { CardsPage } from "./Cards";
-import { RecurrencesPage } from "./Recurrences";
 import { BudgetsPanel } from "@/components/panels/BudgetsPanel";
 
 const TABS = [
   { value: "contas", label: "Contas", icon: <Wallet className="size-4" /> },
   { value: "cartoes", label: "Cartões", icon: <CreditCard className="size-4" /> },
-  { value: "recorrencias", label: "Recorrências", icon: <Repeat className="size-4" /> },
   { value: "orcamentos", label: "Orçamentos", icon: <Target className="size-4" /> },
 ];
 
 export function CarteiraPage() {
   const [params, setParams] = useSearchParams();
-  // Categorias virou item próprio no menu lateral.
+  // Categorias virou item próprio no menu lateral; recorrências foram pra Transações.
   if (params.get("tab") === "categorias") return <Navigate to="/categorias" replace />;
+  if (params.get("tab") === "recorrencias")
+    return <Navigate to="/transacoes?view=recorrencias" replace />;
   const tab = TABS.some((t) => t.value === params.get("tab")) ? params.get("tab")! : "contas";
 
   const [importOpen, setImportOpen] = useState(false);
@@ -66,7 +66,6 @@ export function CarteiraPage() {
       <div className="animate-in">
         {tab === "contas" && <AccountsPage />}
         {tab === "cartoes" && <CardsPage />}
-        {tab === "recorrencias" && <RecurrencesPage />}
         {tab === "orcamentos" && <BudgetsPanel />}
       </div>
     </div>
