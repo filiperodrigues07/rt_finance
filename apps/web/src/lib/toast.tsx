@@ -7,7 +7,10 @@ interface Toast {
   id: number;
   kind: Kind;
   message: string;
+  leaving?: boolean;
 }
+
+const MAX_TOASTS = 4;
 
 const ToastContext = createContext<{
   push: (kind: Kind, message: string) => void;
@@ -18,14 +21,23 @@ let seq = 0;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const remove = useCallback((id: number) => {
+  const drop = useCallback((id: number) => {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
+
+  /** marca como saindo (dispara a animação) e remove após ela terminar */
+  const remove = useCallback(
+    (id: number) => {
+      setToasts((t) => t.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+      window.setTimeout(() => drop(id), 200);
+    },
+    [drop],
+  );
 
   const push = useCallback(
     (kind: Kind, message: string) => {
       const id = ++seq;
-      setToasts((t) => [...t, { id, kind, message }]);
+      setToasts((t) => [...t.slice(-(MAX_TOASTS - 1)), { id, kind, message }]);
       window.setTimeout(() => remove(id), 4200);
     },
     [remove],
@@ -39,7 +51,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              "animate-pop pointer-events-auto flex items-start gap-2 rounded-xl border border-l-2 bg-surface p-3 text-sm shadow-pop",
+              "pointer-events-auto flex items-start gap-2 rounded-xl border border-l-2 bg-elevated p-3 text-sm shadow-pop",
+              t.leaving ? "animate-toast-out" : "animate-pop",
               t.kind === "success" && "border-positive/30 border-l-positive",
               t.kind === "error" && "border-negative/30 border-l-negative",
               t.kind === "info" && "border-border border-l-accent",
