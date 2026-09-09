@@ -2,6 +2,7 @@ export * from "./money.js";
 export * from "./date.js";
 export * from "./constants.js";
 export * from "./banks.js";
+export * from "./phone.js";
 export * from "./enums.js";
 export * as Enums from "./enums.js";
 export * from "./intents.js";

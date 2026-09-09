@@ -14,7 +14,13 @@ import { Badge, Skeleton } from "@/components/ui/misc";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageHeader } from "@/components/ui/data";
 import { cn } from "@/lib/cn";
-import { checkPassword } from "@rt-finance/shared";
+import {
+  checkPassword,
+  formatPhoneBR,
+  isValidPhoneBR,
+  maskPhoneBR,
+  toE164BR,
+} from "@rt-finance/shared";
 import type { Member } from "@/lib/types";
 
 const COLORS = ["#7A6A55", "#3B82F6", "#EC4899", "#22C55E", "#F97316", "#8B5CF6", "#06B6D4"];
@@ -168,7 +174,7 @@ function MemberTile({ m, onClick }: { m: Member; onClick?: () => void }) {
           <RoleBadge role={m.role} />
         </div>
         <div className="truncate text-xs text-muted">{m.user.email}</div>
-        <div className="truncate text-xs text-muted">{m.user.phoneE164 ?? "sem telefone"}</div>
+        <div className="truncate text-xs text-muted">{m.user.phoneE164 ? formatPhoneBR(m.user.phoneE164) : "sem telefone"}</div>
       </div>
       {onClick && <Pencil className="size-4 shrink-0 text-muted" />}
     </Card>
@@ -194,7 +200,7 @@ function MemberRow({ m, onClick }: { m: Member; onClick?: () => void }) {
         {m.user.email}
       </span>
       <span className="hidden shrink-0 text-xs text-muted md:block">
-        {m.user.phoneE164 ?? "sem telefone"}
+        {m.user.phoneE164 ? formatPhoneBR(m.user.phoneE164) : "sem telefone"}
       </span>
       {onClick && <Pencil className="ml-auto size-4 shrink-0 text-muted sm:ml-0" />}
     </div>
@@ -247,7 +253,7 @@ function UserDialog({
     setDisplayName(member.displayName);
     setFullName(member.user.name);
     setEmail(member.user.email);
-    setPhone(member.user.phoneE164 ?? "");
+    setPhone(member.user.phoneE164 ? maskPhoneBR(member.user.phoneE164) : "");
     setColor(member.color);
     setRole(member.role);
     setError(null);
@@ -287,13 +293,16 @@ function UserDialog({
     if (!displayName.trim()) return setError("Informe o nome de exibição");
     const mail = email.trim().toLowerCase();
     if (!EMAIL_RE.test(mail)) return setError("E-mail inválido");
+    if (phone.trim() && !isValidPhoneBR(phone)) return setError("Telefone incompleto");
+    // manda em E.164; a API normaliza de novo, então os dois lados batem
+    const newPhone = phone.trim() ? toE164BR(phone) : null;
     try {
       if (isSelf) {
         await updateMember.mutateAsync({ id: member.id, body: { displayName: displayName.trim(), color } });
         await updateProfile.mutateAsync({
           name: fullName.trim() || displayName.trim(),
           email: mail,
-          phoneE164: phone.trim() || null,
+          phoneE164: newPhone,
         });
         await refreshUser();
       } else {
@@ -303,9 +312,7 @@ function UserDialog({
             displayName: displayName.trim(),
             color,
             ...(mail !== member.user.email ? { email: mail } : {}),
-            ...(phone.trim() !== (member.user.phoneE164 ?? "")
-              ? { phoneE164: phone.trim() || null }
-              : {}),
+            ...(newPhone !== (member.user.phoneE164 ?? null) ? { phoneE164: newPhone } : {}),
             ...(isOwner ? { role } : {}),
           },
         });
@@ -408,10 +415,17 @@ function UserDialog({
           />
         </Field>
         <Field
-          label="Telefone (WhatsApp, E.164)"
-          hint="Ex.: +5511999999999 — quem pode falar com o bot"
+          label="Telefone (WhatsApp)"
+          hint="Quem pode falar com o bot. Digite do jeito que preferir — o formato é ajustado sozinho."
+          error={phone.trim() && !isValidPhoneBR(phone) ? "Número incompleto" : undefined}
         >
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+55..." />
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(maskPhoneBR(e.target.value))}
+            placeholder="(49) 99964-8444"
+            inputMode="tel"
+            autoComplete="tel"
+          />
         </Field>
         {isOwner && !isSelf && (
           <Field label="Papel">

@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { LIMITS } from "../constants.js";
+import { isValidPhoneBR, toE164BR } from "../phone.js";
+
+/**
+ * Celular brasileiro digitado de qualquer jeito — "(49) 99964-8444", "49 9964-8444",
+ * "5549999648444", "+55 49 99964-8444" — normalizado para E.164. Guardar o número em
+ * formatos diferentes quebra o casamento com quem escreve para o bot, então a
+ * normalização é feita aqui, uma vez, e não em cada tela.
+ */
+export const brPhone = z
+  .string()
+  .trim()
+  .refine(isValidPhoneBR, "número de celular inválido — ex.: (49) 99964-8444")
+  .transform(toE164BR);
 
 export const cuid = z.string().min(1);
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "esperado YYYY-MM-DD");

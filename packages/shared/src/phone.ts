@@ -31,6 +31,34 @@ export function toE164BR(input: string): string {
 }
 
 /**
+ * Diz se dá para entender o que foi digitado como um celular brasileiro. Aceita
+ * "(49) 99964-8444", "49 9964-8444", "5549999648444", "+55 49 99964-8444"…
+ */
+export function isValidPhoneBR(input: string): boolean {
+  return canonical(input) !== null;
+}
+
+/** Formata para exibição/digitação: "(49) 99964-8444". Devolve o que veio se não entender. */
+export function formatPhoneBR(input: string): string {
+  const c = canonical(input);
+  if (!c) return input;
+  return `(${c.ddd}) 9${c.local8.slice(0, 4)}-${c.local8.slice(4)}`;
+}
+
+/**
+ * Máscara progressiva para input (pt-BR), aplicada a cada tecla:
+ * "" → "" · "49" → "(49" · "499996" → "(49) 9999" · "4999648444" → "(49) 99964-8444".
+ */
+export function maskPhoneBR(raw: string): string {
+  const d = digits(raw).replace(/^55(?=\d{10,})/, "").slice(0, 11);
+  if (!d) return "";
+  if (d.length <= 2) return `(${d}`;
+  const local = d.slice(2);
+  if (local.length <= 5) return `(${d.slice(0, 2)}) ${local}`;
+  return `(${d.slice(0, 2)}) ${local.slice(0, 5)}-${local.slice(5)}`;
+}
+
+/**
  * Formas plausíveis de E.164 para um número BR — com/sem o 9º dígito do celular,
  * com/sem o +55. Para casar direto contra `User.phoneE164` (indexado) sem varrer a tabela.
  */

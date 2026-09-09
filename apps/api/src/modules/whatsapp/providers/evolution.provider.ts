@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ENV, type Env } from "../../../config/env.schema";
-import { digits, toE164BR } from "../phone";
+import { digits, toE164BR } from "@rt-finance/shared";
 import {
   WhatsAppService,
   type InboundMessage,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hexColor, strongPassword } from "./common.js";
+import { brPhone, hexColor, strongPassword } from "./common.js";
 import { MemberRole } from "../enums.js";
 
 export const updateHouseholdBody = z.object({
@@ -16,11 +16,7 @@ export const updateMemberBody = z.object({
   /** e-mail de login do membro (OWNER pode ajustar o de outro; o próprio via /me/profile) */
   email: z.string().trim().toLowerCase().email().max(160).optional(),
   /** número de WhatsApp do membro — quem pode falar com o bot deste household */
-  phoneE164: z
-    .string()
-    .regex(/^\+[1-9]\d{7,14}$/, "esperado E.164, ex.: +5511999999999")
-    .nullable()
-    .optional(),
+  phoneE164: brPhone.nullable().optional(),
 });
 export type UpdateMemberBody = z.infer<typeof updateMemberBody>;
 
@@ -32,11 +28,7 @@ export const createMemberBody = z.object({
   displayName: z.string().trim().min(1).max(40),
   color: hexColor.default("#7A6A55"),
   role: MemberRole.default("MEMBER"),
-  phoneE164: z
-    .string()
-    .regex(/^\+[1-9]\d{7,14}$/, "esperado E.164")
-    .nullable()
-    .optional(),
+  phoneE164: brPhone.nullable().optional(),
 });
 export type CreateMemberBody = z.infer<typeof createMemberBody>;
 
@@ -48,11 +40,7 @@ const avatarDataUri = z
 export const updateProfileBody = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   email: z.string().trim().toLowerCase().email().max(160).optional(),
-  phoneE164: z
-    .string()
-    .regex(/^\+[1-9]\d{7,14}$/, "esperado E.164, ex.: +5511999999999")
-    .nullable()
-    .optional(),
+  phoneE164: brPhone.nullable().optional(),
   avatarColor: hexColor.optional(),
   avatarUrl: avatarDataUri.nullable().optional(),
 });

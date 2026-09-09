@@ -694,13 +694,34 @@ describe("telefone do membro (allowlist via tela)", () => {
     expect(res.status).toBe(409);
   });
 
-  it("rejeita formato inválido (400)", async () => {
+  it("normaliza o que foi digitado, em qualquer formato", async () => {
+    const members = await http.get("/api/household/members").set(auth());
+    const owner = members.body.find((m: { role: string }) => m.role === "OWNER");
+    for (const typed of ["(49) 99964-8111", "49 9964-8111", "5549999648111", "+554999648111"]) {
+      const res = await http
+        .patch(`/api/household/members/${owner.id}`)
+        .set(auth())
+        .send({ phoneE164: typed });
+      expect(res.status).toBe(200);
+      const hh = await http.get("/api/household").set(auth());
+      const updated = hh.body.members.find((m: { id: string }) => m.id === owner.id);
+      expect(updated.user.phoneE164).toBe("+5549999648111");
+    }
+    // devolve o número do seed — os testes do webhook dependem dele
+    await http
+      .patch(`/api/household/members/${owner.id}`)
+      .set(auth())
+      .send({ phoneE164: "+5511900000001" })
+      .expect(200);
+  });
+
+  it("rejeita o que não dá para entender (400)", async () => {
     const members = await http.get("/api/household/members").set(auth());
     const owner = members.body.find((m: { role: string }) => m.role === "OWNER");
     const res = await http
       .patch(`/api/household/members/${owner.id}`)
       .set(auth())
-      .send({ phoneE164: "49 99648-4444" });
+      .send({ phoneE164: "123" });
     expect(res.status).toBe(400);
   });
 });

@@ -6,7 +6,7 @@ import { ReportsService } from "../reports/reports.service";
 import { FinanceAssistant } from "../ai/finance-assistant.service";
 import { TranscriptionService } from "../ai/transcription.service";
 import { WhatsAppService, type InboundMessage, type StatusUpdate } from "./whatsapp.types";
-import { phoneCandidates, phonesMatch } from "./phone";
+import { phoneCandidates, phonesMatch } from "@rt-finance/shared";
 import * as fmt from "./formatters";
 
 interface ResolvedSender {
