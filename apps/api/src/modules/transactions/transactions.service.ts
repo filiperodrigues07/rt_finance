@@ -147,13 +147,15 @@ export class TransactionsService {
     body: CreateTransactionBody,
   ): Promise<Transaction> {
     const memberId = body.memberId ?? createdByMemberId;
-    await this.assertMember(householdId, memberId);
-    await this.assertCategory(householdId, body.categoryId);
-    if (body.accountId) await this.assertAccount(householdId, body.accountId);
-
-    const card = body.creditCardId
-      ? await this.prisma.creditCard.findFirst({ where: { id: body.creditCardId, householdId } })
-      : null;
+    // validações independentes em paralelo — corta ~3 idas ao banco antes do INSERT
+    const [, , , card] = await Promise.all([
+      this.assertMember(householdId, memberId),
+      this.assertCategory(householdId, body.categoryId),
+      body.accountId ? this.assertAccount(householdId, body.accountId) : Promise.resolve(),
+      body.creditCardId
+        ? this.prisma.creditCard.findFirst({ where: { id: body.creditCardId, householdId } })
+        : Promise.resolve(null),
+    ]);
     if (body.creditCardId && !card) throw new NotFoundError("Cartão");
 
     return this.prisma.$transaction(async (tx) => {
@@ -203,19 +205,23 @@ export class TransactionsService {
     if (current.transferGroupId) {
       throw new DomainError("Edite a transferência excluindo e recriando.");
     }
-    if (body.memberId) await this.assertMember(householdId, body.memberId);
-    if (body.categoryId !== undefined) await this.assertCategory(householdId, body.categoryId);
-
     const nextAccountId = body.accountId !== undefined ? body.accountId : current.accountId;
     const nextCardId = body.creditCardId !== undefined ? body.creditCardId : current.creditCardId;
     if (Boolean(nextAccountId) === Boolean(nextCardId)) {
       throw new DomainError("Informe exatamente um meio de pagamento: conta OU cartão");
     }
-    if (nextAccountId) await this.assertAccount(householdId, nextAccountId);
 
-    const card = nextCardId
-      ? await this.prisma.creditCard.findFirst({ where: { id: nextCardId, householdId } })
-      : null;
+    // validações independentes em paralelo
+    const [, , , card] = await Promise.all([
+      body.memberId ? this.assertMember(householdId, body.memberId) : Promise.resolve(),
+      body.categoryId !== undefined
+        ? this.assertCategory(householdId, body.categoryId)
+        : Promise.resolve(),
+      nextAccountId ? this.assertAccount(householdId, nextAccountId) : Promise.resolve(),
+      nextCardId
+        ? this.prisma.creditCard.findFirst({ where: { id: nextCardId, householdId } })
+        : Promise.resolve(null),
+    ]);
     if (nextCardId && !card) throw new NotFoundError("Cartão");
 
     const nextDateIso = body.date ?? toIsoDate(current.date);
