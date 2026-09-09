@@ -18,6 +18,7 @@ import type {
   ImportRowDTO,
   CommitImportResult,
   PatchImportRowBody,
+  QuickAddResult,
 } from "@rt-finance/shared";
 import type {
   BulkActionResult,
@@ -205,6 +206,21 @@ export function useTransactions(
   });
 }
 
+const TX_NARROWING_KEYS = [
+  "search",
+  "scheduled",
+  "type",
+  "status",
+  "categoryId",
+  "accountId",
+  "creditCardId",
+  "memberId",
+  "from",
+  "to",
+  "minCents",
+  "maxCents",
+] as const;
+
 export function useTransactionMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -214,10 +230,39 @@ export function useTransactionMutations() {
     qc.invalidateQueries({ queryKey: ["credit-cards"] });
     qc.invalidateQueries({ queryKey: ["future-commitment"] });
   };
+
+  /**
+   * Mostra a linha recém-criada na hora, sem esperar o refetch. Só mexe nas
+   * listas "soltas" (sem filtro/busca, 1ª página, ordenação padrão por data);
+   * qualquer view filtrada é deixada para a invalidação reconciliar.
+   */
+  const optimisticInsert = (row: TransactionRow) => {
+    qc.getQueryCache()
+      .findAll({ queryKey: ["transactions"] })
+      .forEach((q) => {
+        const filt = (q.queryKey[1] ?? {}) as Record<string, unknown>;
+        if (TX_NARROWING_KEYS.some((k) => filt[k] != null)) return;
+        if (filt.page && Number(filt.page) > 1) return;
+        if (filt.sort && filt.sort !== "date") return;
+        if (filt.order && filt.order !== "desc") return;
+        const data = q.state.data as Paginated<TransactionRow> | undefined;
+        if (!data || data.data.some((t) => t.id === row.id)) return;
+        qc.setQueryData(q.queryKey, {
+          ...data,
+          data: [row, ...data.data],
+          total: data.total + 1,
+        });
+      });
+  };
+
   return {
+    optimisticInsert,
     create: useMutation({
       mutationFn: (b: CreateTransactionBody) => api.post<TransactionRow>("/transactions", b),
-      onSuccess: invalidate,
+      onSuccess: (row) => {
+        optimisticInsert(row);
+        invalidate();
+      },
     }),
     update: useMutation({
       mutationFn: ({ id, body }: { id: string; body: UpdateTransactionBody }) =>
@@ -230,8 +275,13 @@ export function useTransactionMutations() {
       onSuccess: invalidate,
     }),
     quickAdd: useMutation({
-      mutationFn: (text: string) => api.post<TransactionRow>("/transactions/quick", { text }),
-      onSuccess: invalidate,
+      mutationFn: (text: string) => api.post<QuickAddResult>("/transactions/quick", { text }),
+      onSuccess: (res) => {
+        if (res.status === "created") {
+          optimisticInsert(res.transaction as TransactionRow);
+          invalidate();
+        }
+      },
     }),
     pay: useMutation({
       mutationFn: ({ id, body }: { id: string; body: { date?: string; accountId?: string } }) =>

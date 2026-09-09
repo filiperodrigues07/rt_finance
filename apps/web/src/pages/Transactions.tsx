@@ -24,7 +24,7 @@ import {
   Rows4,
 } from "lucide-react";
 import { useDensity } from "@/lib/useDensity";
-import type { ListTransactionsQuery } from "@rt-finance/shared";
+import type { ListTransactionsQuery, QuickAddPreviewPlan, QuickAddDraft } from "@rt-finance/shared";
 import { resolvePeriod, APP_TZ, toCents, todayIso } from "@rt-finance/shared";
 import {
   useCategories,
@@ -34,6 +34,7 @@ import {
   useTransactionMutations,
   useTransactions,
   useReportExport,
+  useInstallmentMutations,
 } from "@/lib/hooks";
 import { formatBRL, formatDate, centsToMasked } from "@/lib/format";
 import { useToast } from "@/lib/toast";
@@ -52,6 +53,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TransactionForm } from "./transactions/TransactionForm";
+import { InstallmentForm, type InstallmentSeed } from "./cards/InstallmentForm";
 import { ImportDialog } from "@/components/ImportDialog";
 import { Attachments } from "@/components/Attachments";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -138,6 +140,10 @@ export function TransactionsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [formSeed, setFormSeed] = useState<string | undefined>();
+  const [formSeedAmount, setFormSeedAmount] = useState<string | undefined>();
+  // lançamento rápido parcelado: preview aguardando confirmação
+  const [preview, setPreview] = useState<QuickAddPreviewPlan | null>(null);
+  const [instSeed, setInstSeed] = useState<{ cardId: string; seed: InstallmentSeed } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
   const [toDelete, setToDelete] = useState<TransactionRow | null>(null);
@@ -163,6 +169,7 @@ export function TransactionsPage() {
   const accounts = useAccounts();
   const household = useHousehold();
   const tx = useTransactionMutations();
+  const inst = useInstallmentMutations();
   const report = useReportExport();
 
   const rows = data?.data ?? [];
@@ -257,21 +264,86 @@ export function TransactionsPage() {
     const text = quick.trim();
     if (!text) return;
     try {
-      const created = await tx.quickAdd.mutateAsync(text);
-      setQuick("");
-      toast.success(
-        `${created.type === "INCOME" ? "Receita" : "Despesa"} de ${formatBRL(created.amountCents)} — ${created.description}`,
-      );
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 422) {
-        setFormSeed(text);
-        setEditing(null);
+      const res = await tx.quickAdd.mutateAsync(text);
+      if (res.status === "created") {
+        const t = res.transaction as TransactionRow;
         setQuick("");
-        setFormOpen(true);
+        toast.success(
+          `${t.type === "INCOME" ? "Receita" : "Despesa"} de ${formatBRL(t.amountCents)} — ${t.description}`,
+        );
+      } else if (res.status === "preview") {
+        setPreview(res.plan);
       } else {
-        toast.error(e instanceof ApiError ? e.message : "Não consegui lançar");
+        openSeededForm(res.draft);
+        if (res.reason) toast.info(res.reason);
+      }
+    } catch (e) {
+      // erro de rede/servidor: abre o formulário já com o texto pra não perder o lançamento
+      setFormSeed(text);
+      setFormSeedAmount(undefined);
+      setEditing(null);
+      setQuick("");
+      setFormOpen(true);
+      if (!(e instanceof ApiError && e.status === 422)) {
+        toast.error(e instanceof ApiError ? e.message : "Não consegui lançar — confira no formulário");
       }
     }
+  }
+
+  /** Abre o formulário adequado pré-preenchido quando a IA não conseguiu concluir. */
+  function openSeededForm(draft: QuickAddDraft) {
+    setQuick("");
+    setEditing(null);
+    const masked = draft.amountCents != null ? centsToMasked(draft.amountCents) : undefined;
+    if (draft.installmentCount && draft.installmentCount > 1 && cards.data?.length) {
+      setInstSeed({
+        cardId: cards.data[0]!.id,
+        seed: { description: draft.description, total: masked, count: draft.installmentCount },
+      });
+      return;
+    }
+    setFormSeed(draft.description || undefined);
+    setFormSeedAmount(masked);
+    setFormOpen(true);
+  }
+
+  async function confirmPreview() {
+    if (!preview) return;
+    try {
+      await inst.create.mutateAsync({
+        creditCardId: preview.creditCardId,
+        categoryId: preview.categoryId,
+        memberId: preview.memberId,
+        description: preview.description,
+        totalCents: preview.totalCents,
+        installmentCount: preview.installmentCount,
+        purchaseDate: preview.purchaseDate,
+        firstDueDate: preview.firstDueDate,
+      });
+      toast.success(
+        `${preview.installmentCount}× de ${formatBRL(preview.installmentCents)} no ${preview.cardLabel}`,
+      );
+      setPreview(null);
+      setQuick("");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Não consegui registrar o parcelamento");
+    }
+  }
+
+  /** "Ajustar": leva o preview pro formulário de parcelamento editável. */
+  function adjustPreview() {
+    if (!preview) return;
+    setQuick("");
+    setInstSeed({
+      cardId: preview.creditCardId,
+      seed: {
+        description: preview.description,
+        total: centsToMasked(preview.totalCents),
+        count: preview.installmentCount,
+        categoryId: preview.categoryId ?? undefined,
+      },
+    });
+    setPreview(null);
   }
 
   async function confirmDelete() {
@@ -390,26 +462,54 @@ export function TransactionsPage() {
         <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
           <Zap className="size-4 text-accent" /> Lançamento rápido
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            className="h-11 flex-1"
-            placeholder='Ex.: "gastei 50 no mercado ontem"'
-            value={quick}
-            onChange={(e) => setQuick(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitQuick()}
-          />
-          <Button
-            className="h-11 shrink-0 sm:w-28"
-            loading={tx.quickAdd.isPending}
-            onClick={submitQuick}
-            disabled={!quick.trim()}
-          >
-            Lançar
-          </Button>
-        </div>
-        <p className="mt-1.5 text-xs text-muted">
-          Descreva em linguagem natural — a IA interpreta valor, categoria, data e responsável.
-        </p>
+
+        {preview ? (
+          <div className="rounded-lg border border-border bg-surface-2 p-3">
+            <div className="text-sm font-medium">{preview.description}</div>
+            <div className="mt-0.5 text-sm">
+              {preview.installmentCount}× de <strong>{formatBRL(preview.installmentCents)}</strong>
+              <span className="text-muted"> · total {formatBRL(preview.totalCents)}</span>
+            </div>
+            <div className="mt-0.5 text-xs text-muted">
+              {preview.cardLabel} · {preview.categoryLabel} · {preview.firstInvoiceLabel}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" loading={inst.create.isPending} onClick={confirmPreview}>
+                <CheckCircle2 className="size-3.5" /> Confirmar
+              </Button>
+              <Button size="sm" variant="outline" onClick={adjustPreview}>
+                Ajustar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="h-11 flex-1"
+                placeholder='Ex.: "gastei 50 no mercado" ou "300 no cartão itau em 3x"'
+                value={quick}
+                onChange={(e) => setQuick(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitQuick()}
+              />
+              <Button
+                className="h-11 shrink-0 sm:w-28"
+                loading={tx.quickAdd.isPending}
+                onClick={submitQuick}
+                disabled={!quick.trim()}
+              >
+                Lançar
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted">
+              Linguagem natural — a IA interpreta valor, categoria, cartão e parcelas. Compra
+              parcelada pede confirmação.
+            </p>
+          </>
+        )}
       </Card>
 
       {/* busca + filtros */}
@@ -862,10 +962,21 @@ export function TransactionsPage() {
         onClose={() => {
           setFormOpen(false);
           setFormSeed(undefined);
+          setFormSeedAmount(undefined);
         }}
         editing={editing}
         seedDescription={formSeed}
+        seedAmount={formSeedAmount}
       />
+
+      {instSeed && (
+        <InstallmentForm
+          open
+          onClose={() => setInstSeed(null)}
+          creditCardId={instSeed.cardId}
+          seed={instSeed.seed}
+        />
+      )}
 
       <ConfirmDialog
         open={!!toDelete}

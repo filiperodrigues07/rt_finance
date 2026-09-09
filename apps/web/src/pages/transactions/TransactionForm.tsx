@@ -24,11 +24,14 @@ export function TransactionForm({
   onClose,
   editing,
   seedDescription,
+  seedAmount,
 }: {
   open: boolean;
   onClose: () => void;
   editing: TransactionRow | null;
   seedDescription?: string;
+  /** valor já mascarado, ex.: "50,00" — usado pelo lançamento rápido */
+  seedAmount?: string;
 }) {
   const toast = useToast();
   const { user } = useAuth();
@@ -70,7 +73,7 @@ export function TransactionForm({
       setDueDate((editing.dueDate ?? editing.date).slice(0, 10));
     } else {
       setType("EXPENSE");
-      setAmount("");
+      setAmount(seedAmount ?? "");
       setDescription(seedDescription ?? "");
       setDate(todayIso(APP_TZ));
       setCategoryId("");
@@ -82,7 +85,7 @@ export function TransactionForm({
       setWhen("paid");
       setDueDate(todayIso(APP_TZ));
     }
-  }, [open, editing, user?.memberId, seedDescription]);
+  }, [open, editing, user?.memberId, seedDescription, seedAmount]);
 
   const cats = (categories.data ?? []).filter((c) => c.kind === "BOTH" || c.kind === type);
   const members = household.data?.members ?? [];

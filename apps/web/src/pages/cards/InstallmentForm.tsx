@@ -8,14 +8,24 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 
+export interface InstallmentSeed {
+  description?: string;
+  /** valor total já mascarado, ex.: "2.400,00" */
+  total?: string;
+  count?: number;
+  categoryId?: string;
+}
+
 export function InstallmentForm({
   open,
   onClose,
   creditCardId,
+  seed,
 }: {
   open: boolean;
   onClose: () => void;
   creditCardId: string;
+  seed?: InstallmentSeed;
 }) {
   const toast = useToast();
   const categories = useCategories();
@@ -30,14 +40,14 @@ export function InstallmentForm({
 
   useEffect(() => {
     if (open) {
-      setDescription("");
-      setTotal("");
-      setCount("12");
+      setDescription(seed?.description ?? "");
+      setTotal(seed?.total ?? "");
+      setCount(seed?.count ? String(seed.count) : "12");
       setPurchaseDate(todayIso(APP_TZ));
-      setCategoryId("");
+      setCategoryId(seed?.categoryId ?? "");
       setError(null);
     }
-  }, [open]);
+  }, [open, seed]);
 
   const preview = useMemo(() => {
     try {
