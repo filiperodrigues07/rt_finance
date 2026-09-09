@@ -51,7 +51,7 @@ export function Dialog({
         </div>
         <div className="flex-1 overflow-y-auto p-5">{children}</div>
         {footer ? (
-          <div className="pb-safe flex justify-end gap-2 border-t border-border px-5 py-4">
+          <div className="pb-safe flex flex-col-reverse gap-2 border-t border-border bg-surface px-5 py-4 sm:flex-row sm:justify-end sm:gap-3 [&>button]:w-full sm:[&>button]:w-auto">
             {footer}
           </div>
         ) : (
