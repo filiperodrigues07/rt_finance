@@ -16,7 +16,7 @@ export type TransactionSource = z.infer<typeof TransactionSource>;
 export const CategoryKind = z.enum(["EXPENSE", "INCOME", "BOTH"]);
 export type CategoryKind = z.infer<typeof CategoryKind>;
 
-export const AccountType = z.enum(["CHECKING", "SAVINGS", "CASH", "WALLET"]);
+export const AccountType = z.enum(["CHECKING", "SAVINGS", "CASH", "WALLET", "MEAL_VOUCHER"]);
 export type AccountType = z.infer<typeof AccountType>;
 
 export const CardStatus = z.enum(["ACTIVE", "INACTIVE"]);

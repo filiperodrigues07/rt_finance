@@ -12,6 +12,8 @@ export const createRecurringBody = z
     interval: z.number().int().min(1).max(24).default(1),
     dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
     weekday: z.number().int().min(0).max(6).nullable().optional(),
+    /** Nº fixo de lançamentos (ex.: financiamento 12x). null/omitido = sem fim. */
+    occurrenceCount: z.number().int().min(1).max(360).nullable().optional(),
     autoPost: z.boolean().default(true),
     accountId: cuid.nullable().optional(),
     creditCardId: cuid.nullable().optional(),
@@ -33,6 +35,7 @@ export const updateRecurringBody = z.object({
   interval: z.number().int().min(1).max(24).optional(),
   dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
   weekday: z.number().int().min(0).max(6).nullable().optional(),
+  occurrenceCount: z.number().int().min(1).max(360).nullable().optional(),
   autoPost: z.boolean().optional(),
   accountId: cuid.nullable().optional(),
   creditCardId: cuid.nullable().optional(),

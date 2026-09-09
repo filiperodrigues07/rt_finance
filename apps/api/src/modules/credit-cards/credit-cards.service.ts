@@ -75,7 +75,7 @@ export class CreditCardsService {
       },
       _sum: { amountCents: true },
     });
-    const usedCents = agg._sum.amountCents ?? 0;
+    const usedCents = card.openingUsedCents + (agg._sum.amountCents ?? 0);
     return {
       ...card,
       limits: {
@@ -98,6 +98,7 @@ export class CreditCardsService {
         brand: body.brand ?? null,
         last4: body.last4 ?? null,
         limitCents: body.limitCents,
+        openingUsedCents: body.openingUsedCents,
         closingDay: body.closingDay,
         dueDay: body.dueDay,
         color: body.color,
@@ -120,6 +121,7 @@ export class CreditCardsService {
         brand: body.brand ?? undefined,
         last4: body.last4 ?? undefined,
         limitCents: body.limitCents,
+        openingUsedCents: body.openingUsedCents,
         closingDay: body.closingDay,
         dueDay: body.dueDay,
         color: body.color,

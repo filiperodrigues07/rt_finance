@@ -17,6 +17,8 @@ export const createCreditCardBody = z.object({
     .nullable()
     .optional(),
   limitCents: z.number().int().min(0).default(0),
+  /** Limite já comprometido hoje fora dos lançamentos do app. */
+  openingUsedCents: z.number().int().min(0).default(0),
   closingDay: dayOfMonth,
   dueDay: dayOfMonth,
   color: hexColor.default("#8B5CF6"),

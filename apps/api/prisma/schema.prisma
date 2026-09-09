@@ -47,6 +47,7 @@ enum AccountType {
   SAVINGS
   CASH
   WALLET
+  MEAL_VOUCHER
 }
 
 enum CardStatus {
@@ -318,6 +319,8 @@ model CreditCard {
   brand       String?
   last4       String?
   limitCents  Int        @default(0)
+  /// Limite já comprometido hoje fora dos lançamentos do app (dívida pré-existente).
+  openingUsedCents Int   @default(0)
   closingDay  Int
   dueDay      Int
   color       String     @default("#8B5CF6")
@@ -467,6 +470,8 @@ model RecurringExpense {
   interval          Int                 @default(1)
   dayOfMonth        Int?
   weekday           Int?
+  /// Nº fixo de lançamentos a gerar (ex.: financiamento 12x). null = sem fim.
+  occurrenceCount   Int?
   autoPost          Boolean             @default(true)
   accountId         String?
   creditCardId      String?

@@ -15,6 +15,7 @@ export * from "./schemas/email.js";
 export * from "./schemas/category.js";
 export * from "./schemas/account.js";
 export * from "./schemas/credit-card.js";
+export * from "./schemas/invoice.js";
 export * from "./schemas/transaction.js";
 export * from "./schemas/installment.js";
 export * from "./schemas/report.js";

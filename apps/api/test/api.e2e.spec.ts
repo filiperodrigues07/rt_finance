@@ -176,6 +176,70 @@ describe("cartão + fatura + parcelamento", () => {
   });
 });
 
+describe("pagar fatura de cartão", () => {
+  let cardId: string;
+  let invoiceId: string;
+
+  const cardUsed = async () => {
+    const res = await http.get("/api/credit-cards").set(auth());
+    return res.body.find((c: { id: string }) => c.id === cardId).limits.usedCents as number;
+  };
+  const acctBalance = async () => {
+    const res = await http.get("/api/accounts").set(auth());
+    return res.body.find((a: { id: string }) => a.id === seed.accountId).balanceCents as number;
+  };
+
+  it("cartão com limite já utilizado entra no cálculo", async () => {
+    const res = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Fatura Card", limitCents: 500_000, openingUsedCents: 30_000, closingDay: 10, dueDay: 17 });
+    expect(res.status).toBe(201);
+    cardId = res.body.id;
+    expect(await cardUsed()).toBe(30_000);
+  });
+
+  it("despesa no cartão sobe o uso e gera fatura pagável", async () => {
+    await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 20_000, description: "Mercado", date: "2026-09-12", creditCardId: cardId });
+    expect(await cardUsed()).toBe(50_000);
+
+    const payable = await http.get("/api/invoices/payable").set(auth());
+    const inv = payable.body.find((i: { creditCardId: string }) => i.creditCardId === cardId);
+    expect(inv).toBeTruthy();
+    expect(inv.totalCents).toBe(20_000);
+    invoiceId = inv.id;
+  });
+
+  it("pagar debita a conta, baixa a fatura e libera o limite", async () => {
+    const before = await acctBalance();
+    const res = await http
+      .post(`/api/invoices/${invoiceId}/pay`)
+      .set(auth())
+      .send({ accountId: seed.accountId });
+    expect(res.status).toBeLessThan(300);
+    expect(res.body.amountCents).toBe(20_000);
+
+    const inv = await http.get(`/api/invoices/${invoiceId}`).set(auth());
+    expect(inv.body.status).toBe("PAID");
+    expect(inv.body.paidAt).toBeTruthy();
+    expect(inv.body.paymentTransactionId).toBeTruthy();
+
+    expect(await cardUsed()).toBe(30_000);
+    expect(await acctBalance()).toBe(before - 20_000);
+  });
+
+  it("pagar de novo → 409", async () => {
+    const res = await http
+      .post(`/api/invoices/${invoiceId}/pay`)
+      .set(auth())
+      .send({ accountId: seed.accountId });
+    expect(res.status).toBe(409);
+  });
+});
+
 describe("dono + banco em contas/cartões", () => {
   it("cria conta com memberId + bankId e o GET devolve os dois + member", async () => {
     const res = await http
