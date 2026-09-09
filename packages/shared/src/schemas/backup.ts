@@ -19,8 +19,6 @@ export const backupFileSchema = z.object({
   creditCardInvoices: z.array(row),
   installmentPlans: z.array(row),
   installments: z.array(row),
-  recurringExpenses: z.array(row),
-  recurringRuns: z.array(row),
   transactions: z.array(row),
   transactionComments: z.array(row),
   transactionAttachments: z.array(row),

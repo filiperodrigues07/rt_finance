@@ -332,122 +332,83 @@ describe("dono + banco em contas/cartões", () => {
   });
 });
 
-describe("recorrências + orçamentos", () => {
-  it("gera lançamentos de recorrência (idempotente)", async () => {
-    const created = await http
-      .post("/api/recurring-expenses")
-      .set(auth())
-      .send({
-        name: "Internet",
-        amountCents: 12000,
-        categoryId: (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id,
-        frequency: "MONTHLY",
-        dayOfMonth: 10,
-        accountId: seed.accountId,
-        startDate: "2026-08-01",
-      });
-    expect(created.status).toBe(201);
-
-    const g1 = await http.post("/api/recurring-expenses/generate").set(auth());
-    expect(g1.body.created).toBeGreaterThan(0);
-    const g2 = await http.post("/api/recurring-expenses/generate").set(auth());
-    expect(g2.body.created).toBe(0); // idempotente
-  });
-
-  it("recorrência gera em A pagar (PENDING + dueDate); só a do mês aparece em Todas", async () => {
+describe("contas a pagar em série + orçamentos", () => {
+  let seriesId = "";
+  it("repeatMonths gera N contas a pagar mensais; só a do mês em Todas; não mexe no saldo", async () => {
     const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
-    const r = await http
-      .post("/api/recurring-expenses")
+    const before = await http.get("/api/accounts").set(auth());
+    const bal0 = before.body.find((a: { id: string }) => a.id === seed.accountId).balanceCents;
+
+    const res = await http
+      .post("/api/transactions")
       .set(auth())
       .send({
-        name: "Aluguel apto",
+        type: "EXPENSE",
         amountCents: 180000,
+        description: "Aluguel",
+        date: "2026-09-10",
+        dueDate: "2026-09-10",
         categoryId: catId,
-        frequency: "MONTHLY",
-        dayOfMonth: 10,
         accountId: seed.accountId,
-        startDate: "2026-09-01",
+        status: "PENDING",
+        repeatMonths: 6,
       });
-    expect(r.status).toBe(201);
-    expect(r.body.autoPost).toBe(false); // novo padrão
+    expect(res.status).toBe(201);
+    seriesId = res.body.scheduleGroupId;
+    expect(seriesId).toBeTruthy();
 
-    await http.post("/api/recurring-expenses/generate").set(auth());
-    const gen = await prisma.transaction.findMany({
-      where: { recurringExpenseId: r.body.id, source: "RECURRING" },
-      orderBy: { date: "asc" },
+    const rows = await prisma.transaction.findMany({
+      where: { scheduleGroupId: seriesId },
+      orderBy: { dueDate: "asc" },
     });
-    expect(gen.length).toBeGreaterThan(1);
-    expect(gen.every((t) => t.status === "PENDING" && t.dueDate != null)).toBe(true);
+    expect(rows.length).toBe(6);
+    expect(rows.every((t) => t.status === "PENDING" && t.dueDate != null)).toBe(true);
+    expect(rows[0].description).toBe("Aluguel (1/6)");
+    expect(rows[5].description).toBe("Aluguel (6/6)");
+    expect(rows[1].dueDate!.toISOString().slice(0, 7)).toBe("2026-10");
+
+    const after = await http.get("/api/accounts").set(auth());
+    const bal1 = after.body.find((a: { id: string }) => a.id === seed.accountId).balanceCents;
+    expect(bal1).toBe(bal0); // agendado não mexe no saldo
 
     const sched = await http.get("/api/transactions?scheduled=true&pageSize=100").set(auth());
-    const schedIds = sched.body.data.map((t: { id: string }) => t.id);
-    expect(gen.every((t) => schedIds.includes(t.id))).toBe(true);
+    const schedIds = new Set(sched.body.data.map((t: { id: string }) => t.id));
+    expect(rows.every((t) => schedIds.has(t.id))).toBe(true);
 
     const todas = await http.get("/api/transactions?pageSize=100").set(auth());
     const todasIds = new Set(todas.body.data.map((t: { id: string }) => t.id));
-    const thisMonth = gen.filter((t) => t.date.toISOString().slice(0, 7) === "2026-09");
-    const futureMonths = gen.filter((t) => t.date.toISOString().slice(0, 7) > "2026-09");
-    expect(thisMonth.every((t) => todasIds.has(t.id))).toBe(true);
-    expect(futureMonths.some((t) => todasIds.has(t.id))).toBe(false);
+    expect(todasIds.has(rows[0].id)).toBe(true); // a de setembro
+    expect(rows.slice(1).some((t) => todasIds.has(t.id))).toBe(false); // futuras não
   });
 
-  it("recorrência com lançar automático (autoPost) posta CONFIRMED em Todas", async () => {
-    const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
-    const r = await http
-      .post("/api/recurring-expenses")
-      .set(auth())
-      .send({
-        name: "Streaming auto",
-        amountCents: 3990,
-        categoryId: catId,
-        frequency: "MONTHLY",
-        dayOfMonth: 5,
-        accountId: seed.accountId,
-        startDate: "2026-09-01",
-        autoPost: true,
-      });
-    expect(r.body.autoPost).toBe(true);
-    await http.post("/api/recurring-expenses/generate").set(auth());
-    const gen = await prisma.transaction.findMany({
-      where: { recurringExpenseId: r.body.id },
-      orderBy: { date: "asc" },
+  it("cancel-series remove a parcela e as próximas; mantém as já vencidas/pagas", async () => {
+    const rows = await prisma.transaction.findMany({
+      where: { scheduleGroupId: seriesId },
+      orderBy: { dueDate: "asc" },
     });
-    expect(gen[0].status).toBe("CONFIRMED");
-    expect(gen[0].dueDate).toBeNull();
+    const third = rows[2];
+    const r = await http.post(`/api/transactions/${third.id}/cancel-series`).set(auth());
+    expect(r.status).toBe(201);
+    expect(r.body.deleted).toBe(4); // 3,4,5,6
+    const left = await prisma.transaction.count({ where: { scheduleGroupId: seriesId } });
+    expect(left).toBe(2);
   });
 
-  it("recorrência com nº fixo de parcelas gera todas de uma vez e encerra", async () => {
+  it("repeatMonths default = 1 lançamento único", async () => {
     const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
-    const created = await http
-      .post("/api/recurring-expenses")
-      .set(auth())
-      .send({
-        name: "Financiamento carro",
-        amountCents: 90000,
-        categoryId: catId,
-        frequency: "MONTHLY",
-        dayOfMonth: 5,
-        occurrenceCount: 3,
-        accountId: seed.accountId,
-        startDate: "2027-01-01",
-      });
-    expect(created.status).toBe(201);
-    const recId = created.body.id;
-
-    const g1 = await http.post("/api/recurring-expenses/generate").set(auth());
-    expect(g1.body.created).toBeGreaterThanOrEqual(3);
-    const runs = await prisma.recurringRun.count({ where: { recurringExpenseId: recId } });
-    expect(runs).toBe(3);
-    const txs = await prisma.transaction.count({
-      where: { recurringExpenseId: recId, source: "RECURRING" },
+    const res = await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 5000,
+      description: "Boleto único",
+      date: "2026-09-20",
+      dueDate: "2026-09-20",
+      categoryId: catId,
+      accountId: seed.accountId,
+      status: "PENDING",
     });
-    expect(txs).toBe(3);
-
-    const g2 = await http.post("/api/recurring-expenses/generate").set(auth());
-    const rec = await prisma.recurringExpense.findUnique({ where: { id: recId } });
-    expect(rec!.active).toBe(false);
-    expect(await prisma.recurringRun.count({ where: { recurringExpenseId: recId } })).toBe(3);
-    void g2;
+    expect(res.status).toBe(201);
+    expect(res.body.scheduleGroupId).toBeNull();
+    expect(res.body.description).toBe("Boleto único");
   });
 
   it("orçamento calcula % gasto", async () => {

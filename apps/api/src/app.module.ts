@@ -21,7 +21,6 @@ import { InvoicesModule } from "./modules/invoices/invoices.module";
 import { TransactionsModule } from "./modules/transactions/transactions.module";
 import { InstallmentsModule } from "./modules/installments/installments.module";
 import { ReportsModule } from "./modules/reports/reports.module";
-import { RecurringExpensesModule } from "./modules/recurring-expenses/recurring-expenses.module";
 import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { GoalsModule } from "./modules/goals/goals.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
@@ -78,7 +77,6 @@ import { HealthModule } from "./modules/health/health.module";
     TransactionsModule,
     InstallmentsModule,
     ReportsModule,
-    RecurringExpensesModule,
     BudgetsModule,
     GoalsModule,
     NotificationsModule,

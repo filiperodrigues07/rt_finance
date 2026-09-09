@@ -14,7 +14,6 @@ import { toIsoDate } from "../../common/date-only";
 import { TransactionsService } from "../transactions/transactions.service";
 import { InstallmentsService } from "../installments/installments.service";
 import { ReportsService } from "../reports/reports.service";
-import { RecurringExpensesService } from "../recurring-expenses/recurring-expenses.service";
 import { help as helpText } from "../whatsapp/formatters";
 import { AIService, type InterpretContext, type AiMeta } from "./ai.types";
 import { fastPath } from "./fast-path";
@@ -62,7 +61,6 @@ export class FinanceAssistant {
     private readonly queries: QueryExecutor,
     private readonly transactions: TransactionsService,
     private readonly installments: InstallmentsService,
-    private readonly recurring: RecurringExpensesService,
     private readonly reports: ReportsService,
     private readonly charts: ChartRendererService,
     @Inject(ENV) private readonly env: Env,
@@ -171,9 +169,6 @@ export class FinanceAssistant {
 
       case "create_installment_purchase":
         return this.handleInstallment(convId, input, result);
-
-      case "create_recurring":
-        return this.handleRecurring(input, result);
 
       case "query":
         return this.handleQuery(input.householdId, input.memberId, result);
@@ -335,51 +330,6 @@ export class FinanceAssistant {
       creditCardId: card?.id ?? null,
       accountId: account?.id ?? null,
     });
-  }
-
-  // ---------------- create recurring ----------------
-  private async handleRecurring(
-    input: AssistantInput,
-    r: Extract<AiResult, { kind: "create_recurring" }>,
-  ): Promise<string> {
-    if (r.ambiguous && r.clarification) return `🤔 ${r.clarification}`;
-    if (r.amountCents == null) {
-      return "Qual o valor dessa conta fixa? (ex.: _aluguel de 1500 todo dia 5_)";
-    }
-    const { category } = await this.hints.resolveCategory(input.householdId, r.categoryHint, "EXPENSE");
-    const memberId = await this.hints.resolveMember(input.householdId, r.memberHint, input.memberId);
-    const pay = await this.hints.resolvePayment(input.householdId, r.paymentHint);
-    if (!pay.accountId && !pay.creditCardId) {
-      return "Cadastre uma conta ou cartão no painel antes de criar recorrências.";
-    }
-
-    await this.recurring.create(input.householdId, input.memberId, {
-      name: r.name,
-      amountCents: r.amountCents,
-      categoryId: category!.id,
-      memberId,
-      frequency: r.frequency,
-      interval: 1,
-      dayOfMonth: r.dayOfMonth ?? new Date().getUTCDate(),
-      weekday: null,
-      autoPost: true,
-      accountId: pay.accountId,
-      creditCardId: pay.creditCardId,
-      startDate: todayIso(this.env.APP_TIMEZONE),
-      endDate: null,
-    });
-
-    const freqLabel =
-      r.frequency === "WEEKLY" ? "toda semana" : r.frequency === "YEARLY" ? "todo ano" : `todo mês`;
-    return [
-      "✅ Conta fixa criada!",
-      "",
-      `🔁 ${r.name} — ${this.brl(r.amountCents)} ${freqLabel}`,
-      category ? `${category.icon} ${category.name}` : "",
-      "Os lançamentos futuros serão gerados automaticamente.",
-    ]
-      .filter(Boolean)
-      .join("\n");
   }
 
   private brl(cents: number): string {

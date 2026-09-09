@@ -77,7 +77,7 @@ export function SettingsPage() {
           <form onSubmit={wipeData} className="space-y-3">
             <p className="text-sm text-muted">
               Sempre apaga o <strong className="text-fg">histórico</strong>: lançamentos, parcelas,
-              faturas, recorrências, metas, orçamentos, importações, anexos, notificações e conversas
+              faturas, contas a pagar, metas, orçamentos, importações, anexos, notificações e conversas
               do bot. Marque abaixo o que também quer apagar:
             </p>
             <div className="space-y-2 text-sm">
@@ -182,7 +182,7 @@ function BackupPanel() {
           </Button>
           <p className="mt-1.5 text-xs text-muted">
             Arquivo .json com contas, cartões, categorias, lançamentos (com anexos), faturas,
-            parcelamentos, recorrências, metas e orçamentos. Vai para a pasta de downloads.
+            parcelamentos, metas e orçamentos. Vai para a pasta de downloads.
           </p>
         </div>
 

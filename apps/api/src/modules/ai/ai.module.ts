@@ -6,7 +6,6 @@ import { AccountsModule } from "../accounts/accounts.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { InstallmentsModule } from "../installments/installments.module";
 import { ReportsModule } from "../reports/reports.module";
-import { RecurringExpensesModule } from "../recurring-expenses/recurring-expenses.module";
 import { ChartsModule } from "../charts/charts.module";
 import { HintsModule } from "../hints/hints.module";
 
@@ -26,7 +25,6 @@ import { TranscriptionService } from "./transcription.service";
     TransactionsModule,
     InstallmentsModule,
     ReportsModule,
-    RecurringExpensesModule,
     ChartsModule,
     HintsModule,
   ],

@@ -315,8 +315,6 @@ export class HouseholdsService {
     await tx.goalContribution.deleteMany({ where: { goal: { householdId: hid } } });
     await tx.financialGoal.deleteMany({ where: { householdId: hid } });
     await tx.budget.deleteMany({ where: { householdId: hid } });
-    await tx.recurringRun.deleteMany({ where: { recurringExpense: { householdId: hid } } });
-    await tx.recurringExpense.deleteMany({ where: { householdId: hid } });
     await tx.installment.deleteMany({ where: { plan: { householdId: hid } } });
     await tx.installmentPlan.deleteMany({ where: { householdId: hid } });
     await tx.transaction.deleteMany({ where: { householdId: hid } }); // cascade nos anexos/comentários

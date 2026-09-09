@@ -19,7 +19,6 @@ export * from "./schemas/invoice.js";
 export * from "./schemas/transaction.js";
 export * from "./schemas/installment.js";
 export * from "./schemas/report.js";
-export * from "./schemas/recurring.js";
 export * from "./schemas/budget.js";
 export * from "./schemas/goal.js";
 export * from "./schemas/notification.js";

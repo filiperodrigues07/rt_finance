@@ -52,8 +52,6 @@ export class BackupService {
       creditCardInvoices,
       installmentPlans,
       installments,
-      recurringExpenses,
-      recurringRuns,
       transactions,
       transactionComments,
       attachments,
@@ -72,8 +70,6 @@ export class BackupService {
       this.prisma.creditCardInvoice.findMany({ where: { creditCard: { householdId: hid } } }),
       this.prisma.installmentPlan.findMany({ where: { householdId: hid } }),
       this.prisma.installment.findMany({ where: { plan: { householdId: hid } } }),
-      this.prisma.recurringExpense.findMany({ where: { householdId: hid } }),
-      this.prisma.recurringRun.findMany({ where: { recurringExpense: { householdId: hid } } }),
       this.prisma.transaction.findMany({ where: { householdId: hid } }),
       this.prisma.transactionComment.findMany({ where: { transaction: { householdId: hid } } }),
       this.prisma.transactionAttachment.findMany({ where: { transaction: { householdId: hid } } }),
@@ -93,8 +89,6 @@ export class BackupService {
       creditCardInvoices,
       installmentPlans,
       installments,
-      recurringExpenses,
-      recurringRuns,
       transactions,
       transactionComments,
       transactionAttachments: attachments.map((a) => {
@@ -176,7 +170,6 @@ export class BackupService {
         await insert("category", withHid(b.categories));
         await insert("account", withHid(b.accounts));
         await insert("creditCard", withHid(b.creditCards));
-        await insert("recurringExpense", withHid(b.recurringExpenses));
         await insert("financialGoal", withHid(b.financialGoals));
         await insert("budget", withHid(b.budgets));
         await insert("installmentPlan", withHid(b.installmentPlans));
@@ -205,7 +198,6 @@ export class BackupService {
             return { ...rest, data: Buffer.from(dataBase64, "base64") };
           }),
         );
-        await insert("recurringRun", b.recurringRuns);
         await insert("goalContribution", b.goalContributions);
 
         await tx.auditLog.create({

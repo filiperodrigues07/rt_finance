@@ -54,7 +54,6 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TransactionForm } from "./transactions/TransactionForm";
 import { InstallmentForm, type InstallmentSeed } from "./cards/InstallmentForm";
-import { RecurrencesPanel } from "./transactions/RecurrencesPanel";
 import { ImportDialog } from "@/components/ImportDialog";
 import { Attachments } from "@/components/Attachments";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -132,9 +131,7 @@ export function TransactionsPage() {
   const navigate = useNavigate();
   const { dense, toggle: toggleDensity } = useDensity();
   const [sp, setSp] = useSearchParams();
-  const viewParam = sp.get("view");
-  const view: "todas" | "apagar" | "recorrencias" =
-    viewParam === "apagar" ? "apagar" : viewParam === "recorrencias" ? "recorrencias" : "todas";
+  const view: "todas" | "apagar" = sp.get("view") === "apagar" ? "apagar" : "todas";
   const filters = useMemo(() => {
     const f = readFilters(sp);
     return view === "apagar" ? { ...f, scheduled: true } : f;
@@ -402,6 +399,16 @@ export function TransactionsPage() {
         },
         { label: "Compartilhar", icon: <Share2 className="size-4" />, onClick: () => setShareTarget(t) },
         { label: "Duplicar", icon: <Copy className="size-4" />, onClick: () => onDuplicate(t.id), disabled: !!t.transferGroupId },
+        ...(t.scheduleGroupId && t.status === "PENDING"
+          ? [
+              {
+                label: "Cancelar esta e as próximas",
+                icon: <Trash2 className="size-4" />,
+                onClick: () => onCancelSeries(t.id),
+                danger: true,
+              },
+            ]
+          : []),
         t.installmentId
           ? {
               label: "Cancelar parcelamento (Carteira → Cartões)",
@@ -423,33 +430,38 @@ export function TransactionsPage() {
     }
   }
 
+  async function onCancelSeries(id: string) {
+    try {
+      const r = await tx.cancelSeries.mutateAsync(id);
+      toast.success(`${r.deleted} conta(s) a pagar removida(s)`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Erro ao cancelar a série");
+    }
+  }
+
   const isOverdue = (t: TransactionRow) => t.dueDate != null && t.dueDate.slice(0, 10) < todayIsoDate();
 
   return (
     <div>
       <PageHeader
         title="Transações"
-        subtitle={
-          view === "recorrencias" ? "Contas fixas" : data ? `${data.total} lançamentos` : undefined
-        }
+        subtitle={data ? `${data.total} lançamentos` : undefined}
         actions={
-          view === "recorrencias" ? null : (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                <Upload className="size-4" /> Importar
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditing(null);
-                  setFormSeed(undefined);
-                  setFormOpen(true);
-                }}
-              >
-                <Plus className="size-4" /> Novo
-              </Button>
-            </>
-          )
+          <>
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="size-4" /> Importar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setFormSeed(undefined);
+                setFormOpen(true);
+              }}
+            >
+              <Plus className="size-4" /> Novo
+            </Button>
+          </>
         }
       />
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} defaultKind="BANK" />
@@ -461,14 +473,9 @@ export function TransactionsPage() {
         options={[
           { value: "todas", label: "Todas" },
           { value: "apagar", label: "A pagar" },
-          { value: "recorrencias", label: "Recorrências" },
         ]}
       />
 
-      {view === "recorrencias" && <RecurrencesPanel />}
-
-      {view !== "recorrencias" && (
-        <>
       {/* totalizador — acompanha os filtros e todas as páginas */}
       {isLoading ? (
         <div className="mb-3 grid grid-cols-3 gap-3">
@@ -929,8 +936,6 @@ export function TransactionsPage() {
               </Button>
             </div>
           )}
-        </>
-      )}
         </>
       )}
 

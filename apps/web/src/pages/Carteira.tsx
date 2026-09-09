@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Wallet, CreditCard, Target, Upload } from "lucide-react";
 import { formatBRL } from "@/lib/format";
-import { useAccounts, useCreditCards, useRecurring } from "@/lib/hooks";
+import { useAccounts, useCreditCards } from "@/lib/hooks";
 import { PageHeader } from "@/components/ui/data";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
@@ -19,28 +19,24 @@ const TABS = [
 
 export function CarteiraPage() {
   const [params, setParams] = useSearchParams();
-  // Categorias virou item próprio no menu lateral; recorrências foram pra Transações.
+  // Categorias virou item próprio no menu lateral; recorrências foram pra "A pagar".
   if (params.get("tab") === "categorias") return <Navigate to="/categorias" replace />;
   if (params.get("tab") === "recorrencias")
-    return <Navigate to="/transacoes?view=recorrencias" replace />;
+    return <Navigate to="/transacoes?view=apagar" replace />;
   const tab = TABS.some((t) => t.value === params.get("tab")) ? params.get("tab")! : "contas";
 
   const [importOpen, setImportOpen] = useState(false);
   const accounts = useAccounts();
   const cards = useCreditCards();
-  const recurring = useRecurring();
 
   const patrimonio = (accounts.data ?? []).reduce((a, x) => a + x.balanceCents, 0);
   const limiteTotal = (cards.data ?? []).reduce((a, x) => a + x.limits.limitCents, 0);
-  const recMes = (recurring.data ?? [])
-    .filter((r) => r.active && r.amountCents != null && r.frequency === "MONTHLY")
-    .reduce((a, r) => a + (r.amountCents ?? 0), 0);
 
   return (
     <div>
       <PageHeader
         title="Carteira"
-        subtitle="Contas, cartões, recorrências e orçamentos num lugar só"
+        subtitle="Contas, cartões e orçamentos num lugar só"
         actions={
           (tab === "contas" || tab === "cartoes") && (
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
@@ -55,10 +51,9 @@ export function CarteiraPage() {
         defaultKind={tab === "cartoes" ? "CARD" : "BANK"}
       />
 
-      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3">
         <Mini label="Patrimônio" value={formatBRL(patrimonio)} />
         <Mini label="Limite cartões" value={formatBRL(limiteTotal)} />
-        <Mini label="Recorrências / mês" value={formatBRL(recMes)} />
       </div>
 
       <Tabs value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} tabs={TABS} className="mb-5" />

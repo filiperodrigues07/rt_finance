@@ -81,6 +81,7 @@ export interface TransactionRow {
   source: TransactionSource;
   notes: string | null;
   transferGroupId: string | null;
+  scheduleGroupId: string | null;
   installmentId: string | null;
   categoryId: string | null;
   accountId: string | null;
@@ -161,25 +162,6 @@ export interface GlobalEmailSettings {
 export interface EmailPrefs {
   weeklyEnabled: boolean;
   emailReady: boolean;
-}
-
-export interface RecurringExpense {
-  id: string;
-  name: string;
-  amountCents: number | null;
-  frequency: "WEEKLY" | "MONTHLY" | "YEARLY";
-  interval: number;
-  dayOfMonth: number | null;
-  occurrenceCount: number | null;
-  autoPost: boolean;
-  active: boolean;
-  startDate: string;
-  endDate: string | null;
-  category: { id: string; name: string; icon: string; color: string };
-  member: { id: string; displayName: string };
-  accountId: string | null;
-  creditCardId: string | null;
-  _count?: { runs: number };
 }
 
 export interface GoalContribution {

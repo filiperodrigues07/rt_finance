@@ -6,7 +6,6 @@ import { PrismaService } from "../../lib/prisma.service";
 import { ENV, type Env } from "../../config/env.schema";
 import { dateOnly, toIsoDate } from "../../common/date-only";
 import { InvoicesService } from "../invoices/invoices.service";
-import { RecurringExpensesService } from "../recurring-expenses/recurring-expenses.service";
 import { BudgetsService } from "../budgets/budgets.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { monthSummary } from "../whatsapp/formatters";
@@ -27,7 +26,6 @@ export class SchedulerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly invoices: InvoicesService,
-    private readonly recurring: RecurringExpensesService,
     private readonly budgets: BudgetsService,
     private readonly notifications: NotificationsService,
     private readonly reports: ReportsService,
@@ -46,12 +44,6 @@ export class SchedulerService {
     const res = await this.invoices.closeDue();
     this.logger.log(`faturas: ${res.closed} fechadas, ${res.overdue} vencidas`);
     await this.dueReminders();
-  }
-
-  @Cron("0 4 * * *")
-  async generateRecurring(): Promise<void> {
-    if (!this.enabled) return;
-    await this.recurring.generateDue();
   }
 
   /** Backup automático conforme a frequência configurada por household. */

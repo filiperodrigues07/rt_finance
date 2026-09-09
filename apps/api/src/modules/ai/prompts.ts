@@ -34,8 +34,7 @@ FORMATOS (o campo "kind" discrimina):
 1) {"kind":"create_expense","amountCents":int,"description":str,"categoryHint":str|null,"date":"YYYY-MM-DD","paymentHint":str|null,"memberHint":str|null,"confidence":number,"ambiguous":bool,"clarification":str|null}
 2) {"kind":"create_income", ...igual ao create_expense}
 3) {"kind":"create_installment_purchase","totalCents":int,"installmentCount":int,"description":str,"cardHint":str,"categoryHint":str|null,"purchaseDate":"YYYY-MM-DD","firstDueDate":"YYYY-MM-DD"|null,"memberHint":str|null,"confidence":number,"ambiguous":bool,"clarification":str|null}
-4) {"kind":"create_recurring","name":str,"amountCents":int|null,"frequency":"WEEKLY"|"MONTHLY"|"YEARLY","dayOfMonth":int|null,"categoryHint":str|null,"paymentHint":str|null,"memberHint":str|null,"confidence":number,"ambiguous":bool,"clarification":str|null}
-5) {"kind":"query","template":<um dos abaixo>,"params":{"period":"THIS_MONTH"|"LAST_MONTH"|"THIS_YEAR"|"CUSTOM","from":"YYYY-MM-DD"|null,"to":"YYYY-MM-DD"|null,"categoryHint":str|null,"memberHint":str|null,"cardHint":str|null,"accountHint":str|null,"months":int|null,"limit":int|null},"wantsChart":bool,"confidence":number}
+4) {"kind":"query","template":<um dos abaixo>,"params":{"period":"THIS_MONTH"|"LAST_MONTH"|"THIS_YEAR"|"CUSTOM","from":"YYYY-MM-DD"|null,"to":"YYYY-MM-DD"|null,"categoryHint":str|null,"memberHint":str|null,"cardHint":str|null,"accountHint":str|null,"months":int|null,"limit":int|null},"wantsChart":bool,"confidence":number}
    Templates:
    - SPEND_BY_PERIOD: total gasto no período ("quanto gastamos esse mês?")
    - SPEND_BY_CATEGORY: gasto numa categoria ("quanto gastamos com mercado?") -> categoryHint
@@ -47,15 +46,14 @@ FORMATOS (o campo "kind" discrimina):
    - FUTURE_COMMITMENT: parcelas já comprometidas nos próximos meses ("quanto já estou comprometido?", "parcelas futuras", "quanto vou pagar de parcela nos próximos meses") -> months
    - MONTHLY_SUMMARY: resumo do mês ("me mostra o resumo", "como estão as finanças esse mês")
    - ACCOUNT_BALANCE: saldo de conta ("qual o saldo da conta Nubank?", "quanto tem na conta corrente?", "meu saldo") -> accountHint (null = todas as contas)
-6) {"kind":"confirmation_reply","choice":"YES"|"NO"|"EDIT","editText":str|null}
-7) {"kind":"help"}
-8) {"kind":"unknown","reason":str}
+5) {"kind":"confirmation_reply","choice":"YES"|"NO"|"EDIT","editText":str|null}
+6) {"kind":"help"}
+7) {"kind":"unknown","reason":str}
 
 REGRAS:
 - "gastei/paguei/comprei/foi" => create_expense. "recebi/entrou/salário/caiu" => create_income.
 - "gastei/paguei/comprei X no cartão Y" SEM "em Nx" => create_expense com paymentHint = "Y" (o nome do cartão, sem a palavra "cartão").
 - "em N vezes/parcelas/x" + cartão => create_installment_purchase (installmentCount = N). cardHint = só o nome do cartão ("Nubank", não "cartão Nubank"). N deve ser >= 2.
-- "todo mês/mensal/assinatura/aluguel" => create_recurring.
 - Perguntas ("quanto", "quais", "me mostra", "resumo") => query. "com gráfico/imagem" => wantsChart:true.
 - "meu/minha/eu/pra mim" no memberHint => null (o backend usa o remetente). Outro nome => esse nome.
 - Se faltar informação essencial (ex.: valor, ou cartão numa compra parcelada) => ambiguous:true e clarification com a pergunta objetiva.

@@ -69,12 +69,6 @@ enum InstallmentStatus {
   CANCELED
 }
 
-enum RecurrenceFrequency {
-  WEEKLY
-  MONTHLY
-  YEARLY
-}
-
 enum GoalStatus {
   ACTIVE
   ACHIEVED
@@ -176,7 +170,6 @@ model Household {
   creditCards       CreditCard[]
   transactions      Transaction[]
   installmentPlans  InstallmentPlan[]
-  recurringExpenses RecurringExpense[]
   budgets           Budget[]
   goals             FinancialGoal[]
   notifications     Notification[]
@@ -249,7 +242,6 @@ model HouseholdMember {
   transactions      Transaction[]      @relation("TxMember")
   createdTx         Transaction[]      @relation("TxCreatedBy")
   installmentPlans  InstallmentPlan[]
-  recurringExpenses RecurringExpense[]
   goalContributions GoalContribution[]
   budgets           Budget[]
   aiConversations   AiConversation[]
@@ -297,7 +289,6 @@ model Category {
   children         Category[]         @relation("CategoryTree")
   transactions     Transaction[]
   installmentPlans InstallmentPlan[]
-  recurring        RecurringExpense[]
   budgets          Budget[]
 
   @@unique([householdId, name])
@@ -393,12 +384,12 @@ model Transaction {
   notes              String?
   externalRef        String?
   transferGroupId    String?
+  scheduleGroupId    String? // série de contas a pagar mensais geradas de uma vez
   categoryId         String?
   accountId          String?
   creditCardId       String?
   invoiceId          String?
   installmentId      String?           @unique
-  recurringExpenseId String?
   memberId           String
   createdById        String
   createdAt          DateTime          @default(now()) @db.Timestamptz(6)
@@ -411,10 +402,8 @@ model Transaction {
   invoice          CreditCardInvoice? @relation("InvoiceItems", fields: [invoiceId], references: [id], onDelete: SetNull)
   invoicePaymentOf CreditCardInvoice? @relation("InvoicePayment")
   installment      Installment?       @relation(fields: [installmentId], references: [id], onDelete: SetNull)
-  recurringExpense RecurringExpense?  @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
   member           HouseholdMember    @relation("TxMember", fields: [memberId], references: [id], onDelete: Restrict)
   createdBy        HouseholdMember    @relation("TxCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  recurringRun     RecurringRun?
   goalContribution GoalContribution?
   attachments      TransactionAttachment[]
   comments         TransactionComment[]
@@ -426,6 +415,7 @@ model Transaction {
   @@index([creditCardId, date])
   @@index([invoiceId])
   @@index([transferGroupId])
+  @@index([scheduleGroupId])
 }
 
 // ===================== PARCELAMENTOS =====================
@@ -472,52 +462,6 @@ model Installment {
   @@unique([planId, number])
   @@index([dueDate])
   @@index([invoiceId])
-}
-
-// ===================== CONTAS FIXAS / RECORRÊNCIAS (ETAPA 6) =====================
-model RecurringExpense {
-  id                String              @id @default(cuid())
-  householdId       String
-  categoryId        String
-  memberId          String
-  name              String
-  amountCents       Int?
-  frequency         RecurrenceFrequency @default(MONTHLY)
-  interval          Int                 @default(1)
-  dayOfMonth        Int?
-  weekday           Int?
-  /// Nº fixo de lançamentos a gerar (ex.: financiamento 12x). null = sem fim.
-  occurrenceCount   Int?
-  autoPost          Boolean             @default(true)
-  accountId         String?
-  creditCardId      String?
-  startDate         DateTime            @db.Date
-  endDate           DateTime?           @db.Date
-  lastGeneratedDate DateTime?           @db.Date
-  active            Boolean             @default(true)
-  createdAt         DateTime            @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime            @updatedAt @db.Timestamptz(6)
-
-  household    Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  member       HouseholdMember  @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  runs         RecurringRun[]
-  transactions Transaction[]
-
-  @@index([householdId, active])
-}
-
-model RecurringRun {
-  id                 String   @id @default(cuid())
-  recurringExpenseId String
-  period             DateTime @db.Date
-  transactionId      String?  @unique
-  createdAt          DateTime @default(now()) @db.Timestamptz(6)
-
-  recurringExpense RecurringExpense @relation(fields: [recurringExpenseId], references: [id], onDelete: Cascade)
-  transaction      Transaction?     @relation(fields: [transactionId], references: [id], onDelete: SetNull)
-
-  @@unique([recurringExpenseId, period])
 }
 
 // ===================== ORÇAMENTOS (ETAPA 6) =====================

@@ -78,6 +78,14 @@ export class TransactionsController {
     return this.transactions.pay(householdId, params.id, body);
   }
 
+  @Post(":id/cancel-series")
+  cancelSeries(
+    @CurrentHousehold() householdId: string,
+    @Param(new ZodValidationPipe(idParam)) params: { id: string },
+  ) {
+    return this.transactions.cancelSeries(householdId, params.id);
+  }
+
   @Post("bulk/delete")
   bulkDelete(
     @CurrentHousehold() householdId: string,

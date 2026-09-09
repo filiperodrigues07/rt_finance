@@ -16,7 +16,6 @@ const AUDITED = [
   "installments",
   "credit-cards",
   "accounts",
-  "recurring-expenses",
   "budgets",
   "goals",
   "invoices",

@@ -56,6 +56,7 @@ export function TransactionForm({
   const [notes, setNotes] = useState("");
   const [when, setWhen] = useState<"paid" | "scheduled">("paid");
   const [dueDate, setDueDate] = useState(todayIso(APP_TZ));
+  const [repeat, setRepeat] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export function TransactionForm({
       setNotes(editing.notes ?? "");
       setWhen(editing.status === "PENDING" ? "scheduled" : "paid");
       setDueDate((editing.dueDate ?? editing.date).slice(0, 10));
+      setRepeat("1");
     } else {
       setType("EXPENSE");
       setAmount(seedAmount ?? "");
@@ -87,6 +89,7 @@ export function TransactionForm({
       setNotes("");
       setWhen(defaultScheduled ? "scheduled" : "paid");
       setDueDate(todayIso(APP_TZ));
+      setRepeat("1");
     }
   }, [open, editing, user?.memberId, seedDescription, seedAmount, defaultScheduled]);
 
@@ -111,6 +114,8 @@ export function TransactionForm({
     if (payKind === "card" && !creditCardId) return setError("Escolha o cartão");
 
     const scheduled = when === "scheduled";
+    const reps =
+      scheduled && payKind === "account" ? Math.min(60, Math.max(1, Number(repeat) || 1)) : 1;
     const body: CreateTransactionBody = {
       type,
       amountCents,
@@ -123,6 +128,7 @@ export function TransactionForm({
       creditCardId: payKind === "card" ? creditCardId : null,
       status: scheduled ? "PENDING" : "CONFIRMED",
       notes: notes.trim() || null,
+      repeatMonths: reps > 1 ? reps : undefined,
     };
 
     try {
@@ -131,7 +137,7 @@ export function TransactionForm({
         toast.success("Lançamento atualizado");
       } else {
         await create.mutateAsync(body);
-        toast.success("Lançamento registrado");
+        toast.success(reps > 1 ? `${reps} contas a pagar geradas` : "Lançamento registrado");
       }
       onClose();
     } catch (err) {
@@ -260,9 +266,22 @@ export function TransactionForm({
           Agendar como conta a pagar
         </label>
         {when === "scheduled" && (
-          <p className="-mt-2 text-xs text-muted">
-            Não entra no saldo até você marcar como paga (aba <span className="text-fg">A pagar</span>).
-          </p>
+          <>
+            <p className="-mt-2 text-xs text-muted">
+              Não entra no saldo até você marcar como paga (aba <span className="text-fg">A pagar</span>).
+            </p>
+            {payKind === "account" && (
+              <Field label="Parcelas (meses)" hint="1 = só esta. Ex.: 12 gera uma conta por mês em A pagar.">
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value)}
+                />
+              </Field>
+            )}
+          </>
         )}
 
         {/* 8. Observações */}

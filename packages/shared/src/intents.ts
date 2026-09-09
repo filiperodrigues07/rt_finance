@@ -43,17 +43,6 @@ export const DraftInstallmentPurchase = z.object({
 });
 export type DraftInstallmentPurchase = z.infer<typeof DraftInstallmentPurchase>;
 
-export const DraftRecurring = z.object({
-  kind: z.literal("create_recurring"),
-  name: z.string().trim().min(1).max(LIMITS.maxDescriptionLength),
-  amountCents: Money.nullable(),
-  frequency: z.enum(["WEEKLY", "MONTHLY", "YEARLY"]),
-  dayOfMonth: z.number().int().min(1).max(31).nullable(),
-  paymentHint: z.string().trim().min(1).nullable(),
-  ...draftBase,
-});
-export type DraftRecurring = z.infer<typeof DraftRecurring>;
-
 export const QueryRequest = z.object({
   kind: z.literal("query"),
   template: z.enum(QUERY_TEMPLATES),
@@ -91,7 +80,6 @@ export const AiResult = z.discriminatedUnion("kind", [
   DraftExpense,
   DraftIncome,
   DraftInstallmentPurchase,
-  DraftRecurring,
   QueryRequest,
   ConfirmationReply,
   HelpRequest,
@@ -102,7 +90,7 @@ export type AiResultKind = AiResult["kind"];
 
 /** Rascunho já RESOLVIDO (com IDs), guardado em AiConversation.pendingAction. */
 export const PendingAction = z.object({
-  kind: z.enum(["expense", "income", "installment_purchase", "recurring"]),
+  kind: z.enum(["expense", "income", "installment_purchase"]),
   summaryText: z.string(),
   payload: z.record(z.unknown()),
   createdAtIso: z.string(),

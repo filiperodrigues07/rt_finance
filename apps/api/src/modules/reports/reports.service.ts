@@ -474,11 +474,7 @@ export class ReportsService {
     const baselineStart = firstDayOfMonth(addMonths(start, -CASHFLOW_BASELINE_MONTHS, tz), tz);
     let running = await this.currentBalanceCents(householdId);
 
-    const [recurring, installments, invoices, histAgg, histVariable, pace] = await Promise.all([
-      this.prisma.recurringExpense.findMany({
-        where: { householdId, active: true, amountCents: { not: null } },
-        select: { amountCents: true, category: { select: { kind: true } } },
-      }),
+    const [installments, invoices, scheduledBills, histAgg, histVariable, pace] = await Promise.all([
       this.prisma.installment.findMany({
         where: { plan: { householdId }, status: { in: ["SCHEDULED", "BILLED"] } },
         select: { amountCents: true, dueDate: true },
@@ -486,6 +482,17 @@ export class ReportsService {
       this.prisma.creditCardInvoice.findMany({
         where: { creditCard: { householdId }, status: { not: "PAID" } },
         select: { totalCents: true, dueDate: true },
+      }),
+      // contas a pagar já agendadas (inclui as séries mensais)
+      this.prisma.transaction.findMany({
+        where: {
+          householdId,
+          status: "PENDING",
+          type: "EXPENSE",
+          installmentId: null,
+          transferGroupId: null,
+        },
+        select: { amountCents: true, dueDate: true, date: true },
       }),
       // últimos meses cheios: média de renda e de gasto real
       this.prisma.transaction.groupBy({
@@ -497,13 +504,12 @@ export class ReportsService {
         },
         _sum: { amountCents: true },
       }),
-      // gasto variável (sem recorrência/parcela) nos mesmos meses → baseline do dia-a-dia
+      // gasto variável (sem parcela) nos mesmos meses → baseline do dia-a-dia
       this.prisma.transaction.aggregate({
         where: {
           householdId,
           ...REAL_MOVEMENT,
           type: "EXPENSE",
-          recurringExpenseId: null,
           installmentId: null,
           date: { gte: dateOnly(baselineStart), lt: dateOnly(start) },
         },
@@ -512,21 +518,14 @@ export class ReportsService {
       this.pace(householdId),
     ]);
 
-    const recurringIncome = recurring
-      .filter((r) => r.category.kind === "INCOME")
-      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
-    const recurringExpense = recurring
-      .filter((r) => r.category.kind !== "INCOME")
-      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
-
     const histSum = (t: "INCOME" | "EXPENSE") =>
       histAgg.find((g) => g.type === t)?._sum.amountCents ?? 0;
-    const avgMonthlyIncome = Math.round(histSum("INCOME") / CASHFLOW_BASELINE_MONTHS);
+    const incomeBaseline = Math.round(histSum("INCOME") / CASHFLOW_BASELINE_MONTHS);
     const baselineVariableExpense = Math.round(
       (histVariable._sum.amountCents ?? 0) / CASHFLOW_BASELINE_MONTHS,
     );
-    // se não há recorrência de renda cadastrada, usa a média histórica
-    const incomeBaseline = recurringIncome > 0 ? recurringIncome : avgMonthlyIncome;
+    const billDue = (b: { dueDate: Date | null; date: Date }) =>
+      toIsoDate(b.dueDate ?? b.date);
 
     const out: CashFlowMonth[] = [];
     for (let i = 0; i < months; i++) {
@@ -546,8 +545,11 @@ export class ReportsService {
         const invThisMonth = invoices
           .filter((x) => toIsoDate(x.dueDate) >= month && toIsoDate(x.dueDate) <= monthEnd)
           .reduce((a, x) => a + x.totalCents, 0);
+        const billsThisMonth = scheduledBills
+          .filter((x) => billDue(x) >= month && billDue(x) <= monthEnd)
+          .reduce((a, x) => a + x.amountCents, 0);
         incomeCents = incomeBaseline;
-        expenseCents = recurringExpense + baselineVariableExpense + instThisMonth + invThisMonth;
+        expenseCents = baselineVariableExpense + billsThisMonth + instThisMonth + invThisMonth;
       }
 
       const netCents = incomeCents - expenseCents;
@@ -701,7 +703,6 @@ export class ReportsService {
       thisMonthAgg,
       prevMonthAgg,
       pendingRemaining,
-      recurring,
       instRemaining,
       invoicesRemaining,
       variableWindow,
@@ -738,15 +739,6 @@ export class ReportsService {
         },
         _sum: { amountCents: true },
       }),
-      this.prisma.recurringExpense.findMany({
-        where: {
-          householdId,
-          active: true,
-          frequency: "MONTHLY",
-          amountCents: { not: null },
-        },
-        select: { amountCents: true, dayOfMonth: true, category: { select: { kind: true } } },
-      }),
       this.prisma.installment.aggregate({
         where: {
           plan: { householdId },
@@ -763,13 +755,12 @@ export class ReportsService {
         },
         _sum: { totalCents: true },
       }),
-      // gasto variável (sem recorrência / sem parcela) na janela de referência
+      // gasto variável (sem parcela) na janela de referência
       this.prisma.transaction.aggregate({
         where: {
           householdId,
           ...REAL_MOVEMENT,
           type: "EXPENSE",
-          recurringExpenseId: null,
           installmentId: null,
           date: { gte: dateOnly(win60Start), lte: dateOnly(today) },
         },
@@ -786,22 +777,11 @@ export class ReportsService {
     const incomeCents = s(thisMonthAgg, "INCOME");
     const lastMonthIncomeCents = s(prevMonthAgg, "INCOME");
 
-    // recorrências mensais que ainda não caíram (dia futuro, ou sem dia definido)
-    const notYetThisMonth = (dayOfMonth: number | null) =>
-      dayOfMonth == null || dayOfMonth > daysElapsed;
-    const recExpenseRemaining = recurring
-      .filter((r) => r.category.kind !== "INCOME" && notYetThisMonth(r.dayOfMonth))
-      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
-    const recIncomeRemaining = recurring
-      .filter((r) => r.category.kind === "INCOME" && notYetThisMonth(r.dayOfMonth))
-      .reduce((a, r) => a + (r.amountCents ?? 0), 0);
-
     const knownBillsRemainingCents =
       s(pendingRemaining, "EXPENSE") +
-      recExpenseRemaining +
       (instRemaining._sum.amountCents ?? 0) +
       (invoicesRemaining._sum.totalCents ?? 0);
-    const knownIncomeRemainingCents = s(pendingRemaining, "INCOME") + recIncomeRemaining;
+    const knownIncomeRemainingCents = s(pendingRemaining, "INCOME");
 
     const discretionaryPerDayCents = Math.round(
       (variableWindow._sum.amountCents ?? 0) / PACE_BASIS_DAYS,

@@ -5,6 +5,7 @@ import {
   toCents,
   todayIso,
   lastDayOfMonth,
+  addMonths,
   type CreateTransactionBody,
   type UpdateTransactionBody,
   type ListTransactionsQuery,
@@ -100,11 +101,11 @@ export class TransactionsService {
             ...(searchCents != null ? [{ amountCents: searchCents }] : []),
           ]
         : undefined,
-      // "Todas" não mostra ocorrência de recorrência agendada de mês futuro — só em "A pagar"
+      // "Todas" não mostra parcela de série de contas a pagar de mês futuro — só em "A pagar"
       NOT: q.scheduled
         ? undefined
         : {
-            recurringExpenseId: { not: null },
+            scheduleGroupId: { not: null },
             status: "PENDING",
             OR: [
               { dueDate: { gt: dateOnly(lastDayOfMonth(todayIso())) } },
@@ -190,6 +191,42 @@ export class TransactionsService {
     ]);
     if (body.creditCardId && !card) throw new NotFoundError("Cartão");
 
+    // Série de contas a pagar: N parcelas mensais (só p/ agendado, em conta, N>1)
+    const repeat = body.status === "PENDING" && !card ? Math.max(1, body.repeatMonths ?? 1) : 1;
+    if (repeat > 1) {
+      const tz = await this.tz(householdId);
+      const groupId = randomUUID();
+      const baseDue = body.dueDate ?? body.date;
+      return this.prisma.$transaction(async (tx) => {
+        let first: Transaction | null = null;
+        for (let i = 0; i < repeat; i++) {
+          const due = addMonths(baseDue, i, tz);
+          const row = await tx.transaction.create({
+            data: {
+              householdId,
+              type: body.type,
+              amountCents: body.amountCents,
+              description: `${body.description} (${i + 1}/${repeat})`,
+              date: dateOnly(due),
+              dueDate: dateOnly(due),
+              paidAt: null,
+              status: "PENDING",
+              source: "MANUAL",
+              notes: body.notes ?? null,
+              categoryId: body.categoryId ?? null,
+              accountId: body.accountId ?? null,
+              scheduleGroupId: groupId,
+              memberId,
+              createdById: createdByMemberId,
+            },
+            include: TX_INCLUDE,
+          });
+          if (!first) first = row;
+        }
+        return first!;
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const invoice = card
         ? await this.invoices.resolveInvoiceForDate(householdId, card, body.date, tx)
@@ -220,6 +257,30 @@ export class TransactionsService {
       if (invoice) await this.invoices.recalcTotal(invoice.id, tx);
       return created;
     });
+  }
+
+  private async tz(householdId: string): Promise<string> {
+    const h = await this.prisma.household.findUnique({
+      where: { id: householdId },
+      select: { timezone: true },
+    });
+    return h?.timezone ?? "America/Sao_Paulo";
+  }
+
+  /** Cancela as parcelas PENDING de uma série a partir da data de vencimento desta. */
+  async cancelSeries(householdId: string, id: string): Promise<{ deleted: number }> {
+    const cur = await this.prisma.transaction.findFirst({ where: { id, householdId } });
+    if (!cur) throw new NotFoundError("Transação");
+    if (!cur.scheduleGroupId) throw new DomainError("Este lançamento não faz parte de uma série");
+    const res = await this.prisma.transaction.deleteMany({
+      where: {
+        householdId,
+        scheduleGroupId: cur.scheduleGroupId,
+        status: "PENDING",
+        dueDate: { gte: cur.dueDate ?? cur.date },
+      },
+    });
+    return { deleted: res.count };
   }
 
   async update(

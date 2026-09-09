@@ -17,6 +17,8 @@ export const createTransactionBody = z
     creditCardId: cuid.nullable().optional(),
     status: TransactionStatus.default("CONFIRMED"),
     notes: z.string().trim().max(2000).nullable().optional(),
+    /** conta a pagar repetida: N parcelas mensais geradas de uma vez (só p/ agendado em conta) */
+    repeatMonths: z.number().int().min(1).max(60).optional(),
   })
   .refine(
     (v) => Boolean(v.accountId) !== Boolean(v.creditCardId),

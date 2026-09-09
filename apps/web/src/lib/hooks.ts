@@ -44,7 +44,6 @@ import type {
   InstallmentPlan,
   Profile,
   TransactionRow,
-  RecurringExpense,
   FinancialGoal,
   NotificationRow,
   WhatsappStatus,
@@ -341,6 +340,10 @@ export function useTransactionMutations() {
         api.post<BulkActionResult>("/transactions/bulk/categorize", body),
       onSuccess: invalidate,
     }),
+    cancelSeries: useMutation({
+      mutationFn: (id: string) => api.post<{ deleted: number }>(`/transactions/${id}/cancel-series`),
+      onSuccess: invalidate,
+    }),
   };
 }
 
@@ -469,30 +472,6 @@ export function useInstallmentMutations() {
   };
 }
 
-// ---------------- recorrências ----------------
-export function useRecurring() {
-  return useQuery({
-    queryKey: ["recurring"],
-    queryFn: () => api.get<RecurringExpense[]>("/recurring-expenses"),
-  });
-}
-export function useRecurringMutations() {
-  const qc = useQueryClient();
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["recurring"] });
-    qc.invalidateQueries({ queryKey: ["transactions"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
-  };
-  return {
-    create: useMutation({ mutationFn: (b: unknown) => api.post("/recurring-expenses", b), onSuccess: invalidate }),
-    update: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: unknown }) => api.patch(`/recurring-expenses/${id}`, body),
-      onSuccess: invalidate,
-    }),
-    remove: useMutation({ mutationFn: (id: string) => api.delete(`/recurring-expenses/${id}`), onSuccess: invalidate }),
-    generate: useMutation({ mutationFn: () => api.post("/recurring-expenses/generate"), onSuccess: invalidate }),
-  };
-}
 
 // ---------------- metas ----------------
 export function useGoals() {

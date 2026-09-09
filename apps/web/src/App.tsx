@@ -82,7 +82,7 @@ export function App() {
           {/* rotas antigas → Carteira */}
           <Route path="/contas" element={<Navigate to="/carteira?tab=contas" replace />} />
           <Route path="/cartoes" element={<Navigate to="/carteira?tab=cartoes" replace />} />
-          <Route path="/recorrencias" element={<Navigate to="/transacoes?view=recorrencias" replace />} />
+          <Route path="/recorrencias" element={<Navigate to="/transacoes?view=apagar" replace />} />
           <Route path="/orcamentos" element={<Navigate to="/carteira?tab=orcamentos" replace />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFoundPage />} />

@@ -13,8 +13,9 @@ export async function resetDb(): Promise<void> {
   // ordem não importa com TRUNCATE ... CASCADE
   const tables = [
     "AuditLog", "AiInteraction", "AiConversation", "WhatsappMessage",
-    "GoalContribution", "FinancialGoal", "Budget", "RecurringRun", "RecurringExpense",
+    "GoalContribution", "FinancialGoal", "Budget",
     "TransactionComment", "TransactionAttachment",
+    "HouseholdBackup",
     "Installment", "InstallmentPlan", "Transaction", "CreditCardInvoice", "CreditCard",
     "Account", "Category", "NotificationPreference", "Notification", "Setting", "AppSetting",
     "PasswordResetToken", "Session", "HouseholdMember", "User", "Household",
