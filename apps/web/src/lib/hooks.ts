@@ -51,7 +51,13 @@ import type {
   EmailPrefs,
   GlobalEmailSettings,
 } from "./types";
-import type { BudgetStatus, RestoreResult } from "@rt-finance/shared";
+import type {
+  BudgetStatus,
+  RestoreResult,
+  HouseholdBackupPrefs,
+  BackupSettingsBody,
+  BackupHistoryItem,
+} from "@rt-finance/shared";
 
 const qs = (params: Record<string, unknown>): string => {
   const p = new URLSearchParams();
@@ -752,4 +758,33 @@ export function useBackup() {
     onSuccess: () => qc.clear(),
   });
   return { downloadBackup, restore };
+}
+
+export function useBackupSettings() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["backup-settings"],
+    queryFn: () => api.get<HouseholdBackupPrefs>("/household/backup/settings"),
+  });
+  const save = useMutation({
+    mutationFn: (b: BackupSettingsBody) =>
+      api.put<HouseholdBackupPrefs>("/household/backup/settings", b),
+    onSuccess: (d) => qc.setQueryData(["backup-settings"], d),
+  });
+  return { ...query, save };
+}
+
+export function useBackupHistory() {
+  const query = useQuery({
+    queryKey: ["backup-history"],
+    queryFn: () => api.get<BackupHistoryItem[]>("/household/backup/history"),
+  });
+  const downloadItem = async (id: string) => {
+    const data = await api.get<unknown>(`/household/backup/history/${id}`);
+    saveBlob(
+      new Blob([JSON.stringify(data)], { type: "application/json" }),
+      `rt-finance-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    );
+  };
+  return { ...query, downloadItem };
 }

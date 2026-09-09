@@ -1,13 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, AlertTriangle, Download, Upload, RotateCcw, DatabaseBackup } from "lucide-react";
+import { Trash2, AlertTriangle, Download, Upload, RotateCcw, DatabaseBackup, Clock } from "lucide-react";
+import type { BackupFrequency } from "@rt-finance/shared";
+import { formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
-import { useHouseholdMutations, useBackup } from "@/lib/hooks";
+import { useHouseholdMutations, useBackup, useBackupSettings, useBackupHistory } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, Select } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
@@ -180,9 +182,12 @@ function BackupPanel() {
           </Button>
           <p className="mt-1.5 text-xs text-muted">
             Arquivo .json com contas, cartões, categorias, lançamentos (com anexos), faturas,
-            parcelamentos, recorrências, metas e orçamentos.
+            parcelamentos, recorrências, metas e orçamentos. Vai para a pasta de downloads.
           </p>
         </div>
+
+        <AutoBackupSection />
+        <BackupHistorySection />
 
         <form onSubmit={doRestore} className="space-y-3 border-t border-border pt-4">
           <div>
@@ -239,5 +244,144 @@ function BackupPanel() {
         </form>
       </div>
     </CollapsibleCard>
+  );
+}
+
+const FREQ_LABEL: Record<BackupFrequency, string> = {
+  off: "Desligado",
+  daily: "Diário",
+  weekly: "Semanal (segunda)",
+  monthly: "Mensal (dia 1º)",
+};
+
+function AutoBackupSection() {
+  const toast = useToast();
+  const { data, isLoading, save } = useBackupSettings();
+  const [freq, setFreq] = useState<BackupFrequency>("off");
+  const [email, setEmail] = useState(true);
+  const [keepInApp, setKeepInApp] = useState(true);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setFreq(data.frequency);
+    setEmail(data.email);
+    setKeepInApp(data.keepInApp);
+    setDirty(false);
+  }, [data]);
+
+  async function submit() {
+    try {
+      await save.mutateAsync({ frequency: freq, email, keepInApp });
+      setDirty(false);
+      toast.success("Backup automático salvo");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Não consegui salvar");
+    }
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Clock className="size-4 text-accent" /> Backup automático
+      </div>
+      <Field label="Frequência">
+        <Select
+          value={freq}
+          disabled={isLoading}
+          onChange={(e) => {
+            setFreq(e.target.value as BackupFrequency);
+            setDirty(true);
+          }}
+        >
+          {(Object.keys(FREQ_LABEL) as BackupFrequency[]).map((f) => (
+            <option key={f} value={f}>
+              {FREQ_LABEL[f]}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {freq !== "off" && (
+        <div className="space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={email}
+              onChange={(e) => {
+                setEmail(e.target.checked);
+                setDirty(true);
+              }}
+              className="size-4 accent-[rgb(var(--accent))]"
+            />
+            Enviar por e-mail para os donos <span className="text-xs text-muted">(precisa de SMTP na seção E-mail)</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={keepInApp}
+              onChange={(e) => {
+                setKeepInApp(e.target.checked);
+                setDirty(true);
+              }}
+              className="size-4 accent-[rgb(var(--accent))]"
+            />
+            Guardar no app (últimos 4, baixáveis abaixo)
+          </label>
+        </div>
+      )}
+      <Button size="sm" onClick={submit} loading={save.isPending} disabled={!dirty}>
+        Salvar
+      </Button>
+    </div>
+  );
+}
+
+function BackupHistorySection() {
+  const toast = useToast();
+  const { data, isLoading, downloadItem } = useBackupHistory();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function grab(id: string) {
+    setBusyId(id);
+    try {
+      await downloadItem(id);
+    } catch {
+      toast.error("Não consegui baixar");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <div className="text-sm font-medium">Backups guardados</div>
+      {isLoading ? (
+        <p className="text-xs text-muted">Carregando…</p>
+      ) : !data || data.length === 0 ? (
+        <p className="text-xs text-muted">Nenhum backup guardado ainda.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {data.map((b) => (
+            <li key={b.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="font-medium">{formatDate(b.createdAt)}</span>{" "}
+                <span className="text-xs text-muted">
+                  {Math.max(1, Math.round(b.sizeBytes / 1024))} KB ·{" "}
+                  {b.trigger === "AUTO" ? "automático" : "manual"}
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={busyId === b.id}
+                onClick={() => grab(b.id)}
+              >
+                <Download className="size-3.5" /> Baixar
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
