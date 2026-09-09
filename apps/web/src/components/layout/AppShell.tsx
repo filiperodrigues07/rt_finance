@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { NotificationsBell } from "./NotificationsBell";
 import { UserMenu } from "./UserMenu";
 import { CommandPalette } from "@/components/CommandPalette";
-import { NAV, MOBILE_NAV } from "./nav";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { NAV, NAV_GROUPS, MOBILE_NAV } from "./nav";
 
 /** rótulos curtos no menu inferior do mobile (evita quebra/corte em telas ~360px) */
 const MOBILE_LABELS: Record<string, string> = {
@@ -61,35 +62,61 @@ function NavItems({
   collapsed?: boolean;
 }) {
   const { user } = useAuth();
-  const items = NAV.filter((n) => !n.admin || user?.isSuperAdmin);
+  const visible = NAV.filter((n) => !n.admin || user?.isSuperAdmin);
+
+  const link = (item: (typeof NAV)[number]) => {
+    const el = (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        end={item.to === "/"}
+        onClick={item.soon ? (e) => e.preventDefault() : onNavigate}
+        className={({ isActive }) =>
+          cn(
+            "relative flex items-center gap-3 rounded-lg py-2 text-sm transition-colors duration-150",
+            collapsed ? "justify-center px-2" : "px-3",
+            item.soon
+              ? "cursor-not-allowed text-muted/50"
+              : isActive
+                ? "nav-active font-medium text-accent before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
+                : "text-muted hover:bg-surface-2 hover:text-fg",
+          )
+        }
+      >
+        <item.icon className="size-[18px] shrink-0" />
+        {!collapsed && <span className="flex-1">{item.label}</span>}
+        {!collapsed && item.soon && (
+          <span className="text-[10px] uppercase tracking-wide">em breve</span>
+        )}
+      </NavLink>
+    );
+    return collapsed ? (
+      <Tooltip key={item.to} label={item.label} side="right" className="block">
+        {el}
+      </Tooltip>
+    ) : (
+      el
+    );
+  };
+
   return (
-    <nav className="flex flex-col gap-1">
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.to === "/"}
-          onClick={item.soon ? (e) => e.preventDefault() : onNavigate}
-          title={collapsed ? item.label : undefined}
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-3 rounded-lg py-2 text-sm transition-colors",
-              collapsed ? "justify-center px-2" : "px-3",
-              item.soon
-                ? "cursor-not-allowed text-muted/50"
-                : isActive
-                  ? "nav-active font-medium text-accent"
-                  : "text-muted hover:bg-surface-2 hover:text-fg",
-            )
-          }
-        >
-          <item.icon className="size-[18px] shrink-0" />
-          {!collapsed && <span className="flex-1">{item.label}</span>}
-          {!collapsed && item.soon && (
-            <span className="text-[10px] uppercase tracking-wide">em breve</span>
-          )}
-        </NavLink>
-      ))}
+    <nav className="flex flex-col gap-0.5">
+      {NAV_GROUPS.map((g, gi) => {
+        const items = visible.filter((n) => n.group === g.id);
+        if (!items.length) return null;
+        return (
+          <div key={g.id} className={cn(gi > 0 && (collapsed ? "mt-2" : "mt-3"))}>
+            {collapsed
+              ? gi > 0 && <div className="mx-auto mb-2 h-px w-6 bg-border" />
+              : (
+                <div className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+                  {g.label}
+                </div>
+              )}
+            <div className="flex flex-col gap-0.5">{items.map(link)}</div>
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -180,20 +207,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
+      style={{ "--rt-sidebar-w": collapsed ? "72px" : "264px" } as CSSProperties}
       className={cn(
         "min-h-dvh lg:grid",
-        collapsed ? "lg:grid-cols-[68px_1fr]" : "lg:grid-cols-[260px_1fr]",
+        collapsed ? "lg:grid-cols-[72px_1fr]" : "lg:grid-cols-[264px_1fr]",
       )}
     >
       {/* sidebar desktop */}
-      <aside className="sticky top-0 hidden h-screen flex-col border-r border-border bg-surface p-3 lg:flex">
+      <aside className="sticky top-0 hidden h-screen flex-col border-r border-border bg-sidebar p-3 lg:flex">
         {/* seta central para recolher / expandir */}
         <button
           type="button"
           onClick={toggleSidebar}
           aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
           title={collapsed ? "Expandir menu" : "Recolher menu"}
-          className="absolute -right-3 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded-full border border-border bg-surface text-muted shadow-card transition-colors hover:text-fg"
+          className="absolute -right-3 top-16 z-20 grid size-6 place-items-center rounded-full border border-border bg-surface text-muted shadow-card transition-colors hover:text-fg"
         >
           {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
@@ -255,11 +283,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event("rt:cmdk"))}
-            className="hidden items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-fg/20 hover:text-fg sm:flex lg:h-10 lg:w-80 lg:px-3 lg:text-sm"
+            className="hidden h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted transition-colors hover:border-fg/25 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:flex lg:h-10 lg:w-96"
           >
-            <Search className="size-3.5 lg:size-4" />
-            <span>Buscar</span>
-            <kbd className="rounded border border-border px-1 py-px text-[10px] lg:ml-auto lg:px-1.5 lg:py-0.5 lg:text-[11px]">
+            <Search className="size-4" />
+            <span>Buscar transações, telas…</span>
+            <kbd className="ml-auto rounded border border-border bg-bg/50 px-1.5 py-0.5 font-sans text-[11px] text-muted">
               Ctrl K
             </kbd>
           </button>
@@ -274,8 +302,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
 
           <div className="flex-1" />
-          <NotificationsBell />
-          <ThemeToggle />
+          <div className="flex items-center gap-0.5">
+            <NotificationsBell />
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>

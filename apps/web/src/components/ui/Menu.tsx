@@ -78,7 +78,7 @@ export function Menu({
           <div
             role="menu"
             className={cn(
-              "animate-pop absolute z-50 mt-1 hidden min-w-[11rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-pop sm:block",
+              "animate-pop absolute z-50 mt-1 hidden min-w-[11rem] overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-pop sm:block",
               align === "end" ? "right-0" : "left-0",
             )}
           >
@@ -92,7 +92,7 @@ export function Menu({
               <div
                 role="menu"
                 onMouseDown={(e) => e.stopPropagation()}
-                className="animate-sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-pop"
+                className="animate-sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-elevated p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-pop"
               >
                 <div className="mx-auto mb-1.5 mt-1 h-1 w-9 rounded-full bg-border" />
                 {label && (

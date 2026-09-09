@@ -46,7 +46,7 @@ export function NotificationsBell() {
         createPortal(
           <div className="fixed inset-0 z-[80]">
             <div className="absolute inset-0" onClick={() => setOpen(false)} />
-            <div className="animate-pop absolute right-2 top-14 flex max-h-[70vh] w-[min(94vw,380px)] flex-col rounded-2xl border border-border bg-surface shadow-pop sm:right-4">
+            <div className="animate-pop absolute right-2 top-14 flex max-h-[70vh] w-[min(94vw,380px)] flex-col rounded-2xl border border-border bg-elevated shadow-pop sm:right-4">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <span className="text-sm font-semibold">Notificações</span>
                 <div className="flex gap-1">
@@ -78,16 +78,19 @@ export function NotificationsBell() {
                             }
                           : undefined
                       }
-                      className={`group rounded-lg p-3 text-sm ${link ? "cursor-pointer" : ""} ${
+                      className={`group relative rounded-lg p-3 pl-4 text-sm transition-colors hover:bg-surface-2 ${link ? "cursor-pointer" : ""} ${
                         n.status === "READ" || n.status === "DISMISSED" ? "opacity-60" : "bg-surface-2/50"
                       }`}
                     >
+                      {n.status !== "READ" && n.status !== "DISMISSED" && (
+                        <span className="absolute left-1.5 top-4 size-1.5 rounded-full bg-accent" />
+                      )}
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-medium">{n.title}</span>
                         <span className="shrink-0 text-[10px] text-muted">{formatDate(n.createdAt)}</span>
                       </div>
                       <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{n.body}</p>
-                      <div className="mt-1 flex gap-1 opacity-0 transition group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                      <div className="mt-1.5 flex gap-3 opacity-70 transition group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
                         {n.status !== "READ" && (
                           <button className="text-[11px] text-accent" onClick={() => read.mutate(n.id)}>
                             marcar lida
