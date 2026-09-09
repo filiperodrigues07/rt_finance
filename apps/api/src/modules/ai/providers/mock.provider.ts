@@ -143,4 +143,8 @@ export class MockAiProvider extends AIService {
 
     return wrap({ kind: "unknown", reason: "não reconhecido pelas regras do mock" });
   }
+
+  analyze(): Promise<never> {
+    return Promise.reject(new Error("análise por IA indisponível no provider mock"));
+  }
 }

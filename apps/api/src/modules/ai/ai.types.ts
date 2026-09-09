@@ -30,4 +30,11 @@ export interface InterpretOutput {
 /** Contrato de qualquer provedor de IA. Token de DI. */
 export abstract class AIService {
   abstract interpret(text: string, ctx: InterpretContext): Promise<InterpretOutput>;
+
+  /**
+   * Completude livre (não estruturada como intent). `system` guia o tom/formato,
+   * `user` traz os dados. Deve lançar se o provedor não estiver disponível —
+   * quem chama decide o fallback.
+   */
+  abstract analyze(system: string, user: string): Promise<{ text: string; meta: AiMeta }>;
 }

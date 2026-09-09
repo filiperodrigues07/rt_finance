@@ -66,6 +66,14 @@ export interface DashboardReport {
   prev: DashboardPrev;
 }
 
+/** Análise do mês em linguagem natural (Relatórios). */
+export interface ReportAnalysis {
+  resumo: string;
+  recomendacoes: string[];
+  geradoEm: string; // ISO
+  fonte: "ia" | "regras";
+}
+
 /** Destaque do Dashboard ("card Destaques"). */
 export interface Insight {
   id: string;

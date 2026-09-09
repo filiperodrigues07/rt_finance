@@ -732,6 +732,23 @@ describe("relatórios", () => {
     expect(cf.body[0].expenseCents).toBe(pace.body.projectedSpendCents);
   });
 
+  it("análise do mês: cai nas regras quando a IA está indisponível (mock)", async () => {
+    const res = await http.get("/api/reports/analysis").set(auth());
+    expect(res.status).toBe(200);
+    expect(res.body.fonte).toBe("regras");
+    expect(typeof res.body.resumo).toBe("string");
+    expect(res.body.resumo.length).toBeGreaterThan(0);
+    expect(Array.isArray(res.body.recomendacoes)).toBe(true);
+    expect(res.body.recomendacoes.length).toBeGreaterThan(0);
+    expect(typeof res.body.geradoEm).toBe("string");
+
+    // cache: 2ª chamada devolve o mesmo geradoEm; force=1 refaz
+    const again = await http.get("/api/reports/analysis").set(auth());
+    expect(again.body.geradoEm).toBe(res.body.geradoEm);
+    const forced = await http.get("/api/reports/analysis?force=1").set(auth());
+    expect(forced.status).toBe(200);
+  });
+
   it("exporta CSV", async () => {
     const res = await http.get("/api/reports/transactions.csv").set(auth());
     expect(res.status).toBe(200);

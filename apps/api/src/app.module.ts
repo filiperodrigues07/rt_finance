@@ -31,6 +31,7 @@ import { ChartsModule } from "./modules/charts/charts.module";
 import { SchedulerModule } from "./modules/scheduler/scheduler.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { QuickAddModule } from "./modules/quick-add/quick-add.module";
+import { ReportsAiModule } from "./modules/reports-ai/reports-ai.module";
 import { WhatsappModule } from "./modules/whatsapp/whatsapp.module";
 import { ImportsModule } from "./modules/imports/imports.module";
 import { AdminModule } from "./modules/admin/admin.module";
@@ -85,6 +86,7 @@ import { HealthModule } from "./modules/health/health.module";
     ChartsModule,
     AiModule,
     QuickAddModule,
+    ReportsAiModule,
     WhatsappModule,
     ImportsModule,
     SchedulerModule,

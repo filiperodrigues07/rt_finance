@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ENV, type Env } from "../../../config/env.schema";
-import { AIService, type InterpretContext, type InterpretOutput } from "../ai.types";
+import { AIService, type AiMeta, type InterpretContext, type InterpretOutput } from "../ai.types";
 import { buildSystemPrompt } from "../prompts";
 import { parseAiResult } from "../intent-parser";
 
@@ -138,5 +138,23 @@ export class NvidiaProvider extends AIService {
       return { result: { kind: "unknown", reason: `interpretação inválida: ${parsed.error}` }, meta };
     }
     return { result: parsed.value, meta };
+  }
+
+  async analyze(system: string, user: string): Promise<{ text: string; meta: AiMeta }> {
+    const t0 = Date.now();
+    const completion = await this.chat([
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ]);
+    return {
+      text: completion.choices[0]?.message.content ?? "",
+      meta: {
+        provider: "nvidia",
+        model: this.env.NVIDIA_MODEL,
+        promptTokens: completion.usage?.prompt_tokens,
+        completionTokens: completion.usage?.completion_tokens,
+        latencyMs: Date.now() - t0,
+      },
+    };
   }
 }
