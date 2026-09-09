@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Layers, Receipt, Upload, Share2 } from "lucide-react";
 import { ImportDialog } from "@/components/ImportDialog";
 import { ShareDialog } from "@/components/ShareDialog";
+import { PayInvoiceDialog, type PayInvoiceTarget } from "@/components/PayInvoiceDialog";
 import { formatBRL, formatDate } from "@/lib/format";
 import { percentOf } from "@rt-finance/shared";
 import { ListToolbar, useListPrefs, type SortOption } from "@/components/ui/ListToolbar";
@@ -331,6 +332,7 @@ function CardDetail({ cardId }: { cardId: string }) {
   const toast = useToast();
   const cardPlans = (plans.data ?? []).filter((p) => p.creditCard.id === cardId);
   const [shareInvoiceId, setShareInvoiceId] = useState<string | null>(null);
+  const [payInvoice, setPayInvoice] = useState<PayInvoiceTarget | null>(null);
 
   return (
     <div className="mt-4 space-y-4 border-t border-border pt-4">
@@ -350,6 +352,21 @@ function CardDetail({ cardId }: { cardId: string }) {
                 <span className="flex items-center gap-2">
                   <Badge>{INVOICE_STATUS[inv.status]}</Badge>
                   <strong className="tnum">{formatBRL(inv.totalCents)}</strong>
+                  {inv.status !== "PAID" && inv.totalCents > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPayInvoice({
+                          id: inv.id,
+                          label: `Fatura ${inv.referenceMonth.slice(0, 7).split("-").reverse().join("/")}`,
+                          totalCents: inv.totalCents,
+                        })
+                      }
+                    >
+                      Pagar
+                    </Button>
+                  )}
                   <button
                     className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
                     onClick={() => setShareInvoiceId(inv.id)}
@@ -370,6 +387,8 @@ function CardDetail({ cardId }: { cardId: string }) {
         kind="invoice"
         id={shareInvoiceId ?? undefined}
       />
+
+      <PayInvoiceDialog open={!!payInvoice} onClose={() => setPayInvoice(null)} invoice={payInvoice} />
 
       <div>
         <CardHeader title="Compras parceladas" />

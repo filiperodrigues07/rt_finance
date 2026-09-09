@@ -49,6 +49,7 @@ export interface CreditCard {
   brand: string | null;
   last4: string | null;
   limitCents: number;
+  openingUsedCents: number;
   closingDay: number;
   dueDay: number;
   color: string;

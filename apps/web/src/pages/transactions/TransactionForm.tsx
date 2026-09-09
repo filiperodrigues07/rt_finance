@@ -1,21 +1,30 @@
 import { useEffect, useState } from "react";
 import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import type { CreateTransactionBody } from "@rt-finance/shared";
-import { useAccounts, useCategories, useCreditCards, useTransactionMutations } from "@/lib/hooks";
+import {
+  useAccounts,
+  useCategories,
+  useCreditCards,
+  useTransactionMutations,
+  usePayableInvoices,
+  useInvoiceMutations,
+} from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { useHousehold } from "@/lib/hooks";
 import { ApiError } from "@/lib/api";
-import { centsToMasked } from "@/lib/format";
+import { centsToMasked, formatBRL, monthLabel } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { Segmented } from "@/components/ui/Segmented";
+import { FormRow } from "@/components/ui/FormRow";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { CategoryPicker } from "@/components/ui/CategoryPicker";
 import type { TransactionRow } from "@/lib/types";
 
 type Mode = "EXPENSE" | "INCOME";
-type PayKind = "account" | "card";
+type PayKind = "account" | "card" | "invoice";
 
 export function TransactionForm({
   open,
@@ -35,6 +44,7 @@ export function TransactionForm({
   const cards = useCreditCards();
   const household = useHousehold();
   const { create, update } = useTransactionMutations();
+  const { pay } = useInvoiceMutations();
 
   const [type, setType] = useState<Mode>("EXPENSE");
   const [amount, setAmount] = useState("");
@@ -45,10 +55,13 @@ export function TransactionForm({
   const [payKind, setPayKind] = useState<PayKind>("account");
   const [accountId, setAccountId] = useState("");
   const [creditCardId, setCreditCardId] = useState("");
+  const [invoiceId, setInvoiceId] = useState("");
   const [notes, setNotes] = useState("");
   const [when, setWhen] = useState<"paid" | "scheduled">("paid");
   const [dueDate, setDueDate] = useState(todayIso(APP_TZ));
   const [error, setError] = useState<string | null>(null);
+
+  const payables = usePayableInvoices(open && !editing);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +76,7 @@ export function TransactionForm({
       setPayKind(editing.creditCardId ? "card" : "account");
       setAccountId(editing.accountId ?? "");
       setCreditCardId(editing.creditCardId ?? "");
+      setInvoiceId("");
       setNotes(editing.notes ?? "");
       setWhen(editing.status === "PENDING" ? "scheduled" : "paid");
       setDueDate((editing.dueDate ?? editing.date).slice(0, 10));
@@ -76,21 +90,41 @@ export function TransactionForm({
       setPayKind("account");
       setAccountId("");
       setCreditCardId("");
+      setInvoiceId("");
       setNotes("");
       setWhen("paid");
       setDueDate(todayIso(APP_TZ));
     }
   }, [open, editing, user?.memberId, seedDescription]);
 
-  const cats = (categories.data ?? []).filter(
-    (c) => c.kind === "BOTH" || c.kind === type,
-  );
+  const cats = (categories.data ?? []).filter((c) => c.kind === "BOTH" || c.kind === type);
   const members = household.data?.members ?? [];
-  const busy = create.isPending || update.isPending;
+  const isInvoice = payKind === "invoice";
+  const busy = create.isPending || update.isPending || pay.isPending;
+
+  const payKindOptions: { value: PayKind; label: string }[] = [
+    { value: "account", label: "Conta / dinheiro" },
+    { value: "card", label: "Cartão" },
+    ...(editing ? [] : [{ value: "invoice" as const, label: "Fatura de cartão" }]),
+  ];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (isInvoice) {
+      if (!invoiceId) return setError("Escolha a fatura");
+      if (!accountId) return setError("Escolha a conta para pagar");
+      try {
+        await pay.mutateAsync({ invoiceId, accountId, date });
+        toast.success("Fatura paga");
+        onClose();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Não foi possível pagar");
+      }
+      return;
+    }
+
     let amountCents: number;
     try {
       amountCents = toCents(amount);
@@ -143,134 +177,149 @@ export function TransactionForm({
             Cancelar
           </Button>
           <Button form="tx-form" type="submit" loading={busy}>
-            Salvar
+            {isInvoice ? "Pagar fatura" : "Salvar"}
           </Button>
         </>
       }
     >
       <form id="tx-form" onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
-          <button
-            type="button"
-            onClick={() => setType("EXPENSE")}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-              type === "EXPENSE" ? "border-negative bg-negative/10 text-negative" : "border-border text-muted"
-            }`}
-          >
-            Despesa
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("INCOME")}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-              type === "INCOME" ? "border-positive bg-positive/10 text-positive" : "border-border text-muted"
-            }`}
-          >
-            Receita
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
-          <button
-            type="button"
-            onClick={() => setWhen("paid")}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-              when === "paid" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted"
-            }`}
-          >
-            Já paguei
-          </button>
-          <button
-            type="button"
-            onClick={() => setWhen("scheduled")}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
-              when === "scheduled" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted"
-            }`}
-          >
-            Agendar
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
-          <Field label="Valor (R$)">
-            <MoneyInput value={amount} onChange={setAmount} autoFocus />
-          </Field>
-          <Field label={when === "scheduled" ? "Vencimento" : "Data"}>
-            <Input
-              type="date"
-              value={when === "scheduled" ? dueDate : date}
-              onChange={(e) =>
-                when === "scheduled" ? setDueDate(e.target.value) : setDate(e.target.value)
-              }
+        {!isInvoice && (
+          <>
+            <Segmented
+              full
+              value={type}
+              onChange={(v) => setType(v)}
+              options={[
+                { value: "EXPENSE", label: "Despesa" },
+                { value: "INCOME", label: "Receita" },
+              ]}
             />
-          </Field>
-        </div>
-        {when === "scheduled" && (
-          <p className="-mt-2 text-xs text-muted">
-            Não entra no saldo até você marcar como pago (aba <span className="text-fg">A pagar</span>).
-          </p>
+
+            <Segmented
+              full
+              value={when}
+              onChange={(v) => setWhen(v)}
+              options={[
+                { value: "paid", label: "Já paguei" },
+                { value: "scheduled", label: "Agendar" },
+              ]}
+            />
+
+            <FormRow>
+              <Field label="Valor (R$)">
+                <MoneyInput value={amount} onChange={setAmount} autoFocus />
+              </Field>
+              <Field label={when === "scheduled" ? "Vencimento" : "Data"}>
+                <Input
+                  type="date"
+                  value={when === "scheduled" ? dueDate : date}
+                  onChange={(e) =>
+                    when === "scheduled" ? setDueDate(e.target.value) : setDate(e.target.value)
+                  }
+                />
+              </Field>
+            </FormRow>
+            {when === "scheduled" && (
+              <p className="-mt-2 text-xs text-muted">
+                Não entra no saldo até você marcar como pago (aba <span className="text-fg">A pagar</span>).
+              </p>
+            )}
+
+            <Field label="Descrição">
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Ex.: Compra no mercado"
+              />
+            </Field>
+
+            <FormRow>
+              <Field label="Categoria">
+                <CategoryPicker value={categoryId} onChange={setCategoryId} categories={cats} />
+              </Field>
+              <Field label="Responsável">
+                <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.displayName}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </FormRow>
+          </>
         )}
 
-        <Field label="Descrição">
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Compra no mercado" />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
-          <Field label="Categoria">
-            <CategoryPicker value={categoryId} onChange={setCategoryId} categories={cats} />
-          </Field>
-          <Field label="Responsável">
-            <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.displayName}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
         <div>
-          <div className="mb-1.5 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setPayKind("account")}
-              className={`rounded-md px-2.5 py-1 text-xs ${payKind === "account" ? "bg-accent/15 text-accent" : "text-muted"}`}
-            >
-              Conta / dinheiro
-            </button>
-            <button
-              type="button"
-              onClick={() => setPayKind("card")}
-              className={`rounded-md px-2.5 py-1 text-xs ${payKind === "card" ? "bg-accent/15 text-accent" : "text-muted"}`}
-            >
-              Cartão de crédito
-            </button>
-          </div>
-          {payKind === "account" ? (
-            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Selecione…</option>
-              {(accounts.data ?? []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)}>
-              <option value="">Selecione…</option>
-              {(cards.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.icon} {c.name}
-                </option>
-              ))}
-            </Select>
-          )}
+          <span className="label">Meio de pagamento</span>
+          <Segmented
+            full
+            value={payKind}
+            onChange={(v) => setPayKind(v)}
+            options={payKindOptions}
+          />
         </div>
 
-        <Field label="Observações" error={error ?? undefined}>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
-        </Field>
+        {payKind === "account" && (
+          <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">Selecione a conta…</option>
+            {(accounts.data ?? []).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+        )}
+        {payKind === "card" && (
+          <Select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)}>
+            <option value="">Selecione o cartão…</option>
+            {(cards.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.icon} {c.name}
+              </option>
+            ))}
+          </Select>
+        )}
+        {isInvoice && (
+          <div className="space-y-3">
+            <Field label="Fatura">
+              <Select value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}>
+                <option value="">Selecione a fatura…</option>
+                {(payables.data ?? []).map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.card.icon} {inv.card.name} · {monthLabel(inv.referenceMonth)} · {formatBRL(inv.totalCents)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {payables.data && payables.data.length === 0 && (
+              <p className="text-xs text-muted">Nenhuma fatura em aberto.</p>
+            )}
+            <FormRow>
+              <Field label="Pagar com">
+                <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  <option value="">Selecione a conta…</option>
+                  {(accounts.data ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Data do pagamento">
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </Field>
+            </FormRow>
+          </div>
+        )}
+
+        {isInvoice ? (
+          error && <p className="text-xs text-negative">{error}</p>
+        ) : (
+          <Field label="Observações" error={error ?? undefined}>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
+          </Field>
+        )}
       </form>
     </Dialog>
   );

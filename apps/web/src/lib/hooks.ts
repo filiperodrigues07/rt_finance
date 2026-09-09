@@ -11,6 +11,8 @@ import type {
   Insight,
   MemberComparison,
   MonthPace,
+  PayableInvoice,
+  PayInvoiceResult,
   ImportBatchDTO,
   ImportBatchDetail,
   ImportRowDTO,
@@ -166,6 +168,28 @@ export function useCreditCardMutations() {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: (id: string) => api.delete(`/credit-cards/${id}`), onSuccess: invalidate }),
+  };
+}
+
+export function usePayableInvoices(enabled = true) {
+  return useQuery({
+    queryKey: ["payable-invoices"],
+    queryFn: () => api.get<PayableInvoice[]>("/invoices/payable"),
+    enabled,
+  });
+}
+export function useInvoiceMutations() {
+  const qc = useQueryClient();
+  return {
+    pay: useMutation({
+      mutationFn: ({ invoiceId, accountId, date }: { invoiceId: string; accountId: string; date?: string }) =>
+        api.post<PayInvoiceResult>(`/invoices/${invoiceId}/pay`, { accountId, date }),
+      onSuccess: () => {
+        for (const k of ["credit-cards", "card-invoices", "payable-invoices", "transactions", "accounts", "dashboard"]) {
+          qc.invalidateQueries({ queryKey: [k] });
+        }
+      },
+    }),
   };
 }
 

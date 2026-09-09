@@ -31,6 +31,7 @@ export function CardForm({
     memberId: "",
     last4: "",
     limit: "",
+    usedOpening: "",
     closingDay: "10",
     dueDay: "17",
     color: COLORS[0]!,
@@ -49,12 +50,13 @@ export function CardForm({
         memberId: editing.memberId ?? "",
         last4: editing.last4 ?? "",
         limit: centsToMasked(editing.limitCents),
+        usedOpening: centsToMasked(editing.openingUsedCents),
         closingDay: String(editing.closingDay),
         dueDay: String(editing.dueDay),
         color: editing.color,
       });
     } else {
-      setF({ name: "", bankId: null, memberId: "", last4: "", limit: "", closingDay: "10", dueDay: "17", color: COLORS[0]! });
+      setF({ name: "", bankId: null, memberId: "", last4: "", limit: "", usedOpening: "", closingDay: "10", dueDay: "17", color: COLORS[0]! });
     }
   }, [open, editing]);
 
@@ -79,6 +81,7 @@ export function CardForm({
       memberId: f.memberId || null,
       last4: f.last4.trim() || null,
       limitCents: f.limit ? safeCents(f.limit) : 0,
+      openingUsedCents: f.usedOpening ? safeCents(f.usedOpening) : 0,
       closingDay: Number(f.closingDay),
       dueDay: Number(f.dueDay),
       color: f.color,
@@ -145,9 +148,14 @@ export function CardForm({
             <Input type="number" min={1} max={31} value={f.dueDay} onChange={(e) => setF({ ...f, dueDay: e.target.value })} />
           </Field>
         </div>
-        <Field label="Limite (R$)" error={error ?? undefined}>
-          <MoneyInput value={f.limit} onChange={(v) => setF({ ...f, limit: v })} placeholder="5.000,00" />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Limite (R$)" error={error ?? undefined}>
+            <MoneyInput value={f.limit} onChange={(v) => setF({ ...f, limit: v })} placeholder="5.000,00" />
+          </Field>
+          <Field label="Limite já utilizado (R$)" hint="dívida atual fora dos lançamentos">
+            <MoneyInput value={f.usedOpening} onChange={(v) => setF({ ...f, usedOpening: v })} placeholder="0,00" />
+          </Field>
+        </div>
         <div>
           <span className="label">Cor</span>
           <div className="flex gap-2">
