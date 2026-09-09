@@ -101,7 +101,7 @@ export function InstallmentForm({
         <Field label="Descrição">
           <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="TV 55''" autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Valor total (R$)">
             <MoneyInput value={total} onChange={setTotal} placeholder="2.400,00" />
           </Field>
@@ -109,7 +109,7 @@ export function InstallmentForm({
             <Input type="number" min={2} max={60} value={count} onChange={(e) => setCount(e.target.value)} />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Data da compra">
             <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
           </Field>

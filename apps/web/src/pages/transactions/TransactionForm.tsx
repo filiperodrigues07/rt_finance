@@ -103,9 +103,9 @@ export function TransactionForm({
   const busy = create.isPending || update.isPending || pay.isPending;
 
   const payKindOptions: { value: PayKind; label: string }[] = [
-    { value: "account", label: "Conta / dinheiro" },
+    { value: "account", label: "Conta" },
     { value: "card", label: "Cartão" },
-    ...(editing ? [] : [{ value: "invoice" as const, label: "Fatura de cartão" }]),
+    ...(editing ? [] : [{ value: "invoice" as const, label: "Fatura" }]),
   ];
 
   async function submit(e: React.FormEvent) {

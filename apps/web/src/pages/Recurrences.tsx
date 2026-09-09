@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { Segmented } from "@/components/ui/Segmented";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
 import type { RecurringExpense } from "@/lib/types";
@@ -208,7 +209,7 @@ function RecurrenceForm({
         <Field label="Nome">
           <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Aluguel, Netflix…" autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Valor (R$) — vazio = variável">
             <MoneyInput value={f.amount} onChange={(v) => setF({ ...f, amount: v })} />
           </Field>
@@ -221,7 +222,7 @@ function RecurrenceForm({
             </Select>
           </Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Frequência">
             <Select value={f.frequency} onChange={(e) => setF({ ...f, frequency: e.target.value })}>
               <option value="MONTHLY">Mensal</option>
@@ -247,10 +248,17 @@ function RecurrenceForm({
           />
         </Field>
         <div>
-          <div className="mb-1.5 flex gap-2">
-            <button type="button" onClick={() => setF({ ...f, pay: "account" })} className={`rounded-md px-2.5 py-1 text-xs ${f.pay === "account" ? "bg-accent/15 text-accent" : "text-muted"}`}>Conta</button>
-            <button type="button" onClick={() => setF({ ...f, pay: "card" })} className={`rounded-md px-2.5 py-1 text-xs ${f.pay === "card" ? "bg-accent/15 text-accent" : "text-muted"}`}>Cartão</button>
-          </div>
+          <span className="label">Meio de pagamento</span>
+          <Segmented
+            full
+            value={f.pay as "account" | "card"}
+            onChange={(v) => setF({ ...f, pay: v })}
+            options={[
+              { value: "account", label: "Conta" },
+              { value: "card", label: "Cartão" },
+            ]}
+          />
+          <div className="mt-1.5" />
           {f.pay === "account" ? (
             <Select value={f.accountId} onChange={(e) => setF({ ...f, accountId: e.target.value })}>
               <option value="">Selecione…</option>

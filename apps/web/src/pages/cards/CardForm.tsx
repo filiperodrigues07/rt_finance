@@ -121,7 +121,7 @@ export function CardForm({
       }
     >
       <form id="card-form" onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Nome">
             <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Nubank" autoFocus />
           </Field>
@@ -137,7 +137,7 @@ export function CardForm({
         <Field label="Banco">
           <BankPicker value={f.bankId} onChange={pickBank} />
         </Field>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Final (4 díg.)">
             <Input value={f.last4} maxLength={4} onChange={(e) => setF({ ...f, last4: e.target.value.replace(/\D/g, "") })} placeholder="1234" />
           </Field>

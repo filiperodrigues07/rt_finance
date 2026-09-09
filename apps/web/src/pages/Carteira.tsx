@@ -55,9 +55,9 @@ export function CarteiraPage() {
         defaultKind={tab === "cartoes" ? "CARD" : "BANK"}
       />
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
         <Mini label="Patrimônio" value={formatBRL(patrimonio)} />
-        <Mini label="Limite dos cartões" value={formatBRL(limiteTotal)} />
+        <Mini label="Limite cartões" value={formatBRL(limiteTotal)} />
         <Mini label="Recorrências / mês" value={formatBRL(recMes)} />
       </div>
 

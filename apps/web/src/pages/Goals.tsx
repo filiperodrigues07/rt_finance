@@ -227,7 +227,7 @@ function GoalCreateForm({
   return (
     <form id="goal-form" onSubmit={submit} className="space-y-4">
       <Field label="Nome"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Viagem, Reserva…" autoFocus /></Field>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Valor alvo (R$)"><MoneyInput value={target} onChange={setTarget} placeholder="10.000,00" /></Field>
         <Field label="Prazo (opcional)"><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
       </div>
@@ -284,7 +284,7 @@ function ContributionDialog({
         <div className="rounded-lg border border-border bg-surface-2 p-3 text-sm">
           Atual: {formatBRL(goal.currentCents)} / {formatBRL(goal.targetCents)}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Valor (R$)"><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
           <Field label="Data"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>

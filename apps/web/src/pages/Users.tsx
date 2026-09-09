@@ -569,7 +569,7 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
       }
     >
       <form id="create-user" onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Nome">
             <Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
           </Field>
@@ -668,7 +668,7 @@ function HouseholdDialog({
         <Field label="Nome" error={error ?? undefined}>
           <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus maxLength={80} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Fuso horário">
             <Input
               value={timezone}

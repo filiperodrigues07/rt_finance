@@ -222,7 +222,7 @@ function AccountForm({
         <Field label="Nome">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Conta corrente" autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Tipo">
             <Select value={type} onChange={(e) => setType(e.target.value)}>
               {TYPES.map((t) => (
