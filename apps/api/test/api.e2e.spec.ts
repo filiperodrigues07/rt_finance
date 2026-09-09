@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import supertest from "supertest";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp, prisma, resetDb, seedMinimal, type SeedResult } from "./helpers";
+import { BackupService } from "../src/modules/backup/backup.service";
 
 let app: NestFastifyApplication;
 let http: ReturnType<typeof supertest>;
@@ -814,6 +815,52 @@ describe("backup / restore", () => {
         .field("confirm", "RESTAURAR"),
     );
     expect(forbidden.status).toBe(403);
+  });
+
+  it("backup automático: configura, roda o job e mantém só os últimos 4", async () => {
+    const svc = app.get(BackupService);
+
+    const put = await http
+      .put("/api/household/backup/settings")
+      .set(auth())
+      .send({ frequency: "daily", email: false, keepInApp: true });
+    expect(put.status).toBe(200);
+    expect(put.body.frequency).toBe("daily");
+
+    const got = await http.get("/api/household/backup/settings").set(auth());
+    expect(got.body.frequency).toBe("daily");
+    expect(got.body.email).toBe(false);
+
+    const partner = await http
+      .post("/api/auth/login")
+      .send({ email: "partner@test.local", password: "test1234" });
+    const forbidden = await http
+      .put("/api/household/backup/settings")
+      .set("authorization", `Bearer ${partner.body.tokens.accessToken}`)
+      .send({ frequency: "weekly" });
+    expect(forbidden.status).toBe(403);
+
+    // job: cria 1 AUTO; rodar de novo no mesmo dia não duplica
+    await svc.runScheduledBackups();
+    let hist = (await http.get("/api/household/backup/history").set(auth())).body;
+    expect(hist.length).toBe(1);
+    expect(hist[0].trigger).toBe("AUTO");
+    await svc.runScheduledBackups();
+    hist = (await http.get("/api/household/backup/history").set(auth())).body;
+    expect(hist.length).toBe(1);
+
+    // retenção: 5 snapshots → sobram 4
+    for (let i = 0; i < 5; i++) await svc.snapshot(seed.householdId, "MANUAL", true);
+    hist = (await http.get("/api/household/backup/history").set(auth())).body;
+    expect(hist.length).toBe(4);
+
+    // baixar um snapshot devolve JSON de backup válido
+    const fileRes = await http.get(`/api/household/backup/history/${hist[0].id}`).set(auth());
+    expect(fileRes.status).toBe(200);
+    expect(fileRes.headers["content-disposition"]).toContain("rt-finance-backup-");
+    const parsed = JSON.parse(fileRes.text);
+    expect(parsed.version).toBe(1);
+    expect(Array.isArray(parsed.transactions)).toBe(true);
   });
 });
 

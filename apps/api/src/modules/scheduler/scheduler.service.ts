@@ -13,6 +13,7 @@ import { monthSummary } from "../whatsapp/formatters";
 import { ReportsService } from "../reports/reports.service";
 import { MailService, HOUSEHOLD_EMAIL_KEY, type HouseholdEmailPrefs } from "../mail/mail.service";
 import { renderWeeklyDigest } from "../mail/weekly-digest";
+import { BackupService } from "../backup/backup.service";
 
 /**
  * Jobs agendados (via @nestjs/schedule — cron em processo, sem Redis/pg-boss).
@@ -31,6 +32,7 @@ export class SchedulerService {
     private readonly notifications: NotificationsService,
     private readonly reports: ReportsService,
     private readonly mail: MailService,
+    private readonly backup: BackupService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -50,6 +52,13 @@ export class SchedulerService {
   async generateRecurring(): Promise<void> {
     if (!this.enabled) return;
     await this.recurring.generateDue();
+  }
+
+  /** Backup automático conforme a frequência configurada por household. */
+  @Cron("30 3 * * *")
+  async runBackups(): Promise<void> {
+    if (!this.enabled) return;
+    await this.backup.runScheduledBackups();
   }
 
   @Cron("0 8 * * *")

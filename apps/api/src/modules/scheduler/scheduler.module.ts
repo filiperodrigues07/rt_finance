@@ -5,6 +5,7 @@ import { BudgetsModule } from "../budgets/budgets.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { ReportsModule } from "../reports/reports.module";
 import { MailModule } from "../mail/mail.module";
+import { BackupModule } from "../backup/backup.module";
 import { SchedulerService } from "./scheduler.service";
 
 @Module({
@@ -15,6 +16,7 @@ import { SchedulerService } from "./scheduler.service";
     NotificationsModule,
     ReportsModule,
     MailModule,
+    BackupModule,
   ],
   providers: [SchedulerService],
 })
