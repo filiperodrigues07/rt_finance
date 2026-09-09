@@ -9,6 +9,8 @@ import {
   Gauge,
   Sparkles,
   ChevronRight,
+  SlidersHorizontal,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { resolvePeriod, todayIso, APP_TZ, type PeriodPreset, type Insight } from "@rt-finance/shared";
@@ -17,6 +19,10 @@ import {
   useFutureCommitment,
   useInsights,
   useCategoryTrend,
+  useCategories,
+  useHousehold,
+  useAccounts,
+  useCreditCards,
 } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -70,21 +76,41 @@ export function DashboardPage() {
 
   const customValid = customFrom !== "" && customTo !== "" && customFrom <= customTo;
 
+  const [filters, setFilters] = useState<{
+    memberId?: string;
+    categoryId?: string;
+    accountId?: string;
+    creditCardId?: string;
+  }>({});
+  const setFilter = (k: keyof typeof filters, v: string) =>
+    setFilters((f) => ({ ...f, [k]: v || undefined }));
+  const clearFilters = () => setFilters({});
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const [showFilters, setShowFilters] = useState(false);
+
   const range = useMemo(() => {
-    if (preset === "CUSTOM") {
-      return customValid
-        ? { from: customFrom, to: customTo, months: 6 }
-        : { from: thisMonth.from, to: thisMonth.to, months: 6 };
-    }
-    const r = resolvePeriod(preset, {});
-    return { from: r.from, to: r.to, months: 6 };
-  }, [preset, customValid, customFrom, customTo, thisMonth.from, thisMonth.to]);
+    const base =
+      preset === "CUSTOM"
+        ? customValid
+          ? { from: customFrom, to: customTo }
+          : { from: thisMonth.from, to: thisMonth.to }
+        : (() => {
+            const r = resolvePeriod(preset, {});
+            return { from: r.from, to: r.to };
+          })();
+    return { ...base, months: 6, ...filters };
+  }, [preset, customValid, customFrom, customTo, thisMonth.from, thisMonth.to, filters]);
 
   const navigate = useNavigate();
   const { data, isLoading } = useDashboard(range);
   const future = useFutureCommitment(12);
   const insights = useInsights();
   const trend = useCategoryTrend(6);
+  const categories = useCategories();
+  const household = useHousehold();
+  const accounts = useAccounts();
+  const cards = useCreditCards();
+  const members = household.data?.members ?? [];
 
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -107,6 +133,17 @@ export function DashboardPage() {
             <Button variant="ghost" onClick={() => setShareOpen(true)}>
               <Share2 className="size-4" /> Compartilhar
             </Button>
+            <Button
+              variant={activeFilterCount ? "secondary" : "ghost"}
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              <SlidersHorizontal className="size-4" /> Filtros
+              {activeFilterCount > 0 && (
+                <span className="ml-1 rounded-full bg-accent/15 px-1.5 text-[11px] font-semibold text-accent">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
             <Select
               value={preset}
               onChange={(e) => setPreset(e.target.value as PeriodPreset)}
@@ -121,6 +158,55 @@ export function DashboardPage() {
           </>
         }
       />
+
+      {showFilters && (
+        <div className="-mt-2 grid gap-2 rounded-xl border border-border bg-surface-2/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Select value={filters.memberId ?? ""} onChange={(e) => setFilter("memberId", e.target.value)}>
+            <option value="">Todas as pessoas</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>{m.displayName}</option>
+            ))}
+          </Select>
+          <Select value={filters.categoryId ?? ""} onChange={(e) => setFilter("categoryId", e.target.value)}>
+            <option value="">Todas as categorias</option>
+            {(categories.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            ))}
+          </Select>
+          <Select value={filters.accountId ?? ""} onChange={(e) => setFilter("accountId", e.target.value)}>
+            <option value="">Todas as contas</option>
+            {(accounts.data ?? []).map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </Select>
+          <Select value={filters.creditCardId ?? ""} onChange={(e) => setFilter("creditCardId", e.target.value)}>
+            <option value="">Todos os cartões</option>
+            {(cards.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            ))}
+          </Select>
+        </div>
+      )}
+
+      {activeFilterCount > 0 && (
+        <div className="-mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+          {filters.memberId && (
+            <FilterChip label={members.find((m) => m.id === filters.memberId)?.displayName} onClear={() => setFilter("memberId", "")} />
+          )}
+          {filters.categoryId && (
+            <FilterChip label={categories.data?.find((c) => c.id === filters.categoryId)?.name} onClear={() => setFilter("categoryId", "")} />
+          )}
+          {filters.accountId && (
+            <FilterChip label={accounts.data?.find((a) => a.id === filters.accountId)?.name} onClear={() => setFilter("accountId", "")} />
+          )}
+          {filters.creditCardId && (
+            <FilterChip label={cards.data?.find((c) => c.id === filters.creditCardId)?.name} onClear={() => setFilter("creditCardId", "")} />
+          )}
+          <button onClick={clearFilters} className="text-muted underline hover:text-fg">
+            limpar
+          </button>
+        </div>
+      )}
 
       {preset === "CUSTOM" && (
         <div className="-mt-2 flex flex-wrap items-center gap-2">
@@ -280,5 +366,16 @@ export function DashboardPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function FilterChip({ label, onClear }: { label?: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5">
+      {label ?? "—"}
+      <button onClick={onClear} aria-label="Remover filtro" className="text-muted hover:text-fg">
+        <X className="size-3" />
+      </button>
+    </span>
   );
 }
