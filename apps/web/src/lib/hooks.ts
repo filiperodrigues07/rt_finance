@@ -20,6 +20,7 @@ import type {
   CommitImportResult,
   PatchImportRowBody,
   QuickAddResult,
+  TransactionsSummary,
 } from "@rt-finance/shared";
 import type {
   BulkActionResult,
@@ -233,7 +234,10 @@ export function useTransactions(
 ) {
   return useQuery({
     queryKey: ["transactions", query],
-    queryFn: () => api.get<Paginated<TransactionRow>>(`/transactions${qs(query)}`),
+    queryFn: () =>
+      api.get<Paginated<TransactionRow> & { summary: TransactionsSummary }>(
+        `/transactions${qs(query)}`,
+      ),
     enabled: opts.enabled ?? true,
   });
 }

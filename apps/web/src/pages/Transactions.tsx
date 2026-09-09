@@ -45,7 +45,7 @@ import { Input, Select, Field } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Money } from "@/components/ui/Money";
 import { Badge, EmptyState, Skeleton, RowSkeleton } from "@/components/ui/misc";
-import { PageHeader, Stat } from "@/components/ui/data";
+import { PageHeader, Stat, StatSkeleton } from "@/components/ui/data";
 import { Menu } from "@/components/ui/Menu";
 import { Segmented } from "@/components/ui/Segmented";
 import { Dialog } from "@/components/ui/Dialog";
@@ -457,6 +457,41 @@ export function TransactionsPage() {
         ]}
       />
 
+      {/* totalizador — acompanha os filtros e todas as páginas */}
+      {isLoading ? (
+        <div className="mb-3 grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <StatSkeleton key={i} />
+          ))}
+        </div>
+      ) : data?.summary ? (
+        <div className="mb-3 grid grid-cols-3 gap-3">
+          {view === "apagar" ? (
+            <>
+              <Stat label="A pagar" value={String(data.total)} />
+              <Stat label="Total a sair" cents={data.summary.expenseCents} tone="negative" />
+              <Stat
+                label="Vencidas (à vista)"
+                value={String(rows.filter(isOverdue).length)}
+                tone={rows.some(isOverdue) ? "negative" : undefined}
+              />
+            </>
+          ) : (
+            <>
+              <Stat label="Entradas" cents={data.summary.incomeCents} tone="positive" />
+              <Stat label="Saídas" cents={data.summary.expenseCents} tone="negative" />
+              <Stat
+                label="Saldo"
+                cents={data.summary.incomeCents - data.summary.expenseCents}
+                tone={
+                  data.summary.incomeCents - data.summary.expenseCents >= 0 ? "positive" : "negative"
+                }
+              />
+            </>
+          )}
+        </div>
+      ) : null}
+
       {/* lançamento rápido */}
       <Card className="mb-3 p-3 sm:p-4">
         <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
@@ -636,21 +671,6 @@ export function TransactionsPage() {
             </div>
           </div>
         </Card>
-      )}
-
-      {view === "apagar" && rows.length > 0 && (
-        <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="A pagar" value={String(rows.length)} />
-          <Stat
-            label="Total"
-            value={formatBRL(rows.reduce((s, r) => s + r.amountCents, 0))}
-          />
-          <Stat
-            label="Vencidas"
-            value={String(rows.filter(isOverdue).length)}
-            tone={rows.some(isOverdue) ? "negative" : undefined}
-          />
-        </div>
       )}
 
       {isError ? (
