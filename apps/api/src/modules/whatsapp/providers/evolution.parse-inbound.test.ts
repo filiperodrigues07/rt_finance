@@ -43,8 +43,50 @@ describe("EvolutionProvider.parseInbound", () => {
     expect(msg!.fromJid).toBe("226417807782125@lid");
   });
 
+  it("não confunde messages.update com mensagem recebida", () => {
+    expect(
+      provider().parseInbound({
+        event: "messages.update",
+        data: { keyId: "3EB0", status: "DELIVERY_ACK" },
+      }),
+    ).toHaveLength(0);
+  });
+
   it("ignora grupos e mensagens próprias", () => {
     expect(provider().parseInbound(upsert({ id: "1", fromMe: true, remoteJid: "554999648444@s.whatsapp.net" }))).toHaveLength(0);
     expect(provider().parseInbound(upsert({ id: "2", fromMe: false, remoteJid: "123-456@g.us" }))).toHaveLength(0);
+  });
+});
+
+describe("EvolutionProvider.parseStatusUpdates", () => {
+  it("lê a confirmação de entrega do evento messages.update", () => {
+    expect(
+      provider().parseStatusUpdates({
+        event: "messages.update",
+        data: { keyId: "3EB0AA", status: "DELIVERY_ACK" },
+      }),
+    ).toEqual([{ providerMessageId: "3EB0AA", status: "DELIVERY_ACK" }]);
+  });
+
+  it("aceita o id dentro de key e vários itens", () => {
+    expect(
+      provider().parseStatusUpdates({
+        event: "MESSAGES_UPDATE",
+        data: [
+          { key: { id: "A" }, status: "READ" },
+          { keyId: "B", status: "ERROR" },
+        ],
+      }),
+    ).toEqual([
+      { providerMessageId: "A", status: "READ" },
+      { providerMessageId: "B", status: "ERROR" },
+    ]);
+  });
+
+  it("ignora outros eventos e itens sem status", () => {
+    expect(provider().parseStatusUpdates({ event: "messages.upsert", data: {} })).toEqual([]);
+    expect(
+      provider().parseStatusUpdates({ event: "messages.update", data: { keyId: "C" } }),
+    ).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@ import { ENV, type Env } from "../../config/env.schema";
 import { ReportsService } from "../reports/reports.service";
 import { FinanceAssistant } from "../ai/finance-assistant.service";
 import { TranscriptionService } from "../ai/transcription.service";
-import { WhatsAppService, type InboundMessage } from "./whatsapp.types";
+import { WhatsAppService, type InboundMessage, type StatusUpdate } from "./whatsapp.types";
 import { phoneCandidates, phonesMatch } from "./phone";
 import * as fmt from "./formatters";
 
@@ -107,6 +107,23 @@ export class MessageRouter {
     }
   }
 
+  /**
+   * Aplica as confirmações de entrega/leitura vindas do webhook. É o que diferencia
+   * "a Evolution aceitou o envio" de "a mensagem chegou": sem isso, uma resposta que
+   * some no caminho fica registrada como enviada e ninguém percebe.
+   */
+  async applyStatusUpdates(updates: StatusUpdate[]): Promise<void> {
+    for (const u of updates) {
+      const done = await this.prisma.whatsappMessage.updateMany({
+        where: { providerMessageId: u.providerMessageId, direction: "OUTBOUND" },
+        data: { status: u.status },
+      });
+      if (done.count && /^(ERROR|SERVER_ACK_ERROR|FAILED)$/i.test(u.status)) {
+        this.logger.error(`WhatsApp não entregou a mensagem ${u.providerMessageId}: ${u.status}`);
+      }
+    }
+  }
+
   /** reply() que engole o próprio erro — para uso no caminho de recuperação. */
   private async safeReply(
     to: string,
@@ -139,7 +156,7 @@ export class MessageRouter {
         type: "TEXT",
         text,
         rawPayload: {},
-        status: "sent",
+        status: res.status ?? "sent",
       },
     });
   }
@@ -255,7 +272,7 @@ export class MessageRouter {
             type: "IMAGE",
             text: out.reply,
             rawPayload: {},
-            status: "sent",
+            status: res.status ?? "sent",
           },
         });
       } else {

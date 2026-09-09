@@ -21,6 +21,17 @@ export interface InboundMessage {
 
 export interface SendResult {
   providerMessageId: string;
+  /**
+   * Status que o provider devolveu no envio (ex.: "PENDING"). Aceitar o envio NÃO é
+   * garantia de entrega — a confirmação real chega depois por `messages.update`.
+   */
+  status?: string;
+}
+
+/** Confirmação de entrega/leitura de uma mensagem que enviamos. */
+export interface StatusUpdate {
+  providerMessageId: string;
+  status: string;
 }
 
 /** Contrato de qualquer provider de WhatsApp. Usado como token de DI. */
@@ -37,6 +48,8 @@ export abstract class WhatsAppService {
   abstract verifyWebhook(headers: Record<string, unknown>, query: Record<string, unknown>): boolean;
   /** Converte o payload bruto do provider em InboundMessage[] (ignora eventos irrelevantes). */
   abstract parseInbound(payload: unknown): InboundMessage[];
+  /** Extrai confirmações de entrega/leitura do payload do webhook (vazio se não houver). */
+  abstract parseStatusUpdates(payload: unknown): StatusUpdate[];
   /**
    * Baixa o áudio de uma mensagem recebida já decodificado (a mídia do WhatsApp é
    * criptografada). `raw` é o `InboundMessage.raw`. `null` se não for possível.

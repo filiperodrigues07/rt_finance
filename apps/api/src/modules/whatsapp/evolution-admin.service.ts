@@ -182,7 +182,9 @@ export class EvolutionAdminService {
       url: this.webhookUrl,
       byEvents: false,
       base64: false,
-      events: ["MESSAGES_UPSERT"],
+      // MESSAGES_UPDATE traz a confirmação de entrega/leitura do que enviamos —
+      // sem ela uma resposta pode sumir sem ninguém perceber.
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE"],
       ...(this.env.WHATSAPP_WEBHOOK_TOKEN
         ? { headers: { "x-webhook-token": this.env.WHATSAPP_WEBHOOK_TOKEN } }
         : {}),

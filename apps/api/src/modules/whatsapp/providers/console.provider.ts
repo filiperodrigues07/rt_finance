@@ -38,6 +38,10 @@ export class ConsoleProvider extends WhatsAppService {
     return this.evolution.parseInbound(payload);
   }
 
+  parseStatusUpdates(payload: unknown) {
+    return this.evolution.parseStatusUpdates(payload);
+  }
+
   async fetchAudio(): Promise<{ base64: string; mimetype: string } | null> {
     return null;
   }

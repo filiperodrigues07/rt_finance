@@ -94,6 +94,7 @@ export class WhatsappController {
       for (const msg of messages) {
         await this.router.handle(msg);
       }
+      await this.router.applyStatusUpdates(this.whatsapp.parseStatusUpdates(body));
     } catch (err) {
       this.logger.error({ err, id: (req as { id?: string }).id }, "falha ao processar webhook");
     }

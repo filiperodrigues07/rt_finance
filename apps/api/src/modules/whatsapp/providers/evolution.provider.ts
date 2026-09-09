@@ -1,7 +1,12 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ENV, type Env } from "../../../config/env.schema";
 import { digits, toE164BR } from "../phone";
-import { WhatsAppService, type InboundMessage, type SendResult } from "../whatsapp.types";
+import {
+  WhatsAppService,
+  type InboundMessage,
+  type SendResult,
+  type StatusUpdate,
+} from "../whatsapp.types";
 
 /**
  * Provider da Evolution API (self-hosted, v2.x — atendai/evolution-api).
@@ -140,11 +145,11 @@ export class EvolutionProvider extends WhatsAppService {
 
   async sendText(toPhone: string, text: string, instance?: string): Promise<SendResult> {
     const number = await this.resolveTarget(toPhone, instance);
-    const json = await this.callRetry<{ key?: { id?: string } }>(
+    const json = await this.callRetry<{ key?: { id?: string }; status?: string }>(
       `/message/sendText/${this.inst(instance)}`,
       { number, text },
     );
-    return { providerMessageId: json.key?.id ?? `out_${Date.now()}` };
+    return { providerMessageId: json.key?.id ?? `out_${Date.now()}`, status: json.status };
   }
 
   async sendImage(
@@ -154,7 +159,7 @@ export class EvolutionProvider extends WhatsAppService {
     instance?: string,
   ): Promise<SendResult> {
     const number = await this.resolveTarget(toPhone, instance);
-    const json = await this.call<{ key?: { id?: string } }>(
+    const json = await this.call<{ key?: { id?: string }; status?: string }>(
       `/message/sendMedia/${this.inst(instance)}`,
       {
         number,
@@ -165,7 +170,7 @@ export class EvolutionProvider extends WhatsAppService {
         caption: caption ?? "",
       },
     );
-    return { providerMessageId: json.key?.id ?? `out_${Date.now()}` };
+    return { providerMessageId: json.key?.id ?? `out_${Date.now()}`, status: json.status };
   }
 
   async fetchAudio(
@@ -212,6 +217,29 @@ export class EvolutionProvider extends WhatsAppService {
     );
     const q = String(query["token"] ?? "");
     return header === expected || q === expected;
+  }
+
+  /**
+   * Lê o evento `messages.update` — é ele que diz se a mensagem REALMENTE chegou.
+   * Aceitar o envio só significa que a Evolution enfileirou (status "PENDING"); sem
+   * este evento não temos como saber que uma resposta sumiu no caminho.
+   */
+  parseStatusUpdates(payload: unknown): StatusUpdate[] {
+    const root = payload as Record<string, unknown> | undefined;
+    if (!root) return [];
+    const event = String(root["event"] ?? "").toLowerCase().replace(/_/g, ".");
+    if (event !== "messages.update") return [];
+
+    const data = root["data"];
+    const items = Array.isArray(data) ? data : data ? [data] : [];
+    const out: StatusUpdate[] = [];
+    for (const item of items) {
+      const m = item as Record<string, any>;
+      const id = String(m?.keyId ?? m?.key?.id ?? m?.id ?? "");
+      const status = String(m?.status ?? m?.update?.status ?? "");
+      if (id && status) out.push({ providerMessageId: id, status });
+    }
+    return out;
   }
 
   parseInbound(payload: unknown): InboundMessage[] {
