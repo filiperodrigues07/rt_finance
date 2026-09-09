@@ -261,6 +261,30 @@ describe("dono + banco em contas/cartões", () => {
     expect(acc.member?.displayName).toBe("Partner");
   });
 
+  it("cria cartão alimentação (MEAL_VOUCHER) e o saldo cai ao gastar", async () => {
+    const acc = await http
+      .post("/api/accounts")
+      .set(auth())
+      .send({
+        name: "Vale alimentação",
+        type: "MEAL_VOUCHER",
+        openingBalanceCents: 60_000,
+        memberId: seed.ownerMemberId,
+      });
+    expect(acc.status).toBe(201);
+    const accId = acc.body.id;
+
+    await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 4_500, description: "Almoço", date: "2026-09-15", accountId: accId });
+
+    const list = await http.get("/api/accounts").set(auth());
+    const row = list.body.find((a: { id: string }) => a.id === accId);
+    expect(row.type).toBe("MEAL_VOUCHER");
+    expect(row.balanceCents).toBe(60_000 - 4_500);
+  });
+
   it("recusa conta com memberId inexistente (404)", async () => {
     const res = await http
       .post("/api/accounts")

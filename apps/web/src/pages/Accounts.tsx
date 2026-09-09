@@ -24,6 +24,7 @@ const TYPES = [
   { value: "SAVINGS", label: "Poupança" },
   { value: "CASH", label: "Dinheiro" },
   { value: "WALLET", label: "Carteira digital" },
+  { value: "MEAL_VOUCHER", label: "Vale alimentação/refeição" },
 ];
 const TYPE_LABEL = (t: string) => TYPES.find((x) => x.value === t)?.label ?? t;
 
