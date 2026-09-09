@@ -318,6 +318,40 @@ describe("recorrências + orçamentos", () => {
     expect(g2.body.created).toBe(0); // idempotente
   });
 
+  it("recorrência com nº fixo de parcelas gera todas de uma vez e encerra", async () => {
+    const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
+    const created = await http
+      .post("/api/recurring-expenses")
+      .set(auth())
+      .send({
+        name: "Financiamento carro",
+        amountCents: 90000,
+        categoryId: catId,
+        frequency: "MONTHLY",
+        dayOfMonth: 5,
+        occurrenceCount: 3,
+        accountId: seed.accountId,
+        startDate: "2027-01-01",
+      });
+    expect(created.status).toBe(201);
+    const recId = created.body.id;
+
+    const g1 = await http.post("/api/recurring-expenses/generate").set(auth());
+    expect(g1.body.created).toBeGreaterThanOrEqual(3);
+    const runs = await prisma.recurringRun.count({ where: { recurringExpenseId: recId } });
+    expect(runs).toBe(3);
+    const txs = await prisma.transaction.count({
+      where: { recurringExpenseId: recId, source: "RECURRING" },
+    });
+    expect(txs).toBe(3);
+
+    const g2 = await http.post("/api/recurring-expenses/generate").set(auth());
+    const rec = await prisma.recurringExpense.findUnique({ where: { id: recId } });
+    expect(rec!.active).toBe(false);
+    expect(await prisma.recurringRun.count({ where: { recurringExpenseId: recId } })).toBe(3);
+    void g2;
+  });
+
   it("orçamento calcula % gasto", async () => {
     await http
       .post("/api/budgets")

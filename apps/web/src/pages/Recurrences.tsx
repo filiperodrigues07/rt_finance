@@ -71,6 +71,7 @@ export function RecurrencesPage() {
                   {r.amountCents != null ? formatBRL(r.amountCents) : "valor variável"} ·{" "}
                   {FREQ[r.frequency]}
                   {r.dayOfMonth ? ` · dia ${r.dayOfMonth}` : ""} · {r.member.displayName}
+                  {r.occurrenceCount != null && ` · ${r._count?.runs ?? 0}/${r.occurrenceCount}`}
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
@@ -124,6 +125,7 @@ function RecurrenceForm({
     categoryId: "",
     frequency: "MONTHLY",
     dayOfMonth: "10",
+    count: "",
     pay: "account",
     accountId: "",
     creditCardId: "",
@@ -141,13 +143,14 @@ function RecurrenceForm({
         categoryId: editing.category.id,
         frequency: editing.frequency,
         dayOfMonth: String(editing.dayOfMonth ?? 10),
+        count: editing.occurrenceCount != null ? String(editing.occurrenceCount) : "",
         pay: editing.creditCardId ? "card" : "account",
         accountId: editing.accountId ?? "",
         creditCardId: editing.creditCardId ?? "",
         startDate: editing.startDate.slice(0, 10),
       });
     } else {
-      setF({ name: "", amount: "", categoryId: "", frequency: "MONTHLY", dayOfMonth: "10", pay: "account", accountId: "", creditCardId: "", startDate: todayIso(APP_TZ) });
+      setF({ name: "", amount: "", categoryId: "", frequency: "MONTHLY", dayOfMonth: "10", count: "", pay: "account", accountId: "", creditCardId: "", startDate: todayIso(APP_TZ) });
     }
   }, [open, editing]);
 
@@ -166,6 +169,7 @@ function RecurrenceForm({
       frequency: f.frequency,
       interval: 1,
       dayOfMonth: Number(f.dayOfMonth),
+      occurrenceCount: f.count ? Number(f.count) : null,
       autoPost: true,
       accountId: f.pay === "account" ? f.accountId : null,
       creditCardId: f.pay === "card" ? f.creditCardId : null,
@@ -232,6 +236,16 @@ function RecurrenceForm({
             <Input type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} />
           </Field>
         </div>
+        <Field label="Nº de lançamentos" hint="vazio = sem fim; ex.: financiamento 12x">
+          <Input
+            type="number"
+            min={1}
+            max={360}
+            placeholder="sem fim"
+            value={f.count}
+            onChange={(e) => setF({ ...f, count: e.target.value })}
+          />
+        </Field>
         <div>
           <div className="mb-1.5 flex gap-2">
             <button type="button" onClick={() => setF({ ...f, pay: "account" })} className={`rounded-md px-2.5 py-1 text-xs ${f.pay === "account" ? "bg-accent/15 text-accent" : "text-muted"}`}>Conta</button>

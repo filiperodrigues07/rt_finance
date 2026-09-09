@@ -39,6 +39,7 @@ export class RecurringExpensesService {
       include: {
         category: { select: { id: true, name: true, icon: true, color: true } },
         member: { select: { id: true, displayName: true } },
+        _count: { select: { runs: true } },
       },
       orderBy: [{ active: "desc" }, { name: "asc" }],
     });
@@ -69,6 +70,7 @@ export class RecurringExpensesService {
         interval: body.interval,
         dayOfMonth: body.dayOfMonth ?? null,
         weekday: body.weekday ?? null,
+        occurrenceCount: body.occurrenceCount ?? null,
         autoPost: body.autoPost,
         accountId: body.accountId ?? null,
         creditCardId: body.creditCardId ?? null,
@@ -91,6 +93,7 @@ export class RecurringExpensesService {
         interval: body.interval,
         dayOfMonth: body.dayOfMonth,
         weekday: body.weekday,
+        occurrenceCount: body.occurrenceCount,
         autoPost: body.autoPost,
         accountId: body.accountId,
         creditCardId: body.creditCardId,
@@ -182,10 +185,38 @@ export class RecurringExpensesService {
       const from = r.lastGeneratedDate
         ? addDays(toIsoDate(r.lastGeneratedDate), 1, tz)
         : toIsoDate(r.startDate);
-      const to = addMonths(todayIso(tz), horizon, tz);
-      const occ = this.occurrences(r, from, to, tz);
+
+      // Nº fixo de lançamentos: gera tudo o que falta agora (ignora o horizonte) e encerra ao completar.
+      const done =
+        r.occurrenceCount != null
+          ? await this.prisma.recurringRun.count({ where: { recurringExpenseId: r.id } })
+          : 0;
+      if (r.occurrenceCount != null && done >= r.occurrenceCount) {
+        if (r.active) {
+          await this.prisma.recurringExpense.update({ where: { id: r.id }, data: { active: false } });
+        }
+        continue;
+      }
+
+      let to = addMonths(todayIso(tz), horizon, tz);
+      if (r.occurrenceCount != null) {
+        const need = r.occurrenceCount - done + 2;
+        const stepMonths =
+          r.frequency === "YEARLY" ? 12 * r.interval : r.frequency === "MONTHLY" ? r.interval : 0;
+        const far =
+          stepMonths > 0
+            ? addMonths(from, need * stepMonths, tz)
+            : addDays(from, need * 7 * r.interval, tz);
+        if (far > to) to = far;
+      }
+
+      let occ = this.occurrences(r, from, to, tz);
+      if (r.occurrenceCount != null) {
+        occ = occ.slice(0, Math.max(0, r.occurrenceCount - done));
+      }
       if (occ.length === 0) continue;
 
+      let madeForRec = 0;
       for (const dateIso of occ) {
         const period = dateOnly(
           r.frequency === "WEEKLY" ? dateIso : firstDayOfMonth(dateIso, tz),
@@ -193,7 +224,10 @@ export class RecurringExpensesService {
         const exists = await this.prisma.recurringRun.findUnique({
           where: { recurringExpenseId_period: { recurringExpenseId: r.id, period } },
         });
-        if (exists) continue;
+        if (exists) {
+          madeForRec++;
+          continue;
+        }
 
         if (r.amountCents == null) {
           // valor variável: registra a ocorrência sem transação (será preenchida manualmente)
@@ -201,6 +235,7 @@ export class RecurringExpensesService {
             data: { recurringExpenseId: r.id, period, transactionId: null },
           });
           created++;
+          madeForRec++;
           continue;
         }
 
@@ -242,11 +277,16 @@ export class RecurringExpensesService {
           if (invoiceId) await this.invoices.recalcTotal(invoiceId, tx);
         });
         created++;
+        madeForRec++;
       }
 
+      const completed = r.occurrenceCount != null && done + madeForRec >= r.occurrenceCount;
       await this.prisma.recurringExpense.update({
         where: { id: r.id },
-        data: { lastGeneratedDate: dateOnly(occ[occ.length - 1]!) },
+        data: {
+          lastGeneratedDate: dateOnly(occ[occ.length - 1]!),
+          ...(completed ? { active: false } : {}),
+        },
       });
     }
     this.logger.log(`recorrências geradas: ${created}`);

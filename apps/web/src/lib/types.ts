@@ -170,6 +170,7 @@ export interface RecurringExpense {
   frequency: "WEEKLY" | "MONTHLY" | "YEARLY";
   interval: number;
   dayOfMonth: number | null;
+  occurrenceCount: number | null;
   autoPost: boolean;
   active: boolean;
   startDate: string;
@@ -178,6 +179,7 @@ export interface RecurringExpense {
   member: { id: string; displayName: string };
   accountId: string | null;
   creditCardId: string | null;
+  _count?: { runs: number };
 }
 
 export interface GoalContribution {
