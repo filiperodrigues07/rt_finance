@@ -1,10 +1,15 @@
 import { z } from "zod";
-import { isoDate } from "./common.js";
+import { isoDate, cuid } from "./common.js";
 
 export const dashboardQuery = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
   months: z.coerce.number().int().min(1).max(24).default(6),
+  // filtros opcionais — estreitam os agregados do período (não o histórico de 6 meses)
+  memberId: cuid.optional(),
+  categoryId: cuid.optional(),
+  accountId: cuid.optional(),
+  creditCardId: cuid.optional(),
 });
 export type DashboardQuery = z.infer<typeof dashboardQuery>;
 

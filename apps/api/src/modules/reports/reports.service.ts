@@ -83,6 +83,14 @@ export class ReportsService {
       date: { gte: dateOnly(prevFrom), lte: dateOnly(prevTo) },
     };
 
+    // filtros opcionais — mesclados por último para vencer os defaults (ex. creditCardId)
+    const scope: Prisma.TransactionWhereInput = {
+      ...(q.memberId ? { memberId: q.memberId } : {}),
+      ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+      ...(q.accountId ? { accountId: q.accountId } : {}),
+      ...(q.creditCardId ? { creditCardId: q.creditCardId } : {}),
+    };
+
     const [
       byType,
       accounts,
@@ -97,11 +105,11 @@ export class ReportsService {
     ] = await Promise.all([
       this.prisma.transaction.groupBy({
         by: ["type"],
-        where: inRange,
+        where: { ...inRange, ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.account.findMany({
-        where: { householdId, archivedAt: null },
+        where: { householdId, archivedAt: null, ...(q.accountId ? { id: q.accountId } : {}) },
         select: { id: true, openingBalanceCents: true },
       }),
       this.prisma.transaction.groupBy({
@@ -109,23 +117,23 @@ export class ReportsService {
         where: {
           householdId,
           status: { in: ["CONFIRMED", "CLEARED"] },
-          accountId: { not: null },
+          accountId: q.accountId ?? { not: null },
         },
         _sum: { amountCents: true },
       }),
       this.prisma.transaction.groupBy({
         by: ["categoryId"],
-        where: { ...inRange, type: "EXPENSE" },
+        where: { ...inRange, type: "EXPENSE", ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.transaction.groupBy({
         by: ["memberId"],
-        where: { ...inRange, type: "EXPENSE" },
+        where: { ...inRange, type: "EXPENSE", ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.transaction.groupBy({
         by: ["creditCardId"],
-        where: { ...inRange, type: "EXPENSE", creditCardId: { not: null } },
+        where: { ...inRange, type: "EXPENSE", creditCardId: { not: null }, ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.creditCardInvoice.findMany({
@@ -135,12 +143,12 @@ export class ReportsService {
       this.monthlyEvolution(householdId, months, tz),
       this.prisma.transaction.groupBy({
         by: ["type"],
-        where: prevRange,
+        where: { ...prevRange, ...scope },
         _sum: { amountCents: true },
       }),
       this.prisma.transaction.groupBy({
         by: ["categoryId"],
-        where: { ...prevRange, type: "EXPENSE" },
+        where: { ...prevRange, type: "EXPENSE", ...scope },
         _sum: { amountCents: true },
       }),
     ]);

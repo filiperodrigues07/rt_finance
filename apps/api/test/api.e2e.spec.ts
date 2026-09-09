@@ -676,6 +676,29 @@ describe("relatórios", () => {
     expect(Array.isArray(res.body.prev.expenseByCategory)).toBe(true);
   });
 
+  it("dashboard aceita filtros (pessoa, categoria, conta)", async () => {
+    const full = await http.get("/api/reports/dashboard").set(auth());
+    const byMember = await http
+      .get(`/api/reports/dashboard?memberId=${seed.ownerMemberId}`)
+      .set(auth());
+    expect(byMember.status).toBe(200);
+    // filtrado por 1 pessoa nunca soma mais que o total
+    expect(byMember.body.expenseCents).toBeLessThanOrEqual(full.body.expenseCents);
+    expect(byMember.body.byMember.every((m: { memberId: string }) => m.memberId === seed.ownerMemberId)).toBe(true);
+
+    const byCat = await http
+      .get(`/api/reports/dashboard?categoryId=${seed.categoryMercado}`)
+      .set(auth());
+    expect(byCat.status).toBe(200);
+    expect(byCat.body.byCategory.every((c: { categoryId: string }) => c.categoryId === seed.categoryMercado)).toBe(true);
+
+    const byAcc = await http
+      .get(`/api/reports/dashboard?accountId=${seed.accountId}`)
+      .set(auth());
+    expect(byAcc.status).toBe(200);
+    expect(typeof byAcc.body.balanceCents).toBe("number");
+  });
+
   it("insights retorna uma lista", async () => {
     const res = await http.get("/api/reports/insights").set(auth());
     expect(res.status).toBe(200);
