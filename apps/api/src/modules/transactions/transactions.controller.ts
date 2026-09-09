@@ -1,5 +1,4 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
-import { Throttle } from "@nestjs/throttler";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   createTransactionBody,
@@ -9,7 +8,6 @@ import {
   payTransactionBody,
   bulkIdsBody,
   bulkCategorizeBody,
-  quickAddBody,
   uploadAttachmentFields,
   createCommentBody,
   updateCommentBody,
@@ -21,7 +19,6 @@ import {
   type PayTransactionBody,
   type BulkIdsBody,
   type BulkCategorizeBody,
-  type QuickAddBody,
   type CreateCommentBody,
   type AuthUser,
 } from "@rt-finance/shared";
@@ -70,15 +67,6 @@ export class TransactionsController {
     @Body(new ZodValidationPipe(transferBody)) body: TransferBody,
   ) {
     return this.transactions.transfer(user.householdId, user.memberId, body);
-  }
-
-  @Post("quick")
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  quick(
-    @CurrentUser() user: AuthUser,
-    @Body(new ZodValidationPipe(quickAddBody)) body: QuickAddBody,
-  ) {
-    return this.transactions.quickAdd(user.householdId, user.memberId, body.text);
   }
 
   @Post(":id/pay")

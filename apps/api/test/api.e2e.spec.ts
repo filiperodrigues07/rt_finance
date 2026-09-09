@@ -457,17 +457,40 @@ describe("contas a pagar + ações em massa + lançamento rápido", () => {
       .set(auth())
       .send({ text: "gastei 40 no mercado" });
     expect(res.status).toBe(201);
-    expect(res.body.type).toBe("EXPENSE");
-    expect(res.body.amountCents).toBe(4000);
-    expect(res.body.category?.name).toBe("Mercado");
+    expect(res.body.status).toBe("created");
+    expect(res.body.transaction.type).toBe("EXPENSE");
+    expect(res.body.transaction.amountCents).toBe(4000);
+    expect(res.body.transaction.category?.name).toBe("Mercado");
   });
 
-  it("lançamento rápido sem sentido → 422", async () => {
+  it("lançamento rápido sem sentido → needs_form", async () => {
     const res = await http
       .post("/api/transactions/quick")
       .set(auth())
       .send({ text: "qual o sentido da vida" });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("needs_form");
+    expect(res.body.reason).toBeTruthy();
+  });
+
+  it("lançamento rápido de compra parcelada devolve preview (não grava)", async () => {
+    await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "QuickCard", limitCents: 500_000, closingDay: 10, dueDay: 17 });
+
+    const res = await http
+      .post("/api/transactions/quick")
+      .set(auth())
+      .send({ text: "gastei 300 no cartão quickcard em 3x" });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("preview");
+    expect(res.body.plan.installmentCount).toBe(3);
+    expect(res.body.plan.totalCents).toBe(30000);
+    expect(res.body.plan.installmentCents).toBe(10000);
+
+    const count = await prisma.installmentPlan.count({ where: { description: { contains: "quickcard", mode: "insensitive" } } });
+    expect(count).toBe(0);
   });
 
   it("bulk delete ignora parcela e devolve skipped", async () => {

@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import type { Prisma, Transaction } from "@prisma/client";
 import {
-  todayIso,
   toCents,
   type CreateTransactionBody,
   type UpdateTransactionBody,
@@ -13,13 +12,10 @@ import {
   type Paginated,
 } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
-import { ENV, type Env } from "../../config/env.schema";
 import { DomainError, NotFoundError } from "../../common/errors/domain-error";
 import { dateOnly, toIsoDate } from "../../common/date-only";
 import { paginate } from "../../common/pagination";
 import { InvoicesService } from "../invoices/invoices.service";
-import { HintResolver } from "../hints/hint-resolver.service";
-import { fastPath } from "../ai/fast-path";
 
 const TX_INCLUDE = {
   category: { select: { id: true, name: true, icon: true, color: true } },
@@ -34,8 +30,6 @@ export class TransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly invoices: InvoicesService,
-    private readonly hints: HintResolver,
-    @Inject(ENV) private readonly env: Env,
   ) {}
 
   // ---------- validações de escopo ----------
@@ -416,52 +410,6 @@ export class TransactionsService {
       });
     }
     return { affected: targets.length, skipped };
-  }
-
-  // ---------- lançamento rápido (linguagem natural) ----------
-  async quickAdd(householdId: string, memberId: string, text: string): Promise<Transaction> {
-    const members = await this.prisma.householdMember.findMany({
-      where: { householdId },
-      select: { displayName: true },
-    });
-    const household = await this.prisma.household.findUnique({
-      where: { id: householdId },
-      select: { timezone: true },
-    });
-    const tz = household?.timezone ?? this.env.APP_TIMEZONE;
-
-    const draft = fastPath(text, {
-      todayIso: todayIso(tz),
-      members: members.map((m) => m.displayName),
-      hasPending: false,
-    });
-
-    if (!draft || (draft.kind !== "create_expense" && draft.kind !== "create_income")) {
-      throw new DomainError(
-        'Não entendi o lançamento. Tente algo como "gastei 50 no mercado" ou use o formulário.',
-      );
-    }
-
-    const kind = draft.kind === "create_expense" ? "EXPENSE" : "INCOME";
-    const { category } = await this.hints.resolveCategory(householdId, draft.categoryHint, kind);
-    const resolvedMember = await this.hints.resolveMember(householdId, draft.memberHint, memberId);
-    const pay = await this.hints.resolvePayment(householdId, draft.paymentHint);
-    if (!pay.accountId && !pay.creditCardId) {
-      throw new DomainError("Cadastre uma conta ou cartão antes de lançar.");
-    }
-
-    return this.create(householdId, memberId, {
-      type: kind,
-      amountCents: draft.amountCents,
-      description: draft.description,
-      date: draft.date,
-      categoryId: category?.id ?? null,
-      memberId: resolvedMember,
-      accountId: pay.accountId,
-      creditCardId: pay.creditCardId,
-      status: "CONFIRMED",
-      notes: null,
-    });
   }
 
   async duplicate(

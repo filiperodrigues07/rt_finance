@@ -48,6 +48,44 @@ export const quickAddBody = z.object({
 });
 export type QuickAddBody = z.infer<typeof quickAddBody>;
 
+/**
+ * Resposta do lançamento rápido (`POST /transactions/quick`). O backend tenta
+ * resolver por regras (instantâneo) e, se não der, cai no LLM. Três desfechos:
+ * - `created`: lançamento simples já gravado.
+ * - `preview`: compra parcelada entendida, aguardando confirmação do usuário
+ *   (o front mostra o resumo e confirma via `POST /installments/plans`).
+ * - `needs_form`: não deu pra concluir com segurança — abrir o formulário
+ *   pré-preenchido com o que foi extraído.
+ */
+export interface QuickAddPreviewPlan {
+  creditCardId: string;
+  cardLabel: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  memberId: string;
+  description: string;
+  totalCents: number;
+  installmentCount: number;
+  /** valor da 1ª parcela (as demais podem variar 1 centavo no arredondamento) */
+  installmentCents: number;
+  purchaseDate: string;
+  firstDueDate: string | null;
+  /** ex.: "fatura de outubro de 2026 · vence 10/10/2026" */
+  firstInvoiceLabel: string;
+}
+
+export interface QuickAddDraft {
+  type: "EXPENSE" | "INCOME";
+  amountCents: number | null;
+  description: string;
+  installmentCount: number | null;
+}
+
+export type QuickAddResult =
+  | { status: "created"; transaction: unknown }
+  | { status: "preview"; plan: QuickAddPreviewPlan }
+  | { status: "needs_form"; reason: string; draft: QuickAddDraft };
+
 export interface BulkActionResult {
   affected: number;
   skipped: { id: string; reason: string }[];
