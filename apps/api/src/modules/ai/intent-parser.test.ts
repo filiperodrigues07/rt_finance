@@ -39,6 +39,34 @@ describe("parseAiResult", () => {
     expect(r.value?.kind).toBe("create_expense");
   });
 
+  it("aceita create_installment_purchase válido", () => {
+    const r = parseAiResult(
+      JSON.stringify({
+        kind: "create_installment_purchase",
+        totalCents: 240000,
+        installmentCount: 12,
+        description: "TV",
+        cardHint: "nubank",
+        categoryHint: null,
+        purchaseDate: "2026-09-03",
+        firstDueDate: null,
+        memberHint: null,
+        confidence: 0.9,
+        ambiguous: false,
+        clarification: null,
+      }),
+    );
+    expect(r.ok).toBe(true);
+    expect(r.value?.kind).toBe("create_installment_purchase");
+  });
+
+  it("rejeita installment com 1x", () => {
+    const r = parseAiResult(
+      '{"kind":"create_installment_purchase","totalCents":10000,"installmentCount":1,"description":"x","cardHint":"nubank","categoryHint":null,"purchaseDate":"2026-09-03","firstDueDate":null,"memberHint":null,"confidence":0.9,"ambiguous":false,"clarification":null}',
+    );
+    expect(r.ok).toBe(false);
+  });
+
   it("aceita query com defaults nos params", () => {
     const r = parseAiResult(
       '{"kind":"query","template":"MONTHLY_SUMMARY","params":{"period":"THIS_MONTH"},"wantsChart":false,"confidence":0.9}',

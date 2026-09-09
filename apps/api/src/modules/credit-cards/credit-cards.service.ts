@@ -147,7 +147,14 @@ export class CreditCardsService {
 
   /** Resolve um nome livre (vindo da IA) para um cartão. Match por nome/banco/last4. */
   async resolveByHint(householdId: string, hint: string): Promise<CreditCard | null> {
-    const term = hint.trim();
+    // "no cartão nubank" / "do meu cartão x" → "nubank" / "x"
+    const term = hint
+      .trim()
+      .replace(/^(o|a|meu|minha|no|na|do|da|de|com|pelo|pela)\s+/i, "")
+      .replace(/^(cart[aã]o|cartao)\s+/i, "")
+      .replace(/^(de\s+cr[eé]dito|cr[eé]dito)\s*/i, "")
+      .trim();
+    if (!term) return null;
     return this.prisma.creditCard.findFirst({
       where: {
         householdId,
@@ -157,6 +164,7 @@ export class CreditCardsService {
           { last4: term.replace(/\D/g, "").slice(-4) || undefined },
         ],
       },
+      orderBy: { status: "asc" }, // ACTIVE antes de INACTIVE
     });
   }
 }

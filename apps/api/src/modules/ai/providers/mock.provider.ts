@@ -48,8 +48,9 @@ export class MockAiProvider extends AIService {
       return wrap({
         kind: "create_installment_purchase",
         totalCents: amountCents,
-        installmentCount: Number(installMatch[1]),
-        description: text.replace(/.*?(comprei|foi|de)\s*/i, "").slice(0, 60) || "Compra parcelada",
+        installmentCount: Math.max(2, Number(installMatch[1])),
+        description:
+          text.replace(/.*?(gastei|paguei|comprei|foi|de)\s*/i, "").slice(0, 60) || "Compra parcelada",
         cardHint: cardHint ?? "cartão",
         categoryHint: null,
         purchaseDate: ctx.todayIso,

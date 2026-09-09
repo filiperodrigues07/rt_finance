@@ -258,6 +258,8 @@ export class FinanceAssistant {
     input: AssistantInput,
     r: Extract<AiResult, { kind: "create_installment_purchase" }>,
   ): Promise<string> {
+    if (r.ambiguous && r.clarification) return `🤔 ${r.clarification}`;
+
     const card = await this.hints.resolveCard(input.householdId, r.cardHint);
     if (!card) {
       const cards = await this.prisma.creditCard.findMany({

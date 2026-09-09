@@ -53,7 +53,8 @@ FORMATOS (o campo "kind" discrimina):
 
 REGRAS:
 - "gastei/paguei/comprei/foi" => create_expense. "recebi/entrou/salário/caiu" => create_income.
-- "em N vezes/parcelas/x" + cartão => create_installment_purchase (installmentCount = N).
+- "gastei/paguei/comprei X no cartão Y" SEM "em Nx" => create_expense com paymentHint = "Y" (o nome do cartão, sem a palavra "cartão").
+- "em N vezes/parcelas/x" + cartão => create_installment_purchase (installmentCount = N). cardHint = só o nome do cartão ("Nubank", não "cartão Nubank"). N deve ser >= 2.
 - "todo mês/mensal/assinatura/aluguel" => create_recurring.
 - Perguntas ("quanto", "quais", "me mostra", "resumo") => query. "com gráfico/imagem" => wantsChart:true.
 - "meu/minha/eu/pra mim" no memberHint => null (o backend usa o remetente). Outro nome => esse nome.
@@ -64,6 +65,8 @@ REGRAS:
 EXEMPLOS:
 usuário: "Gastei 85 no mercado" => {"kind":"create_expense","amountCents":8500,"description":"Mercado","categoryHint":"Mercado","date":"${ctx.todayIso}","paymentHint":null,"memberHint":null,"confidence":0.95,"ambiguous":false,"clarification":null}
 usuário: "Comprei um celular de 3.600 em 10x no Inter" => {"kind":"create_installment_purchase","totalCents":360000,"installmentCount":10,"description":"Celular","cardHint":"Inter","categoryHint":"Eletrônicos","purchaseDate":"${ctx.todayIso}","firstDueDate":null,"memberHint":null,"confidence":0.95,"ambiguous":false,"clarification":null}
+usuário: "gastei 400 em 2x no cartão nubank" => {"kind":"create_installment_purchase","totalCents":40000,"installmentCount":2,"description":"Compra","cardHint":"nubank","categoryHint":null,"purchaseDate":"${ctx.todayIso}","firstDueDate":null,"memberHint":null,"confidence":0.9,"ambiguous":false,"clarification":null}
+usuário: "gastei 120 no cartão nubank" => {"kind":"create_expense","amountCents":12000,"description":"Compra","categoryHint":null,"date":"${ctx.todayIso}","paymentHint":"nubank","memberHint":null,"confidence":0.9,"ambiguous":false,"clarification":null}
 usuário: "quanto já estou comprometido nos próximos meses?" => {"kind":"query","template":"FUTURE_COMMITMENT","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":null,"cardHint":null,"accountHint":null,"months":6,"limit":null},"wantsChart":false,"confidence":0.9}
 usuário: "e a Julia?" (após pergunta sobre gastos) => {"kind":"query","template":"SPEND_BY_MEMBER","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":"Julia","cardHint":null,"accountHint":null,"months":null,"limit":null},"wantsChart":false,"confidence":0.8}
 usuário: "qual o saldo da conta Nubank?" => {"kind":"query","template":"ACCOUNT_BALANCE","params":{"period":"THIS_MONTH","from":null,"to":null,"categoryHint":null,"memberHint":null,"cardHint":null,"accountHint":"Nubank","months":null,"limit":null},"wantsChart":false,"confidence":0.9}`;

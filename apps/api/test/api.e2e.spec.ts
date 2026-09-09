@@ -1046,6 +1046,35 @@ describe("webhook do WhatsApp", () => {
     });
     expect(outbound?.text).toContain("não está autorizado");
   });
+
+  it("'comprei ... em 12x no nubank' + '1' cria a compra parcelada", async () => {
+    await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Nubank", limitCents: 500_000, closingDay: 10, dueDay: 17 });
+
+    const r1 = await http
+      .post("/api/whatsapp/webhook")
+      .send(payload("WA_INST_1", OWNER_JID, "comprei tv de 2400 em 12x no nubank"));
+    expect(r1.status).toBeLessThan(300);
+
+    const r2 = await http.post("/api/whatsapp/webhook").send(payload("WA_INST_2", OWNER_JID, "1"));
+    expect(r2.status).toBeLessThan(300);
+
+    const plan = await prisma.installmentPlan.findFirst({
+      where: { creditCard: { name: "Nubank" } },
+      include: { installments: true },
+    });
+    expect(plan).toBeTruthy();
+    expect(plan!.installmentCount).toBe(12);
+    expect(plan!.installments).toHaveLength(12);
+
+    const confirm = await prisma.whatsappMessage.findFirst({
+      where: { direction: "OUTBOUND", toPhone: { contains: "900000001" } },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(confirm?.text ?? "").toMatch(/parcel/i);
+  });
 });
 
 describe("comentários em transação", () => {
