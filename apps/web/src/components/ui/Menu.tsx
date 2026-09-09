@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 export interface MenuItem {
@@ -38,6 +39,27 @@ export function Menu({
     };
   }, [open]);
 
+  const row = (it: MenuItem, i: number, size: "sm" | "lg") => (
+    <button
+      key={i}
+      role="menuitem"
+      disabled={it.disabled}
+      onClick={() => {
+        setOpen(false);
+        it.onClick();
+      }}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-md text-left transition-colors",
+        "disabled:pointer-events-none disabled:opacity-40",
+        size === "lg" ? "px-3 py-3 text-[15px]" : "px-2.5 py-1.5 text-sm",
+        it.danger ? "text-negative hover:bg-negative/10" : "text-fg hover:bg-surface-2",
+      )}
+    >
+      {it.icon}
+      {it.label}
+    </button>
+  );
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -49,34 +71,41 @@ export function Menu({
       >
         {trigger}
       </button>
+
       {open && (
-        <div
-          role="menu"
-          className={cn(
-            "animate-pop absolute z-50 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-pop",
-            align === "end" ? "right-0" : "left-0",
+        <>
+          {/* desktop: dropdown ancorado no gatilho */}
+          <div
+            role="menu"
+            className={cn(
+              "animate-pop absolute z-50 mt-1 hidden min-w-[11rem] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-pop sm:block",
+              align === "end" ? "right-0" : "left-0",
+            )}
+          >
+            {items.map((it, i) => row(it, i, "sm"))}
+          </div>
+
+          {/* mobile: action sheet fixo no rodapé */}
+          {createPortal(
+            <div className="fixed inset-0 z-[95] sm:hidden">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+              <div
+                role="menu"
+                onMouseDown={(e) => e.stopPropagation()}
+                className="animate-sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-pop"
+              >
+                <div className="mx-auto mb-1.5 mt-1 h-1 w-9 rounded-full bg-border" />
+                {label && (
+                  <div className="px-3 pb-1 pt-1 text-xs font-medium uppercase tracking-wide text-muted">
+                    {label}
+                  </div>
+                )}
+                {items.map((it, i) => row(it, i, "lg"))}
+              </div>
+            </div>,
+            document.body,
           )}
-        >
-          {items.map((it, i) => (
-            <button
-              key={i}
-              role="menuitem"
-              disabled={it.disabled}
-              onClick={() => {
-                setOpen(false);
-                it.onClick();
-              }}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
-                "disabled:pointer-events-none disabled:opacity-40",
-                it.danger ? "text-negative hover:bg-negative/10" : "text-fg hover:bg-surface-2",
-              )}
-            >
-              {it.icon}
-              {it.label}
-            </button>
-          ))}
-        </div>
+        </>
       )}
     </div>
   );

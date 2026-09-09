@@ -268,6 +268,28 @@ export function TransactionsPage() {
     }
   }
 
+  const openEdit = (t: TransactionRow) => {
+    setEditing(t);
+    setFormOpen(true);
+  };
+
+  /** Botão de editar direto na linha (parcelas/transferências editam na origem). */
+  const editBtn = (t: TransactionRow) => {
+    const blocked = !!t.installmentId || !!t.transferGroupId;
+    return (
+      <button
+        type="button"
+        onClick={() => !blocked && openEdit(t)}
+        disabled={blocked}
+        aria-label="Editar lançamento"
+        title={blocked ? "Parcela/transferência: edite na origem" : "Editar"}
+        className="grid size-11 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-25 disabled:hover:bg-transparent"
+      >
+        <Pencil className="size-4" />
+      </button>
+    );
+  };
+
   const rowMenu = (t: TransactionRow) => (
     <Menu
       label="Ações do lançamento"
@@ -288,15 +310,6 @@ export function TransactionsPage() {
         },
         { label: "Compartilhar", icon: <Share2 className="size-4" />, onClick: () => setShareTarget(t) },
         { label: "Duplicar", icon: <Copy className="size-4" />, onClick: () => onDuplicate(t.id), disabled: !!t.transferGroupId },
-        {
-          label: "Editar",
-          icon: <Pencil className="size-4" />,
-          onClick: () => {
-            setEditing(t);
-            setFormOpen(true);
-          },
-          disabled: !!t.installmentId || !!t.transferGroupId,
-        },
         t.installmentId
           ? {
               label: "Cancelar parcelamento (Carteira → Cartões)",
@@ -647,7 +660,12 @@ export function TransactionsPage() {
                         <Badge>{STATUS_LABEL[t.status]}</Badge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">{rowMenu(t)}</td>
+                    <td className="px-2 py-3">
+                      <div className="flex items-center justify-end">
+                        {editBtn(t)}
+                        {rowMenu(t)}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -707,6 +725,7 @@ export function TransactionsPage() {
                           Pagar
                         </Button>
                       )}
+                      {editBtn(t)}
                       {rowMenu(t)}
                     </div>
                   </div>

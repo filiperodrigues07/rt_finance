@@ -195,16 +195,6 @@ export function TransactionForm({
               ]}
             />
 
-            <Segmented
-              full
-              value={when}
-              onChange={(v) => setWhen(v)}
-              options={[
-                { value: "paid", label: "Já paguei" },
-                { value: "scheduled", label: "Agendar" },
-              ]}
-            />
-
             <FormRow>
               <Field label="Valor (R$)">
                 <MoneyInput value={amount} onChange={setAmount} autoFocus />
@@ -219,9 +209,19 @@ export function TransactionForm({
                 />
               </Field>
             </FormRow>
+
+            <label className="flex items-center gap-2 text-sm text-fg">
+              <input
+                type="checkbox"
+                checked={when === "scheduled"}
+                onChange={(e) => setWhen(e.target.checked ? "scheduled" : "paid")}
+                className="size-4 shrink-0 accent-[rgb(var(--accent))]"
+              />
+              Agendar como conta a pagar
+            </label>
             {when === "scheduled" && (
-              <p className="-mt-2 text-xs text-muted">
-                Não entra no saldo até você marcar como pago (aba <span className="text-fg">A pagar</span>).
+              <p className="-mt-1 text-xs text-muted">
+                Não entra no saldo até você marcar como paga (aba <span className="text-fg">A pagar</span>).
               </p>
             )}
 
