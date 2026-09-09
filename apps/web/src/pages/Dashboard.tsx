@@ -11,7 +11,7 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
-import { resolvePeriod, type PeriodPreset, type Insight } from "@rt-finance/shared";
+import { resolvePeriod, todayIso, APP_TZ, type PeriodPreset, type Insight } from "@rt-finance/shared";
 import {
   useDashboard,
   useFutureCommitment,
@@ -20,7 +20,7 @@ import {
 } from "@/lib/hooks";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Field";
+import { Select, Input } from "@/components/ui/Field";
 import { ShareDialog } from "@/components/ShareDialog";
 import { Skeleton } from "@/components/ui/misc";
 import { PageHeader, Stat, StatSkeleton } from "@/components/ui/data";
@@ -56,6 +56,7 @@ const PRESETS: { value: PeriodPreset; label: string }[] = [
   { value: "THIS_MONTH", label: "Este mês" },
   { value: "LAST_MONTH", label: "Mês passado" },
   { value: "THIS_YEAR", label: "Este ano" },
+  { value: "CUSTOM", label: "Personalizado" },
 ];
 
 /** índice do stagger de entrada */
@@ -63,10 +64,21 @@ const si = (i: number) => ({ "--rt-i": i }) as CSSProperties;
 
 export function DashboardPage() {
   const [preset, setPreset] = useState<PeriodPreset>("THIS_MONTH");
+  const thisMonth = useMemo(() => resolvePeriod("THIS_MONTH", {}), []);
+  const [customFrom, setCustomFrom] = useState(thisMonth.from);
+  const [customTo, setCustomTo] = useState(todayIso(APP_TZ));
+
+  const customValid = customFrom !== "" && customTo !== "" && customFrom <= customTo;
+
   const range = useMemo(() => {
-    const r = resolvePeriod(preset === "CUSTOM" ? "THIS_MONTH" : preset, {});
+    if (preset === "CUSTOM") {
+      return customValid
+        ? { from: customFrom, to: customTo, months: 6 }
+        : { from: thisMonth.from, to: thisMonth.to, months: 6 };
+    }
+    const r = resolvePeriod(preset, {});
     return { from: r.from, to: r.to, months: 6 };
-  }, [preset]);
+  }, [preset, customValid, customFrom, customTo, thisMonth.from, thisMonth.to]);
 
   const navigate = useNavigate();
   const { data, isLoading } = useDashboard(range);
@@ -109,6 +121,31 @@ export function DashboardPage() {
           </>
         }
       />
+
+      {preset === "CUSTOM" && (
+        <div className="-mt-2 flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={customFrom}
+            max={customTo || undefined}
+            onChange={(e) => setCustomFrom(e.target.value)}
+            aria-label="Data inicial"
+            className="w-auto"
+          />
+          <span className="text-sm text-muted">até</span>
+          <Input
+            type="date"
+            value={customTo}
+            min={customFrom || undefined}
+            onChange={(e) => setCustomTo(e.target.value)}
+            aria-label="Data final"
+            className="w-auto"
+          />
+          {!customValid && (
+            <span className="text-xs text-negative">A data final tem que ser depois da inicial.</span>
+          )}
+        </div>
+      )}
 
       <ShareDialog
         open={shareOpen}
