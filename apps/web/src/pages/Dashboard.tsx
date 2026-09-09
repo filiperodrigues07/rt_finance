@@ -22,7 +22,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select, Input } from "@/components/ui/Field";
 import { ShareDialog } from "@/components/ShareDialog";
-import { Skeleton } from "@/components/ui/misc";
+import { ChartSkeleton } from "@/components/ui/misc";
 import { PageHeader, Stat, StatSkeleton } from "@/components/ui/data";
 import {
   DonutCategories,
@@ -187,53 +187,66 @@ export function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {isLoading || !data ? (
-          Array.from({ length: 5 }).map((_, i) => <StatSkeleton key={i} />)
-        ) : (
-          <>
-            <Stat label="Saldo atual" cents={data.balanceCents} />
-            <Stat
-              label="Receitas"
-              cents={data.incomeCents}
-              tone="positive"
-              delta={{ pct: deltaPct(data.incomeCents, data.prev.incomeCents), goodWhenUp: true }}
-            />
-            <Stat
-              label="Despesas"
-              cents={data.expenseCents}
-              tone="negative"
-              delta={{ pct: deltaPct(data.expenseCents, data.prev.expenseCents), goodWhenUp: false }}
-            />
-            <Stat label="Faturas em aberto" cents={data.invoicesOpenCents} />
-            <Stat label="Vence em 15 dias" cents={data.upcomingDueCents} hint="faturas de cartão" />
-          </>
-        )}
-      </div>
+      {isLoading || !data ? (
+        <div className="grid gap-3 lg:grid-cols-4">
+          <StatSkeleton className="h-full min-h-28 lg:col-span-2 lg:row-span-2" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <StatSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-4">
+          <Stat
+            variant="hero"
+            className="lg:col-span-2 lg:row-span-2"
+            label="Saldo total"
+            cents={data.balanceCents}
+            foot={
+              data.monthly.length > 1 && (
+                <Sparkline data={data.monthly.map((m) => m.balanceCents)} className="h-12 w-full" />
+              )
+            }
+          />
+          <Stat
+            label="Receitas"
+            cents={data.incomeCents}
+            tone="positive"
+            delta={{ pct: deltaPct(data.incomeCents, data.prev.incomeCents), goodWhenUp: true }}
+          />
+          <Stat
+            label="Despesas"
+            cents={data.expenseCents}
+            tone="negative"
+            delta={{ pct: deltaPct(data.expenseCents, data.prev.expenseCents), goodWhenUp: false }}
+          />
+          <Stat label="Faturas em aberto" cents={data.invoicesOpenCents} />
+          <Stat label="Vence em 15 dias" cents={data.upcomingDueCents} hint="faturas de cartão" />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="stagger-item" style={si(0)}>
-          <CardHeader title="Gastos por categoria" description="No período selecionado" />
-          {isLoading || !data ? <Skeleton className="h-44" /> : <DonutCategories data={data.byCategory} />}
-        </Card>
-
         <Card className="stagger-item" style={si(1)}>
-          <CardHeader title="Evolução mensal" description="Receitas, despesas e saldo — 6 meses" />
-          {isLoading || !data ? <Skeleton className="h-64" /> : <MonthlyEvolutionChart data={data.monthly} />}
+          <CardHeader title="Gastos por categoria" description="No período selecionado" />
+          {isLoading || !data ? <ChartSkeleton className="h-44" /> : <DonutCategories data={data.byCategory} />}
         </Card>
 
         <Card className="stagger-item" style={si(2)}>
-          <CardHeader title="Gastos por pessoa" />
-          {isLoading || !data ? <Skeleton className="h-32" /> : <BreakdownBar data={data.byMember} />}
+          <CardHeader title="Evolução mensal" description="Receitas, despesas e saldo — 6 meses" />
+          {isLoading || !data ? <ChartSkeleton className="h-64" /> : <MonthlyEvolutionChart data={data.monthly} />}
         </Card>
 
         <Card className="stagger-item" style={si(3)}>
+          <CardHeader title="Gastos por pessoa" />
+          {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byMember} />}
+        </Card>
+
+        <Card className="stagger-item" style={si(4)}>
           <CardHeader title="Gastos por cartão" />
-          {isLoading || !data ? <Skeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
+          {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
         </Card>
 
         {topTrend.length > 0 && (
-          <Card className="stagger-item lg:col-span-2" style={si(4)}>
+          <Card className="stagger-item lg:col-span-2" style={si(5)}>
             <CardHeader title="Tendência por categoria" description="Últimos 6 meses" />
             <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
               {topTrend.map((s) => {
@@ -257,10 +270,10 @@ export function DashboardPage() {
           </Card>
         )}
 
-        <Card className="stagger-item lg:col-span-2" style={si(5)}>
+        <Card className="stagger-item lg:col-span-2" style={si(6)}>
           <CardHeader title="Comprometimento futuro" description="Parcelas a vencer nos próximos 12 meses" />
           {future.isLoading || !future.data ? (
-            <Skeleton className="h-56" />
+            <ChartSkeleton className="h-56" />
           ) : (
             <FutureCommitmentChart data={future.data} />
           )}
