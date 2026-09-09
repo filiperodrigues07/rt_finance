@@ -10,26 +10,35 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const SYSTEM_PROMPT = [
-  "Você é um consultor financeiro de um casal brasileiro.",
-  "Escreva em português do Brasil, tom direto e acolhedor, sem jargão.",
-  "Baseie-se SOMENTE nos dados fornecidos — nunca invente números nem suponha o que não está ali.",
-  "Responda APENAS um objeto JSON no formato:",
-  '{"resumo": string (2 a 4 frases), "recomendacoes": string[] (2 a 4 itens curtos e acionáveis)}.',
-].join(" ");
+// "detailed thinking off": convenção do nemotron — desliga o raciocínio em voz alta
+// (sem bloco <think>, resposta ~5x mais rápida e JSON direto).
+const SYSTEM_PROMPT =
+  "detailed thinking off\n" +
+  [
+    "Você é um consultor financeiro de um casal brasileiro.",
+    "Escreva em português do Brasil, tom direto e acolhedor, sem jargão.",
+    "Baseie-se SOMENTE nos dados fornecidos — nunca invente números nem suponha o que não está ali.",
+    "Responda APENAS um objeto JSON no formato:",
+    '{"resumo": string (2 a 4 frases), "recomendacoes": string[] (2 a 4 itens curtos e acionáveis)}.',
+  ].join(" ");
 
 const AiShape = z.object({
   resumo: z.string().trim().min(1),
   recomendacoes: z.array(z.string().trim().min(1)).min(1).max(6),
 });
 
-/** Alguns modelos (nemotron) devolvem raciocínio antes do JSON — pega o 1º objeto. */
+/** Modelos de raciocínio (nemotron) devolvem `<think>…</think>` + texto antes do JSON. */
 function extractJson(text: string): unknown {
-  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/gi, "");
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
+  let s = text;
+  // fica com o que vem depois do último bloco de raciocínio fechado
+  const lastThink = s.lastIndexOf("</think>");
+  if (lastThink !== -1) s = s.slice(lastThink + "</think>".length);
+  // se ficou um <think> aberto (resposta cortada), não há JSON utilizável
+  s = s.replace(/<think>[\s\S]*/i, "").replace(/```(?:json)?/gi, "");
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
   if (start === -1 || end <= start) throw new Error("sem objeto JSON na resposta");
-  return JSON.parse(cleaned.slice(start, end + 1));
+  return JSON.parse(s.slice(start, end + 1));
 }
 
 /**

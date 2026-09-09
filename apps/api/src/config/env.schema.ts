@@ -44,6 +44,10 @@ export const envSchema = z.object({
   AI_MAX_TOKENS: z.coerce.number().int().positive().default(1024),
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.1),
   AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
+  // Análise dos relatórios: o modelo "raciocina" antes de responder, então precisa
+  // de mais folga de tokens e tempo que a interpretação de intenção do bot.
+  AI_ANALYSIS_MAX_TOKENS: z.coerce.number().int().positive().default(3000),
+  AI_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
 
   // Transcrição de áudio do WhatsApp (voz → texto). Sem a chave, áudios são recusados
   // com um aviso pedindo texto. Groq expõe endpoint OpenAI-compatível de Whisper.

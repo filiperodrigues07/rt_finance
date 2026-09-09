@@ -14,6 +14,11 @@ interface ChatMsg {
   content: string;
 }
 
+interface ChatOpts {
+  maxTokens?: number;
+  timeoutMs?: number;
+}
+
 /**
  * Provider NVIDIA NIM (endpoint OpenAI-compatível: POST {base}/chat/completions).
  * Modelo padrão: nvidia/nemotron-3-super-120b-a12b (bom em JSON estruturado, ~3-8s).
@@ -27,9 +32,12 @@ export class NvidiaProvider extends AIService {
     super();
   }
 
-  private async chatOnce(messages: ChatMsg[]): Promise<ChatCompletion> {
+  private async chatOnce(messages: ChatMsg[], opts: ChatOpts = {}): Promise<ChatCompletion> {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), this.env.AI_REQUEST_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => ctrl.abort(),
+      opts.timeoutMs ?? this.env.AI_REQUEST_TIMEOUT_MS,
+    );
     try {
       const res = await fetch(`${this.env.NVIDIA_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
@@ -42,7 +50,7 @@ export class NvidiaProvider extends AIService {
           model: this.env.NVIDIA_MODEL,
           messages,
           temperature: this.env.AI_TEMPERATURE,
-          max_tokens: this.env.AI_MAX_TOKENS,
+          max_tokens: opts.maxTokens ?? this.env.AI_MAX_TOKENS,
           response_format: { type: "json_object" },
         }),
       });
@@ -61,14 +69,14 @@ export class NvidiaProvider extends AIService {
   }
 
   /** Uma retentativa com backoff em 429/5xx/timeout. */
-  private async chat(messages: ChatMsg[]): Promise<ChatCompletion> {
+  private async chat(messages: ChatMsg[], opts: ChatOpts = {}): Promise<ChatCompletion> {
     try {
-      return await this.chatOnce(messages);
+      return await this.chatOnce(messages, opts);
     } catch (err) {
       const e = err as Error & { retryable?: boolean; name?: string };
       if (e.retryable || e.name === "AbortError") {
         await new Promise((r) => setTimeout(r, 1500));
-        return this.chatOnce(messages);
+        return this.chatOnce(messages, opts);
       }
       throw err;
     }
@@ -142,10 +150,17 @@ export class NvidiaProvider extends AIService {
 
   async analyze(system: string, user: string): Promise<{ text: string; meta: AiMeta }> {
     const t0 = Date.now();
-    const completion = await this.chat([
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ]);
+    // o nemotron raciocina antes de responder — precisa de bem mais tokens/tempo
+    const completion = await this.chat(
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      {
+        maxTokens: this.env.AI_ANALYSIS_MAX_TOKENS,
+        timeoutMs: this.env.AI_ANALYSIS_TIMEOUT_MS,
+      },
+    );
     return {
       text: completion.choices[0]?.message.content ?? "",
       meta: {

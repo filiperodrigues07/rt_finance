@@ -108,10 +108,22 @@ export function ReportsPage() {
         </div>
 
         {analysis.isFetching || analysis.regenerate.isPending ? (
-          <div className="mt-3 space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-4/5" />
-            <Skeleton className="h-4 w-2/3" />
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Sparkles className="size-4 animate-pulse text-accent" />
+              <span>Analisando o mês</span>
+              <span className="inline-flex gap-1">
+                <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.3s] motion-reduce:animate-none" />
+                <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.15s] motion-reduce:animate-none" />
+                <span className="size-1.5 animate-bounce rounded-full bg-muted motion-reduce:animate-none" />
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-4/5" />
+              <Skeleton className="h-3.5 w-3/5" />
+            </div>
+            <p className="text-[11px] text-muted/70">A IA leva alguns segundos.</p>
           </div>
         ) : analysis.data ? (
           <div className="mt-3 space-y-3">
