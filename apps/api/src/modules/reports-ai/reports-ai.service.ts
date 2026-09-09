@@ -23,6 +23,15 @@ const AiShape = z.object({
   recomendacoes: z.array(z.string().trim().min(1)).min(1).max(6),
 });
 
+/** Alguns modelos (nemotron) devolvem raciocínio antes do JSON — pega o 1º objeto. */
+function extractJson(text: string): unknown {
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/gi, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("sem objeto JSON na resposta");
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
 /**
  * Análise do mês em linguagem natural. Cache de 24h por household (custo/latência
  * de IA); `force` fura. Cai numa versão por regras quando a IA não está disponível.
@@ -92,7 +101,7 @@ export class ReportsAiService {
     let value: ReportAnalysis;
     try {
       const { text } = await this.ai.analyze(SYSTEM_PROMPT, JSON.stringify(facts));
-      const json = AiShape.parse(JSON.parse(text));
+      const json = AiShape.parse(extractJson(text));
       value = {
         resumo: json.resumo,
         recomendacoes: json.recomendacoes.slice(0, 4),

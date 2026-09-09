@@ -11,6 +11,7 @@ import type {
   Insight,
   MemberComparison,
   MonthPace,
+  ReportAnalysis,
   PayableInvoice,
   PayInvoiceResult,
   ImportBatchDTO,
@@ -110,6 +111,23 @@ export function useInsights() {
     queryKey: ["insights"],
     queryFn: () => api.get<Insight[]>("/reports/insights"),
   });
+}
+
+/** Análise do mês por IA — só busca quando o usuário pede (`refetch`); `regenerate` força. */
+export function useReportAnalysis() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["report-analysis"],
+    queryFn: () => api.get<ReportAnalysis>("/reports/analysis"),
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const regenerate = useMutation({
+    mutationFn: () => api.get<ReportAnalysis>("/reports/analysis?force=1"),
+    onSuccess: (d) => qc.setQueryData(["report-analysis"], d),
+  });
+  return { ...query, regenerate };
 }
 
 // ---------------- categorias ----------------

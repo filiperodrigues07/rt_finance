@@ -1,7 +1,14 @@
-import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Info, Sparkles, Lightbulb, RefreshCw } from "lucide-react";
 import { firstDayOfMonth, lastDayOfMonth, todayIso, APP_TZ, formatBRL } from "@rt-finance/shared";
 import { Tooltip } from "@/components/ui/Tooltip";
-import { useCashFlow, useCategoryTrend, useByMember, usePace, useReportExport } from "@/lib/hooks";
+import {
+  useCashFlow,
+  useCategoryTrend,
+  useByMember,
+  usePace,
+  useReportExport,
+  useReportAnalysis,
+} from "@/lib/hooks";
 import { getAccessToken } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -26,6 +33,7 @@ export function ReportsPage() {
   const trend = useCategoryTrend(6);
   const member = useByMember({});
   const pace = usePace();
+  const analysis = useReportAnalysis();
 
   async function downloadCsv() {
     try {
@@ -75,6 +83,70 @@ export function ReportsPage() {
           />
         }
       />
+
+      {/* análise do mês (IA) */}
+      <Card className="mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="size-4 text-accent" /> Análise do mês
+            {analysis.data && (
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                {analysis.data.fonte === "ia" ? "gerado por IA" : "por regras"}
+              </span>
+            )}
+          </div>
+          {analysis.data && (
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={analysis.regenerate.isPending}
+              onClick={() => analysis.regenerate.mutate()}
+            >
+              <RefreshCw className="size-3.5" /> Gerar de novo
+            </Button>
+          )}
+        </div>
+
+        {analysis.isFetching || analysis.regenerate.isPending ? (
+          <div className="mt-3 space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : analysis.data ? (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm leading-relaxed text-fg/90">{analysis.data.resumo}</p>
+            <ul className="space-y-1.5">
+              {analysis.data.recomendacoes.map((r, i) => (
+                <li key={i} className="flex gap-2 text-sm text-fg/80">
+                  <Lightbulb className="mt-0.5 size-4 shrink-0 text-warning" />
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-muted">
+              gerado {new Date(analysis.data.geradoEm).toLocaleString("pt-BR")}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-col items-start gap-2">
+            <p className="text-sm text-muted">
+              Um resumo do mês em linguagem natural: o que está indo bem, o que merece atenção e o
+              que fazer.
+            </p>
+            <Button
+              size="sm"
+              loading={analysis.isFetching}
+              onClick={() => void analysis.refetch()}
+            >
+              <Sparkles className="size-4" /> Analisar meu mês
+            </Button>
+            {analysis.isError && (
+              <p className="text-xs text-negative">Não consegui gerar agora. Tente de novo.</p>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* ritmo do mês */}
       {pace.isLoading || !pace.data ? (
