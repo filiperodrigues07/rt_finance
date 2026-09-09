@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, AlertTriangle } from "lucide-react";
+import { Trash2, AlertTriangle, Download, Upload, RotateCcw, DatabaseBackup } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useHouseholdMutations } from "@/lib/hooks";
+import { useHouseholdMutations, useBackup } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
@@ -57,6 +57,8 @@ export function SettingsPage() {
       <WhatsAppPanel />
 
       <EmailPanel />
+
+      {user?.role === "OWNER" && <BackupPanel />}
 
       {user?.role === "OWNER" && (
         <CollapsibleCard
@@ -121,5 +123,121 @@ export function SettingsPage() {
         </CollapsibleCard>
       )}
     </div>
+  );
+}
+
+function BackupPanel() {
+  const toast = useToast();
+  const { downloadBackup, restore } = useBackup();
+  const [dl, setDl] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [pwd, setPwd] = useState("");
+  const [word, setWord] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function doDownload() {
+    setDl(true);
+    try {
+      await downloadBackup();
+      toast.success("Backup baixado");
+    } catch {
+      toast.error("Não consegui gerar o backup");
+    } finally {
+      setDl(false);
+    }
+  }
+
+  async function doRestore(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!file) return;
+    try {
+      const r = await restore.mutateAsync({ file, password: pwd });
+      const total = Object.values(r.restored).reduce((a, n) => a + Number(n), 0);
+      toast.success(`Restaurado: ${total} registros. Recarregando…`);
+      setTimeout(() => window.location.assign("/"), 900);
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? e2.message : "Falha ao restaurar");
+    }
+  }
+
+  return (
+    <CollapsibleCard
+      id="backup"
+      defaultOpen={false}
+      title={
+        <span className="flex items-center gap-2">
+          <DatabaseBackup className="size-4" /> Backup e restauração
+        </span>
+      }
+      description="Baixe uma cópia de tudo e restaure a partir dela quando precisar."
+    >
+      <div className="space-y-4">
+        <div>
+          <Button size="sm" variant="secondary" loading={dl} onClick={doDownload}>
+            <Download className="size-4" /> Baixar backup
+          </Button>
+          <p className="mt-1.5 text-xs text-muted">
+            Arquivo .json com contas, cartões, categorias, lançamentos (com anexos), faturas,
+            parcelamentos, recorrências, metas e orçamentos.
+          </p>
+        </div>
+
+        <form onSubmit={doRestore} className="space-y-3 border-t border-border pt-4">
+          <div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setErr(null);
+                setWord("");
+                setPwd("");
+              }}
+            />
+            <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+              <Upload className="size-4" /> Escolher arquivo…
+            </Button>
+            {file && <span className="ml-2 text-xs text-muted">{file.name}</span>}
+          </div>
+
+          {file && (
+            <>
+              <p className="text-sm text-negative">
+                Restaurar <strong className="text-fg">substitui TODOS</strong> os dados atuais do
+                casal pelos do arquivo. Não tem volta.
+              </p>
+              <Field label="Digite RESTAURAR para confirmar">
+                <Input
+                  value={word}
+                  onChange={(e) => setWord(e.target.value)}
+                  placeholder="RESTAURAR"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Sua senha" error={err ?? undefined}>
+                <PasswordInput
+                  value={pwd}
+                  onChange={(e) => setPwd(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </Field>
+              <Button
+                type="submit"
+                size="sm"
+                variant="danger"
+                loading={restore.isPending}
+                disabled={word !== "RESTAURAR" || !pwd}
+              >
+                <RotateCcw className="size-4" /> Restaurar backup
+              </Button>
+            </>
+          )}
+        </form>
+      </div>
+    </CollapsibleCard>
   );
 }

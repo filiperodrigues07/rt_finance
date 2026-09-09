@@ -51,7 +51,7 @@ import type {
   EmailPrefs,
   GlobalEmailSettings,
 } from "./types";
-import type { BudgetStatus } from "@rt-finance/shared";
+import type { BudgetStatus, RestoreResult } from "@rt-finance/shared";
 
 const qs = (params: Record<string, unknown>): string => {
   const p = new URLSearchParams();
@@ -729,4 +729,27 @@ export function useHouseholdMutations() {
       onSuccess: () => qc.clear(),
     }),
   };
+}
+
+// ---------------- backup / restore ----------------
+export function useBackup() {
+  const qc = useQueryClient();
+  const downloadBackup = async () => {
+    const data = await api.get<unknown>("/household/backup");
+    saveBlob(
+      new Blob([JSON.stringify(data)], { type: "application/json" }),
+      `rt-finance-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    );
+  };
+  const restore = useMutation({
+    mutationFn: ({ file, password }: { file: File; password: string }) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("password", password);
+      form.append("confirm", "RESTAURAR");
+      return api.upload<RestoreResult>("/household/restore", form);
+    },
+    onSuccess: () => qc.clear(),
+  });
+  return { downloadBackup, restore };
 }
