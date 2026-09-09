@@ -70,18 +70,22 @@ const qs = (params: Record<string, unknown>): string => {
 };
 
 // ---------------- dashboard ----------------
-export function useDashboard(range: {
-  from?: string;
-  to?: string;
-  months?: number;
-  memberId?: string;
-  categoryId?: string;
-  accountId?: string;
-  creditCardId?: string;
-}) {
+export function useDashboard(
+  range: {
+    from?: string;
+    to?: string;
+    months?: number;
+    memberId?: string;
+    categoryId?: string;
+    accountId?: string;
+    creditCardId?: string;
+  },
+  opts: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["dashboard", range],
     queryFn: () => api.get<DashboardReport>(`/reports/dashboard${qs(range)}`),
+    enabled: opts.enabled ?? true,
   });
 }
 

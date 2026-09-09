@@ -133,15 +133,17 @@ export function MonthlyEvolutionChart({ data }: { data: MonthlyPoint[] }) {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer>
-        <ComposedChart data={rows} margin={{ left: -12, right: 8, top: 4 }}>
+        <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 4 }}>
           <CartesianGrid stroke={t.grid} strokeDasharray={gridDash} vertical={false} />
           <XAxis dataKey="month" tick={axisTick(t.axis)} axisLine={false} tickLine={false} />
           <YAxis
-            tickFormatter={(v) => Number(v).toLocaleString("pt-BR", { notation: "compact" })}
+            tickFormatter={(v) =>
+              Number(v).toLocaleString("pt-BR", { notation: "compact", maximumFractionDigits: 0 })
+            }
             tick={axisTick(t.axis)}
             axisLine={false}
             tickLine={false}
-            width={48}
+            width={56}
           />
           <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           <Legend wrapperStyle={{ fontSize: 11 }} />

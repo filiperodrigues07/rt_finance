@@ -1,5 +1,25 @@
-import { Download, FileSpreadsheet, FileText, Info, Sparkles, Lightbulb, RefreshCw } from "lucide-react";
-import { firstDayOfMonth, lastDayOfMonth, todayIso, APP_TZ, formatBRL } from "@rt-finance/shared";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Info,
+  Sparkles,
+  Lightbulb,
+  RefreshCw,
+  ArrowRightLeft,
+  ArrowRight,
+} from "lucide-react";
+import {
+  firstDayOfMonth,
+  lastDayOfMonth,
+  todayIso,
+  APP_TZ,
+  formatBRL,
+  addMonths,
+  monthLabelBR,
+} from "@rt-finance/shared";
 import { Tooltip } from "@/components/ui/Tooltip";
 import {
   useCashFlow,
@@ -8,6 +28,7 @@ import {
   usePace,
   useReportExport,
   useReportAnalysis,
+  useDashboard,
 } from "@/lib/hooks";
 import { getAccessToken } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -15,6 +36,7 @@ import { ApiError } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Menu } from "@/components/ui/Menu";
+import { Select } from "@/components/ui/Field";
 import { PageHeader, Stat } from "@/components/ui/data";
 import { Skeleton, ChartSkeleton } from "@/components/ui/misc";
 import {
@@ -22,6 +44,7 @@ import {
   CategoryTrendChart,
   NetWorthChart,
   BreakdownBar,
+  MonthlyEvolutionChart,
 } from "@/components/charts/charts";
 
 export function ReportsPage() {
@@ -34,6 +57,16 @@ export function ReportsPage() {
   const member = useByMember({});
   const pace = usePace();
   const analysis = useReportAnalysis();
+  const navigate = useNavigate();
+  const overview = useDashboard({ months: 12 });
+  const [detailMonth, setDetailMonth] = useState("");
+  const detailRange = detailMonth
+    ? { from: detailMonth, to: lastDayOfMonth(detailMonth, APP_TZ) }
+    : {};
+  const detail = useDashboard(detailRange, { enabled: !!detailMonth });
+  const monthOptions = Array.from({ length: 12 }, (_, i) =>
+    firstDayOfMonth(addMonths(todayIso(APP_TZ), -i, APP_TZ), APP_TZ),
+  );
 
   async function downloadCsv() {
     try {
@@ -158,6 +191,96 @@ export function ReportsPage() {
             )}
           </div>
         )}
+      </Card>
+
+      {/* entradas e saídas (valores reais) */}
+      <Card className="mb-4">
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <ArrowRightLeft className="size-4 text-accent" /> Entradas e saídas
+            </span>
+          }
+          description="Receitas, despesas e saldo por mês — valores realizados"
+        />
+
+        {overview.isLoading || !overview.data ? (
+          <ChartSkeleton className="h-64" />
+        ) : (
+          <>
+            <div className="mb-3 grid grid-cols-3 gap-3">
+              <Stat label="Entradas (período)" cents={overview.data.incomeCents} tone="positive" />
+              <Stat label="Saídas (período)" cents={overview.data.expenseCents} tone="negative" />
+              <Stat
+                label="Saldo"
+                cents={overview.data.resultCents}
+                tone={overview.data.resultCents >= 0 ? "positive" : "negative"}
+              />
+            </div>
+            <MonthlyEvolutionChart data={overview.data.monthly} />
+          </>
+        )}
+
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs font-medium text-muted">Detalhar mês</span>
+              <Select
+                value={detailMonth}
+                onChange={(e) => setDetailMonth(e.target.value)}
+                className="w-56"
+              >
+                <option value="">Escolher um mês…</option>
+                {monthOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {monthLabelBR(m)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {detailMonth && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(`/transacoes?from=${detailMonth}&to=${lastDayOfMonth(detailMonth, APP_TZ)}`)
+                }
+              >
+                Ver lançamentos deste mês <ArrowRight className="size-4" />
+              </Button>
+            )}
+          </div>
+
+          {detailMonth && (
+            <div className="mt-3">
+              {detail.isLoading || !detail.data ? (
+                <ChartSkeleton className="h-40" />
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat label="Entrou" cents={detail.data.incomeCents} tone="positive" />
+                    <Stat label="Saiu" cents={detail.data.expenseCents} tone="negative" />
+                    <Stat
+                      label="Saldo"
+                      cents={detail.data.resultCents}
+                      tone={detail.data.resultCents >= 0 ? "positive" : "negative"}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <CategoryBreakdown title="Entrou por categoria" rows={detail.data.incomeByCategory} />
+                    <CategoryBreakdown title="Saiu por categoria" rows={detail.data.byCategory} />
+                  </div>
+                  {detail.data.byMember.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-xs font-medium text-muted">Gasto por pessoa</div>
+                      <BreakdownBar data={detail.data.byMember} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </Card>
 
       {/* ritmo do mês */}
@@ -290,6 +413,34 @@ export function ReportsPage() {
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+function CategoryBreakdown({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { categoryId: string | null; name: string; icon: string; cents: number; percent: number }[];
+}) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 text-xs font-medium text-muted">{title}</div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted">Nada no mês.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.slice(0, 8).map((c) => (
+            <li key={c.categoryId ?? "none"} className="flex items-center gap-2 text-sm">
+              <span className="shrink-0">{c.icon}</span>
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="tnum shrink-0 text-xs text-muted">{c.percent}%</span>
+              <span className="tnum shrink-0 font-medium">{formatBRL(c.cents)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
