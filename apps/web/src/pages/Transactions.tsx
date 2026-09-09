@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useDensity } from "@/lib/useDensity";
 import type { ListTransactionsQuery } from "@rt-finance/shared";
-import { resolvePeriod, APP_TZ, toCents } from "@rt-finance/shared";
+import { resolvePeriod, APP_TZ, toCents, todayIso } from "@rt-finance/shared";
 import {
   useCategories,
   useCreditCards,
@@ -42,6 +42,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Field } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
+import { Money } from "@/components/ui/Money";
 import { Badge, EmptyState, Skeleton, RowSkeleton } from "@/components/ui/misc";
 import { PageHeader, Stat } from "@/components/ui/data";
 import { Menu } from "@/components/ui/Menu";
@@ -63,6 +64,22 @@ const STATUS_LABEL: Record<string, string> = {
   CLEARED: "Compensado",
   CANCELED: "Cancelado",
 };
+const STATUS_DOT: Record<string, string> = {
+  PENDING: "bg-warning",
+  CONFIRMED: "bg-positive",
+  CLEARED: "bg-accent",
+  CANCELED: "bg-muted",
+};
+
+/** Status como marcador + rótulo (mais leve que um Badge cheio). */
+function StatusTag({ status }: { status: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
+      <span className={"size-1.5 shrink-0 rounded-full " + (STATUS_DOT[status] ?? "bg-muted")} />
+      <span className={status === "CANCELED" ? "line-through" : ""}>{STATUS_LABEL[status]}</span>
+    </span>
+  );
+}
 
 const FILTER_KEYS = [
   "search",
@@ -369,25 +386,31 @@ export function TransactionsPage() {
       />
 
       {/* lançamento rápido */}
-      <div className="relative mb-3">
-        <Zap className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-accent" />
-        <Input
-          className="pl-8 pr-24"
-          placeholder='Lançamento rápido: "gastei 50 no mercado ontem"'
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submitQuick()}
-        />
-        <Button
-          size="sm"
-          className="absolute right-1 top-1"
-          loading={tx.quickAdd.isPending}
-          onClick={submitQuick}
-          disabled={!quick.trim()}
-        >
-          Lançar
-        </Button>
-      </div>
+      <Card className="mb-3 p-3 sm:p-4">
+        <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+          <Zap className="size-4 text-accent" /> Lançamento rápido
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            className="h-11 flex-1"
+            placeholder='Ex.: "gastei 50 no mercado ontem"'
+            value={quick}
+            onChange={(e) => setQuick(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitQuick()}
+          />
+          <Button
+            className="h-11 shrink-0 sm:w-28"
+            loading={tx.quickAdd.isPending}
+            onClick={submitQuick}
+            disabled={!quick.trim()}
+          >
+            Lançar
+          </Button>
+        </div>
+        <p className="mt-1.5 text-xs text-muted">
+          Descreva em linguagem natural — a IA interpreta valor, categoria, data e responsável.
+        </p>
+      </Card>
 
       {/* busca + filtros */}
       <div className="mb-3 flex gap-2">
@@ -573,11 +596,13 @@ export function TransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((t) => (
+                {rows.map((t) => {
+                  const future = t.date.slice(0, 10) > todayIso(APP_TZ);
+                  return (
                   <tr
                     key={t.id}
                     className={
-                      "border-b border-border/60 last:border-0 hover:bg-surface-2/40 " +
+                      "group border-b border-border/60 last:border-0 transition-colors hover:bg-surface-2/50 " +
                       (selected.has(t.id) ? "bg-accent/5" : "")
                     }
                   >
@@ -591,11 +616,14 @@ export function TransactionsPage() {
                         className="size-4 accent-[rgb(var(--accent))] disabled:opacity-30"
                       />
                     </td>
-                    <td className="tnum whitespace-nowrap px-4 py-3 text-muted">{formatDate(t.date)}</td>
+                    <td className="tnum whitespace-nowrap px-4 py-3 text-muted">
+                      {formatDate(t.date)}
+                      {future && <span className="ml-1 text-[10px] uppercase text-muted/70">agendado</span>}
+                    </td>
                     {view === "apagar" && (
                       <td className="tnum whitespace-nowrap px-4 py-3">
                         {t.dueDate ? (
-                          <span className={isOverdue(t) ? "font-medium text-negative" : ""}>
+                          <span className={isOverdue(t) ? "font-medium text-negative" : "text-muted"}>
                             {formatDate(t.dueDate)}
                             {isOverdue(t) && " ⚠"}
                           </span>
@@ -605,7 +633,7 @@ export function TransactionsPage() {
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5 font-medium">
+                      <div className="flex items-center gap-1.5 font-medium text-fg">
                         <span>{t.description}</span>
                         {t._count?.attachments > 0 && (
                           <Paperclip className="size-3 shrink-0 text-muted" aria-label="tem anexo" />
@@ -635,19 +663,18 @@ export function TransactionsPage() {
                         <span className="text-muted">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-sm">
                       <span className="inline-flex items-center gap-1.5">
                         <span className="size-2 rounded-full" style={{ background: t.member.color }} />
                         {t.member.displayName}
                       </span>
                     </td>
-                    <td
-                      className={
-                        "tnum whitespace-nowrap px-4 py-3 text-right font-semibold " +
-                        (t.type === "INCOME" ? "text-positive" : "text-fg")
-                      }
-                    >
-                      {t.type === "INCOME" ? "+" : "−"} {formatBRL(t.amountCents)}
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <Money
+                        cents={t.type === "INCOME" ? t.amountCents : -t.amountCents}
+                        tone={t.type === "INCOME" ? "positive" : undefined}
+                        className="text-[15px] font-semibold"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       {view === "apagar" ? (
@@ -657,17 +684,18 @@ export function TransactionsPage() {
                           </Button>
                         )
                       ) : (
-                        <Badge>{STATUS_LABEL[t.status]}</Badge>
+                        <StatusTag status={t.status} />
                       )}
                     </td>
                     <td className="px-2 py-3">
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end opacity-60 transition-opacity group-hover:opacity-100">
                         {editBtn(t)}
                         {rowMenu(t)}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </Card>
@@ -685,7 +713,7 @@ export function TransactionsPage() {
                     className="mt-1 size-4 shrink-0 accent-[rgb(var(--accent))] disabled:opacity-30"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 font-medium">
+                    <div className="flex items-center gap-1.5 font-medium text-fg">
                       <span className="truncate">{t.description}</span>
                       {t._count?.attachments > 0 && <Paperclip className="size-3 shrink-0 text-muted" />}
                       {t._count?.comments > 0 && (
@@ -695,30 +723,34 @@ export function TransactionsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-muted">
+                    <div className="truncate text-xs text-muted">
+                      {t.creditCard ? `${t.creditCard.icon} ${t.creditCard.name}` : (t.account?.name ?? "—")}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted">
                       {view === "apagar" && t.dueDate ? (
                         <span className={isOverdue(t) ? "text-negative" : ""}>vence {formatDate(t.dueDate)}</span>
                       ) : (
-                        formatDate(t.date)
+                        <span className={t.date.slice(0, 10) > todayIso(APP_TZ) ? "text-muted/70" : ""}>
+                          {formatDate(t.date)}
+                        </span>
                       )}{" "}
                       · {t.member.displayName}
                     </div>
-                    {t.category && (
-                      <div className="mt-1">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {t.category && (
                         <Badge color={t.category.color}>
                           {t.category.icon} {t.category.name}
                         </Badge>
-                      </div>
-                    )}
+                      )}
+                      {view !== "apagar" && <StatusTag status={t.status} />}
+                    </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span
-                      className={
-                        "tnum font-semibold " + (t.type === "INCOME" ? "text-positive" : "text-fg")
-                      }
-                    >
-                      {t.type === "INCOME" ? "+" : "−"} {formatBRL(t.amountCents)}
-                    </span>
+                    <Money
+                      cents={t.type === "INCOME" ? t.amountCents : -t.amountCents}
+                      tone={t.type === "INCOME" ? "positive" : undefined}
+                      className="font-semibold"
+                    />
                     <div className="flex items-center">
                       {view === "apagar" && !t.installmentId && (
                         <Button size="sm" variant="outline" onClick={() => setPayTarget(t)}>
@@ -770,7 +802,7 @@ export function TransactionsPage() {
 
       {/* barra de ações em massa */}
       {selected.size > 0 && (
-        <div className="pb-safe fixed inset-x-0 bottom-14 z-40 border-t border-border bg-surface/95 p-3 backdrop-blur lg:bottom-0 lg:pl-[260px]">
+        <div className="pb-safe fixed inset-x-0 bottom-14 z-40 border-t border-border bg-surface/95 p-3 backdrop-blur lg:bottom-0 lg:pl-[var(--rt-sidebar-w,264px)]">
           <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
             <span className="shrink-0 text-sm font-medium">{selected.size} selecionado(s)</span>
             <div className="hidden flex-1 sm:block" />
