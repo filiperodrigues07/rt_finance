@@ -1,5 +1,6 @@
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
 import { firstDayOfMonth, lastDayOfMonth, todayIso, APP_TZ, formatBRL } from "@rt-finance/shared";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { useCashFlow, useCategoryTrend, useByMember, usePace, useReportExport } from "@/lib/hooks";
 import { getAccessToken } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -87,19 +88,49 @@ export function ReportsPage() {
           <Stat label={`Gasto · ${pace.data.monthLabel}`} value={formatBRL(pace.data.spentCents)} tone="negative" />
           <Stat
             label="Média por dia"
-            value={formatBRL(pace.data.perDayCents)}
-            hint={`${pace.data.daysElapsed} de ${pace.data.daysInMonth} dias`}
+            value={formatBRL(pace.data.discretionaryPerDayCents)}
+            hint={`gasto variável · ${pace.data.daysElapsed} de ${pace.data.daysInMonth} dias`}
           />
-          <Stat
-            label="Projeção de fim de mês"
-            value={formatBRL(pace.data.projectedSpendCents)}
-            hint="mantendo o ritmo"
-          />
-          <Stat
-            label="Resultado projetado"
-            value={formatBRL(pace.data.projectedResultCents)}
-            tone={pace.data.projectedResultCents >= 0 ? "positive" : "negative"}
-          />
+          {pace.data.daysElapsed < 5 ? (
+            <div className="card col-span-2 flex items-center p-3 text-xs text-muted sm:p-4">
+              Poucos dias no mês para projetar com confiança. As projeções aparecem a partir do 5º
+              dia.
+            </div>
+          ) : (
+            <>
+              <Stat
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Projeção de fim de mês
+                    <Tooltip
+                      side="top"
+                      label={`${formatBRL(pace.data.spentSoFarCents)} já gasto + ${formatBRL(pace.data.knownBillsRemainingCents)} de contas fixas/agendadas que ainda vencem + ${formatBRL(pace.data.discretionaryPerDayCents)}/dia de gasto variável × ${pace.data.remainingDays} dias restantes`}
+                    >
+                      <Info className="size-3 text-muted" />
+                    </Tooltip>
+                  </span>
+                }
+                value={formatBRL(pace.data.projectedSpendCents)}
+                foot={
+                  <p className="text-[11px] leading-snug text-muted">
+                    {formatBRL(pace.data.spentSoFarCents)} gasto + {formatBRL(pace.data.knownBillsRemainingCents)} a
+                    vencer + {formatBRL(pace.data.discretionaryPerDayCents)}/dia × {pace.data.remainingDays}d
+                  </p>
+                }
+              />
+              <Stat
+                label="Resultado projetado"
+                value={formatBRL(pace.data.projectedResultCents)}
+                tone={pace.data.projectedResultCents >= 0 ? "positive" : "negative"}
+                foot={
+                  <p className="text-[11px] leading-snug text-muted">
+                    receita {formatBRL(pace.data.projectedIncomeCents)} − despesa{" "}
+                    {formatBRL(pace.data.projectedSpendCents)}
+                  </p>
+                }
+              />
+            </>
+          )}
         </div>
       )}
 
