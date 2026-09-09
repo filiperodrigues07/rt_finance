@@ -270,50 +270,14 @@ export class HouseholdsService {
     if (!ok) throw new DomainError("Senha incorreta");
 
     const hid = actor.householdId;
-    const cleared: string[] = [];
+    let cleared: string[] = [];
 
     await this.prisma.$transaction(async (tx) => {
-      // histórico (ordem respeita as FKs; muitos filhos caem por cascade)
-      await tx.goalContribution.deleteMany({ where: { goal: { householdId: hid } } });
-      await tx.financialGoal.deleteMany({ where: { householdId: hid } });
-      await tx.budget.deleteMany({ where: { householdId: hid } });
-      await tx.recurringRun.deleteMany({ where: { recurringExpense: { householdId: hid } } });
-      await tx.recurringExpense.deleteMany({ where: { householdId: hid } });
-      await tx.installment.deleteMany({ where: { plan: { householdId: hid } } });
-      await tx.installmentPlan.deleteMany({ where: { householdId: hid } });
-      await tx.transaction.deleteMany({ where: { householdId: hid } }); // cascade nos anexos
-      await tx.creditCardInvoice.deleteMany({ where: { creditCard: { householdId: hid } } });
-      await tx.importRow.deleteMany({ where: { batch: { householdId: hid } } });
-      await tx.importBatch.deleteMany({ where: { householdId: hid } });
-      await tx.whatsappMessage.deleteMany({ where: { householdId: hid } });
-      await tx.aiInteraction.deleteMany({ where: { conversation: { householdId: hid } } });
-      await tx.aiConversation.deleteMany({ where: { householdId: hid } });
-      await tx.notification.deleteMany({ where: { householdId: hid } });
-      cleared.push("histórico");
-
-      if (body.alsoCards) {
-        await tx.creditCard.deleteMany({ where: { householdId: hid } });
-        cleared.push("cartões");
-      }
-      if (body.alsoAccounts) {
-        await tx.account.deleteMany({ where: { householdId: hid } });
-        cleared.push("contas");
-      }
-      if (body.alsoCategories) {
-        await tx.category.deleteMany({ where: { householdId: hid } });
-        await tx.category.createMany({
-          data: SYSTEM_CATEGORIES.map((c) => ({
-            householdId: hid,
-            name: c.name,
-            icon: c.icon,
-            color: c.color,
-            kind: c.kind,
-            isSystem: true,
-          })),
-        });
-        cleared.push("categorias (recriadas as padrão)");
-      }
-
+      cleared = await this.wipeHouseholdData(tx, hid, {
+        accounts: body.alsoAccounts,
+        cards: body.alsoCards,
+        categories: body.alsoCategories,
+      });
       await tx.auditLog.create({
         data: {
           householdId: hid,
@@ -327,5 +291,70 @@ export class HouseholdsService {
     });
 
     return { cleared };
+  }
+
+  /**
+   * Apaga os dados do household na ordem das FKs. Sempre limpa o histórico
+   * (lançamentos, parcelas, faturas, recorrências, metas, orçamentos, importações,
+   * notificações e conversas do bot). `accounts`/`cards` também apagam contas/
+   * cartões; `categories` apaga e recria as categorias padrão. Roda dentro de uma
+   * transação passada por quem chama (reset-data e restore de backup).
+   */
+  async wipeHouseholdData(
+    tx: Prisma.TransactionClient,
+    hid: string,
+    opts: {
+      accounts?: boolean;
+      cards?: boolean;
+      categories?: boolean;
+      /** por padrão recria as categorias padrão ao apagá-las; restore de backup pula (traz as suas) */
+      seedCategories?: boolean;
+    } = {},
+  ): Promise<string[]> {
+    const cleared: string[] = [];
+    await tx.goalContribution.deleteMany({ where: { goal: { householdId: hid } } });
+    await tx.financialGoal.deleteMany({ where: { householdId: hid } });
+    await tx.budget.deleteMany({ where: { householdId: hid } });
+    await tx.recurringRun.deleteMany({ where: { recurringExpense: { householdId: hid } } });
+    await tx.recurringExpense.deleteMany({ where: { householdId: hid } });
+    await tx.installment.deleteMany({ where: { plan: { householdId: hid } } });
+    await tx.installmentPlan.deleteMany({ where: { householdId: hid } });
+    await tx.transaction.deleteMany({ where: { householdId: hid } }); // cascade nos anexos/comentários
+    await tx.creditCardInvoice.deleteMany({ where: { creditCard: { householdId: hid } } });
+    await tx.importRow.deleteMany({ where: { batch: { householdId: hid } } });
+    await tx.importBatch.deleteMany({ where: { householdId: hid } });
+    await tx.whatsappMessage.deleteMany({ where: { householdId: hid } });
+    await tx.aiInteraction.deleteMany({ where: { conversation: { householdId: hid } } });
+    await tx.aiConversation.deleteMany({ where: { householdId: hid } });
+    await tx.notification.deleteMany({ where: { householdId: hid } });
+    cleared.push("histórico");
+
+    if (opts.cards) {
+      await tx.creditCard.deleteMany({ where: { householdId: hid } });
+      cleared.push("cartões");
+    }
+    if (opts.accounts) {
+      await tx.account.deleteMany({ where: { householdId: hid } });
+      cleared.push("contas");
+    }
+    if (opts.categories) {
+      await tx.category.deleteMany({ where: { householdId: hid } });
+      if (opts.seedCategories !== false) {
+        await tx.category.createMany({
+          data: SYSTEM_CATEGORIES.map((c) => ({
+            householdId: hid,
+            name: c.name,
+            icon: c.icon,
+            color: c.color,
+            kind: c.kind,
+            isSystem: true,
+          })),
+        });
+        cleared.push("categorias (recriadas as padrão)");
+      } else {
+        cleared.push("categorias");
+      }
+    }
+    return cleared;
   }
 }

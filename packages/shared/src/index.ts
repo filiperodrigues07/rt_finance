@@ -29,3 +29,4 @@ export * from "./schemas/comment.js";
 export * from "./schemas/activity.js";
 export * from "./schemas/share.js";
 export * from "./schemas/admin.js";
+export * from "./schemas/backup.js";

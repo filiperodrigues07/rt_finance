@@ -757,6 +757,66 @@ describe("relatórios", () => {
   });
 });
 
+describe("backup / restore", () => {
+  it("exporta e restaura sem perder dados (round-trip)", async () => {
+    const dump = await http.get("/api/household/backup").set(auth());
+    expect(dump.status).toBe(200);
+    expect(dump.headers["content-disposition"]).toContain("rt-finance-backup-");
+    const b = dump.body;
+    expect(b.version).toBe(1);
+    const before = {
+      transaction: b.transactions.length,
+      category: b.categories.length,
+      creditCard: b.creditCards.length,
+      financialGoal: b.financialGoals.length,
+      installment: b.installments.length,
+    };
+    expect(before.transaction).toBeGreaterThan(0);
+
+    const file = Buffer.from(JSON.stringify(b));
+    const restore = await http
+      .post("/api/household/restore")
+      .set(auth())
+      .field("password", "test1234")
+      .field("confirm", "RESTAURAR")
+      .attach("file", file, { filename: "backup.json", contentType: "application/json" });
+    expect(restore.status).toBe(201);
+    expect(restore.body.restored.transaction).toBe(before.transaction);
+
+    const dump2 = await http.get("/api/household/backup").set(auth());
+    expect(dump2.body.transactions.length).toBe(before.transaction);
+    expect(dump2.body.categories.length).toBe(before.category);
+    expect(dump2.body.creditCards.length).toBe(before.creditCard);
+    expect(dump2.body.financialGoals.length).toBe(before.financialGoal);
+    expect(dump2.body.installments.length).toBe(before.installment);
+  });
+
+  it("recusa senha errada, confirmação errada e não-dono", async () => {
+    const file = Buffer.from(JSON.stringify((await http.get("/api/household/backup").set(auth())).body));
+    const send = (extra: (r: ReturnType<typeof http.post>) => ReturnType<typeof http.post>) =>
+      extra(http.post("/api/household/restore")).attach("file", file, {
+        filename: "b.json",
+        contentType: "application/json",
+      });
+
+    const badPw = await send((r) => r.set(auth()).field("password", "errada").field("confirm", "RESTAURAR"));
+    expect(badPw.status).toBe(422);
+    const badConfirm = await send((r) => r.set(auth()).field("password", "test1234").field("confirm", "sim"));
+    expect(badConfirm.status).toBe(422);
+
+    const partner = await http
+      .post("/api/auth/login")
+      .send({ email: "partner@test.local", password: "test1234" });
+    const forbidden = await send((r) =>
+      r
+        .set("authorization", `Bearer ${partner.body.tokens.accessToken}`)
+        .field("password", "test1234")
+        .field("confirm", "RESTAURAR"),
+    );
+    expect(forbidden.status).toBe(403);
+  });
+});
+
 describe("limpar dados (zona de perigo)", () => {
   it("recusa senha errada", async () => {
     const res = await http
