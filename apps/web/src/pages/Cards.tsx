@@ -180,13 +180,15 @@ export function CardsPage() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="mb-1 flex justify-between text-xs text-muted">
-                    <span>Utilizado {formatBRL(used)}</span>
-                    <span>Limite {formatBRL(c.limits.limitCents)}</span>
+                  <div className="mb-1 flex items-baseline justify-between text-xs text-muted">
+                    <span>
+                      <strong className="text-fg">{formatBRL(used)}</strong> de {formatBRL(c.limits.limitCents)}
+                    </span>
+                    <span className="tnum font-medium text-fg">{Math.round(pct)}% usado</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-surface-2">
                     <div
-                      className="h-full rounded-full"
+                      className="h-full rounded-full transition-[width] duration-500 ease-smooth"
                       style={{
                         width: `${Math.min(pct, 100)}%`,
                         background: pct >= 90 ? "rgb(var(--negative))" : c.color,

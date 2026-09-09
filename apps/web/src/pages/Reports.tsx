@@ -8,7 +8,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Menu } from "@/components/ui/Menu";
 import { PageHeader, Stat } from "@/components/ui/data";
-import { Skeleton } from "@/components/ui/misc";
+import { Skeleton, ChartSkeleton } from "@/components/ui/misc";
 import {
   CashFlowChart,
   CategoryTrendChart,
@@ -107,7 +107,7 @@ export function ReportsPage() {
         <Card>
           <CardHeader title="Fluxo de caixa projetado" description="6 meses — entradas, saídas e saldo" />
           {cashFlow.isLoading || !cashFlow.data ? (
-            <Skeleton className="h-64" />
+            <ChartSkeleton className="h-64" />
           ) : (
             <CashFlowChart data={cashFlow.data} />
           )}
@@ -116,7 +116,7 @@ export function ReportsPage() {
         <Card>
           <CardHeader title="Patrimônio" description="Contas + metas ao longo de 12 meses" />
           {pace.isLoading || !pace.data ? (
-            <Skeleton className="h-56" />
+            <ChartSkeleton className="h-56" />
           ) : (
             <NetWorthChart data={pace.data.netWorth} />
           )}
@@ -125,7 +125,7 @@ export function ReportsPage() {
         <Card className="lg:col-span-2">
           <CardHeader title="Tendência de gastos" description="Por categoria, últimos 6 meses" />
           {trend.isLoading || !trend.data ? (
-            <Skeleton className="h-64" />
+            <ChartSkeleton className="h-64" />
           ) : (
             <CategoryTrendChart data={trend.data} />
           )}
@@ -134,7 +134,7 @@ export function ReportsPage() {
         <Card className="lg:col-span-2">
           <CardHeader title="Comparativo por pessoa" description="Gastos do mês" />
           {member.isLoading || !member.data ? (
-            <Skeleton className="h-40" />
+            <ChartSkeleton className="h-40" />
           ) : (
             <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
               <BreakdownBar

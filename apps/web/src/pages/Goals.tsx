@@ -11,7 +11,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, Input } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
-import { PageHeader } from "@/components/ui/data";
+import { PageHeader, Progress } from "@/components/ui/data";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
 import type { FinancialGoal } from "@/lib/types";
 
@@ -76,8 +76,9 @@ export function GoalsPage() {
           {data!.map((g) => {
             const pct = percentOf(g.currentCents, g.targetCents);
             const projection = projectGoal(g);
+            const achieved = g.status === "ACHIEVED";
             return (
-              <Card key={g.id} className="p-4">
+              <Card key={g.id} className={"p-4 " + (achieved ? "border-accent/40 bg-accent/[0.04]" : "")}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="grid size-10 shrink-0 place-items-center rounded-lg text-lg" style={{ background: `${g.color}22` }}>
@@ -106,13 +107,13 @@ export function GoalsPage() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="mb-1 flex justify-between text-xs text-muted">
-                    <span>{pct}%</span>
-                    <span>faltam {formatBRL(Math.max(0, g.targetCents - g.currentCents))}</span>
+                  <div className="mb-1 flex justify-between text-xs">
+                    <span className="font-medium text-fg">{pct}%</span>
+                    <span className="text-muted">
+                      faltam {formatBRL(Math.max(0, g.targetCents - g.currentCents))}
+                    </span>
                   </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: g.color }} />
-                  </div>
+                  <Progress percent={pct} color={g.color} animateIn className="h-2.5" />
                 </div>
 
                 {projection && (

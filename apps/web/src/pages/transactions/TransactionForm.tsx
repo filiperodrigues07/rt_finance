@@ -149,7 +149,19 @@ export function TransactionForm({
         </>
       }
     >
-      <form id="tx-form" onSubmit={submit} className="space-y-3">
+      <form id="tx-form" onSubmit={submit} className="space-y-4">
+        {/* 1. Valor — o número mais importante */}
+        <div>
+          <span className="label text-center">Valor</span>
+          <MoneyInput
+            value={amount}
+            onChange={setAmount}
+            autoFocus
+            className="h-16 text-center text-3xl font-semibold tracking-tight"
+          />
+        </div>
+
+        {/* 2. Tipo */}
         <Segmented
           full
           value={type}
@@ -160,36 +172,7 @@ export function TransactionForm({
           ]}
         />
 
-        <FormRow>
-          <Field label="Valor (R$)">
-            <MoneyInput value={amount} onChange={setAmount} autoFocus />
-          </Field>
-          <Field label={when === "scheduled" ? "Vencimento" : "Data"}>
-            <Input
-              type="date"
-              value={when === "scheduled" ? dueDate : date}
-              onChange={(e) =>
-                when === "scheduled" ? setDueDate(e.target.value) : setDate(e.target.value)
-              }
-            />
-          </Field>
-        </FormRow>
-
-        <label className="flex items-center gap-2 text-sm text-fg">
-          <input
-            type="checkbox"
-            checked={when === "scheduled"}
-            onChange={(e) => setWhen(e.target.checked ? "scheduled" : "paid")}
-            className="size-4 shrink-0 accent-[rgb(var(--accent))]"
-          />
-          Agendar como conta a pagar
-        </label>
-        {when === "scheduled" && (
-          <p className="-mt-1 text-xs text-muted">
-            Não entra no saldo até você marcar como paga (aba <span className="text-fg">A pagar</span>).
-          </p>
-        )}
-
+        {/* 3. Descrição */}
         <Field label="Descrição">
           <Input
             value={description}
@@ -198,6 +181,7 @@ export function TransactionForm({
           />
         </Field>
 
+        {/* 4. Categoria + Responsável */}
         <FormRow>
           <Field label="Categoria">
             <CategoryPicker value={categoryId} onChange={setCategoryId} categories={cats} />
@@ -213,6 +197,18 @@ export function TransactionForm({
           </Field>
         </FormRow>
 
+        {/* 5. Data */}
+        <Field label={when === "scheduled" ? "Vencimento" : "Data"}>
+          <Input
+            type="date"
+            value={when === "scheduled" ? dueDate : date}
+            onChange={(e) =>
+              when === "scheduled" ? setDueDate(e.target.value) : setDate(e.target.value)
+            }
+          />
+        </Field>
+
+        {/* 6. Meio de pagamento */}
         <div>
           <span className="label">Meio de pagamento</span>
           <Segmented
@@ -224,28 +220,46 @@ export function TransactionForm({
               { value: "card", label: "Cartão de crédito" },
             ]}
           />
+          <div className="mt-2">
+            {payKind === "account" ? (
+              <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">Selecione a conta…</option>
+                {(accounts.data ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)}>
+                <option value="">Selecione o cartão…</option>
+                {(cards.data ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
         </div>
 
-        {payKind === "account" ? (
-          <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            <option value="">Selecione a conta…</option>
-            {(accounts.data ?? []).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <Select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)}>
-            <option value="">Selecione o cartão…</option>
-            {(cards.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </option>
-            ))}
-          </Select>
+        {/* 7. Agendamento */}
+        <label className="flex items-center gap-2 text-sm text-fg">
+          <input
+            type="checkbox"
+            checked={when === "scheduled"}
+            onChange={(e) => setWhen(e.target.checked ? "scheduled" : "paid")}
+            className="size-4 shrink-0 accent-[rgb(var(--accent))]"
+          />
+          Agendar como conta a pagar
+        </label>
+        {when === "scheduled" && (
+          <p className="-mt-2 text-xs text-muted">
+            Não entra no saldo até você marcar como paga (aba <span className="text-fg">A pagar</span>).
+          </p>
         )}
 
+        {/* 8. Observações */}
         <Field label="Observações" error={error ?? undefined}>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
         </Field>

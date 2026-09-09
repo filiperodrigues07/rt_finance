@@ -27,6 +27,7 @@ import type {
 import { formatBRL, fromCents, shortMonth } from "@/lib/format";
 import { useChartTheme } from "@/lib/chart-theme";
 import { EmptyState } from "@/components/ui/misc";
+import { ChartTooltip } from "./ChartTooltip";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const compactBRL = (reais: number) =>
@@ -47,6 +48,8 @@ const tooltipProps = {
   labelStyle: { color: "rgb(var(--muted))", fontWeight: 600, marginBottom: 2 },
   cursor: { fill: "rgb(var(--fg) / 0.05)" },
 } as const;
+/** só o cursor — o resto do visual vem do <ChartTooltip> custom */
+const cursorProps = { cursor: { fill: "rgb(var(--fg) / 0.05)" } } as const;
 
 /** eixos comuns — sem linha, sem tick, fonte 11 */
 function axisTick(fill: string) {
@@ -92,7 +95,7 @@ export function DonutCategories({ data }: { data: CategorySlice[] }) {
                 <Cell key={s.name} fill={s.color} />
               ))}
             </Pie>
-            <Tooltip formatter={(v: number) => brl(v)} {...tooltipProps} />
+            <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -140,7 +143,7 @@ export function MonthlyEvolutionChart({ data }: { data: MonthlyPoint[] }) {
             tickLine={false}
             width={48}
           />
-          <Tooltip formatter={(v: number) => brl(v)} {...tooltipProps} />
+          <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Receitas" fill={t.positive} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!t.reduced} animationDuration={450} />
           <Bar dataKey="Despesas" fill={t.negative} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={!t.reduced} animationDuration={450} />
@@ -172,8 +175,8 @@ export function BreakdownBar({ data }: { data: (MemberSlice | CardSlice)[] }) {
             tickLine={false}
             width={90}
           />
-          <Tooltip formatter={(v: number) => [brl(v), "Gasto"]} {...tooltipProps} />
-          <Bar dataKey="value" radius={6} maxBarSize={26} isAnimationActive={!t.reduced} animationDuration={450}>
+          <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
+          <Bar dataKey="value" name="Gasto" radius={6} maxBarSize={26} isAnimationActive={!t.reduced} animationDuration={450}>
             {rows.map((r) => (
               <Cell key={r.name} fill={r.color} />
             ))}
@@ -209,8 +212,8 @@ export function FutureCommitmentChart({ data }: { data: FutureCommitmentMonth[] 
             tickLine={false}
             width={44}
           />
-          <Tooltip formatter={(v: number) => [brl(v), "Parcelas"]} {...tooltipProps} />
-          <Bar dataKey="value" fill="url(#fc-grad)" radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!t.reduced} animationDuration={450} />
+          <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
+          <Bar dataKey="value" name="Parcelas" fill="url(#fc-grad)" radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!t.reduced} animationDuration={450} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -238,7 +241,7 @@ export function CashFlowChart({ data }: { data: CashFlowMonth[] }) {
             tickLine={false}
             width={46}
           />
-          <Tooltip formatter={(v: number) => brl(Math.abs(v))} {...tooltipProps} />
+          <Tooltip content={<ChartTooltip formatter={(v) => brl(Math.abs(v))} />} {...cursorProps} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Entradas" fill={t.positive} radius={[3, 3, 0, 0]} maxBarSize={20} isAnimationActive={!t.reduced} animationDuration={450} />
           <Bar dataKey="Saídas" fill={t.negative} radius={[0, 0, 3, 3]} maxBarSize={20} isAnimationActive={!t.reduced} animationDuration={450} />
@@ -278,7 +281,7 @@ export function CategoryTrendChart({ data }: { data: CategoryTrend }) {
             tickLine={false}
             width={46}
           />
-          <Tooltip formatter={(v: number) => brl(v)} {...tooltipProps} />
+          <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {data.series.map((s, i) => (
             <Area
@@ -320,7 +323,7 @@ export function NetWorthChart({ data }: { data: { month: string; cents: number }
             tickLine={false}
             width={46}
           />
-          <Tooltip formatter={(v: number) => brl(v)} {...tooltipProps} />
+          <Tooltip content={<ChartTooltip formatter={brl} />} {...cursorProps} />
           <Area
             dataKey="Patrimônio"
             stroke={t.accent}
