@@ -34,6 +34,7 @@ export function InstallmentForm({
   const [description, setDescription] = useState("");
   const [total, setTotal] = useState("");
   const [count, setCount] = useState("12");
+  const [alreadyPaid, setAlreadyPaid] = useState("0");
   const [purchaseDate, setPurchaseDate] = useState(todayIso(APP_TZ));
   const [categoryId, setCategoryId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export function InstallmentForm({
       setDescription(seed?.description ?? "");
       setTotal(seed?.total ?? "");
       setCount(seed?.count ? String(seed.count) : "12");
+      setAlreadyPaid("0");
       setPurchaseDate(todayIso(APP_TZ));
       setCategoryId(seed?.categoryId ?? "");
       setError(null);
@@ -53,13 +55,14 @@ export function InstallmentForm({
     try {
       const cents = toCents(total);
       const n = Number(count);
+      const paid = Math.max(0, Math.min(Number(alreadyPaid) || 0, n - 1));
       if (cents <= 0 || n < 2) return null;
       const parts = splitInstallments(cents, n);
-      return { first: parts[0]!, n };
+      return { first: parts[paid] ?? parts[0]!, n, paid, remaining: n - paid };
     } catch {
       return null;
     }
-  }, [total, count]);
+  }, [total, count, alreadyPaid]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +74,7 @@ export function InstallmentForm({
       return setError("Valor total inválido");
     }
     const n = Number(count);
+    const paid = Math.max(0, Math.min(Number(alreadyPaid) || 0, n - 1));
     if (totalCents <= 0) return setError("Informe o valor total");
     if (n < 2 || n > 60) return setError("Parcelas entre 2 e 60");
     if (!description.trim()) return setError("Informe a descrição");
@@ -83,8 +87,11 @@ export function InstallmentForm({
         installmentCount: n,
         purchaseDate,
         categoryId: categoryId || null,
+        alreadyPaidCount: paid || undefined,
       });
-      toast.success("Compra parcelada registrada");
+      toast.success(
+        paid > 0 ? `${n - paid} parcela(s) lançada(s) em A pagar` : "Compra parcelada registrada",
+      );
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao salvar");
@@ -123,22 +130,40 @@ export function InstallmentForm({
           <Field label="Data da compra">
             <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
           </Field>
-          <Field label="Categoria">
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Sem categoria</option>
-              {(categories.data ?? [])
-                .filter((c) => c.kind !== "INCOME")
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.icon} {c.name}
-                  </option>
-                ))}
-            </Select>
+          <Field
+            label="Parcelas já pagas"
+            hint="Já vieram em faturas anteriores — não serão lançadas."
+          >
+            <Input
+              type="number"
+              min={0}
+              max={Math.max(0, Number(count) - 1)}
+              value={alreadyPaid}
+              onChange={(e) => setAlreadyPaid(e.target.value)}
+            />
           </Field>
         </div>
+        <Field label="Categoria">
+          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">Sem categoria</option>
+            {(categories.data ?? [])
+              .filter((c) => c.kind !== "INCOME")
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
         {preview && (
           <div className="rounded-lg border border-border bg-surface-2 p-3 text-sm">
             {preview.n}× de <strong>{formatBRL(preview.first)}</strong>
+            {preview.paid > 0 && (
+              <span className="text-muted">
+                {" "}
+                · lança {preview.remaining} (parcelas {preview.paid + 1}–{preview.n})
+              </span>
+            )}
           </div>
         )}
         {error && <p className="text-xs text-negative">{error}</p>}

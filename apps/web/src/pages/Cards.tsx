@@ -24,6 +24,7 @@ import { bankById } from "@rt-finance/shared";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CardForm } from "./cards/CardForm";
 import { InstallmentForm } from "./cards/InstallmentForm";
+import { InvoiceReconcileDialog } from "./cards/InvoiceReconcileDialog";
 import type { CreditCard as CardT } from "@/lib/types";
 
 const INVOICE_STATUS: Record<string, string> = {
@@ -331,54 +332,75 @@ function CardDetail({ cardId }: { cardId: string }) {
   const invoices = useCardInvoices(cardId);
   const plans = useInstallmentPlans();
   const { cancel } = useInstallmentMutations();
+  const { settlePast } = useCreditCardMutations();
   const toast = useToast();
   const cardPlans = (plans.data ?? []).filter((p) => p.creditCard.id === cardId);
   const [shareInvoiceId, setShareInvoiceId] = useState<string | null>(null);
   const [payInvoice, setPayInvoice] = useState<PayInvoiceTarget | null>(null);
+  const [reconcileId, setReconcileId] = useState<string | null>(null);
+  const [settleOpen, setSettleOpen] = useState(false);
+
+  const mmYY = (iso: string) => iso.slice(0, 7).split("-").reverse().join("/");
 
   return (
     <div className="mt-4 space-y-4 border-t border-border pt-4">
       <div>
-        <CardHeader title="Faturas" />
+        <div className="mb-1 flex items-center justify-between">
+          <CardHeader title="Faturas" />
+          <Button variant="ghost" size="sm" onClick={() => setSettleOpen(true)}>
+            Quitar faturas anteriores
+          </Button>
+        </div>
         {invoices.isLoading ? (
           <Skeleton className="h-16" />
         ) : (invoices.data ?? []).length === 0 ? (
           <p className="text-xs text-muted">Nenhuma fatura ainda.</p>
         ) : (
           <ul className="space-y-1.5 text-sm">
-            {invoices.data!.map((inv) => (
-              <li key={inv.id} className="flex items-center justify-between">
-                <span className="text-muted">
-                  {inv.referenceMonth.slice(0, 7).split("-").reverse().join("/")} · vence {formatDate(inv.dueDate)}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Badge>{INVOICE_STATUS[inv.status]}</Badge>
-                  <strong className="tnum">{formatBRL(inv.totalCents)}</strong>
-                  {inv.status !== "PAID" && inv.totalCents > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setPayInvoice({
-                          id: inv.id,
-                          label: `Fatura ${inv.referenceMonth.slice(0, 7).split("-").reverse().join("/")}`,
-                          totalCents: inv.totalCents,
-                        })
-                      }
-                    >
-                      Pagar
-                    </Button>
-                  )}
+            {invoices.data!.map((inv) => {
+              const diff =
+                inv.statementTotalCents != null ? inv.statementTotalCents - inv.totalCents : null;
+              return (
+                <li key={inv.id} className="flex items-center justify-between gap-2">
                   <button
-                    className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
-                    onClick={() => setShareInvoiceId(inv.id)}
-                    aria-label="Compartilhar fatura"
+                    className="min-w-0 flex-1 text-left text-muted hover:text-fg"
+                    onClick={() => setReconcileId(inv.id)}
                   >
-                    <Share2 className="size-3.5" />
+                    {mmYY(inv.referenceMonth)} · vence {formatDate(inv.dueDate)}
+                    {inv.reconciledAt && <span className="ml-1 text-positive">· conferida</span>}
+                    {diff != null && diff !== 0 && (
+                      <span className="ml-1 text-warning">· dif. {formatBRL(diff)}</span>
+                    )}
                   </button>
-                </span>
-              </li>
-            ))}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Badge>{INVOICE_STATUS[inv.status]}</Badge>
+                    <strong className="tnum">{formatBRL(inv.totalCents)}</strong>
+                    {inv.status !== "PAID" && inv.totalCents > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPayInvoice({
+                            id: inv.id,
+                            label: `Fatura ${mmYY(inv.referenceMonth)}`,
+                            totalCents: inv.totalCents,
+                          })
+                        }
+                      >
+                        Pagar
+                      </Button>
+                    )}
+                    <button
+                      className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
+                      onClick={() => setShareInvoiceId(inv.id)}
+                      aria-label="Compartilhar fatura"
+                    >
+                      <Share2 className="size-3.5" />
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -391,6 +413,28 @@ function CardDetail({ cardId }: { cardId: string }) {
       />
 
       <PayInvoiceDialog open={!!payInvoice} onClose={() => setPayInvoice(null)} invoice={payInvoice} />
+      <InvoiceReconcileDialog
+        open={!!reconcileId}
+        onClose={() => setReconcileId(null)}
+        invoiceId={reconcileId}
+      />
+      <ConfirmDialog
+        open={settleOpen}
+        onClose={() => setSettleOpen(false)}
+        onConfirm={async () => {
+          try {
+            const r = await settlePast.mutateAsync(cardId);
+            toast.success(`${r.settled} fatura(s) quitada(s)`);
+            setSettleOpen(false);
+          } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Erro");
+          }
+        }}
+        title="Quitar faturas anteriores"
+        message="Marca as faturas de meses passados como pagas, sem debitar conta. Use ao começar a usar o app com um cartão que já tinha fatura rodando. As parcelas dessas faturas viram gasto histórico."
+        confirmLabel="Quitar"
+        loading={settlePast.isPending}
+      />
 
       <div>
         <CardHeader title="Compras parceladas" />

@@ -152,7 +152,10 @@ export function CardForm({
           <Field label="Limite (R$)" error={error ?? undefined}>
             <MoneyInput value={f.limit} onChange={(v) => setF({ ...f, limit: v })} placeholder="5.000,00" />
           </Field>
-          <Field label="Limite já utilizado (R$)" hint="dívida atual fora dos lançamentos">
+          <Field
+            label="Limite já utilizado (R$)"
+            hint="dívida geral do cartão fora dos lançamentos; para bater a fatura do mês, use o saldo inicial em Faturas"
+          >
             <MoneyInput value={f.usedOpening} onChange={(v) => setF({ ...f, usedOpening: v })} placeholder="0,00" />
           </Field>
         </div>

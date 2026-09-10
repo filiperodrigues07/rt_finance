@@ -66,6 +66,9 @@ export interface CreditCardInvoice {
   dueDate: string;
   status: InvoiceStatus;
   totalCents: number;
+  openingBalanceCents: number;
+  statementTotalCents: number | null;
+  reconciledAt: string | null;
   paidAt: string | null;
 }
 

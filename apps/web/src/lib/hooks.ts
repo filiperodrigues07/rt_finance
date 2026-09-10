@@ -14,6 +14,9 @@ import type {
   ReportAnalysis,
   PayableInvoice,
   PayInvoiceResult,
+  InvoiceDetail,
+  UpdateInvoiceBody,
+  AdjustInvoiceBody,
   ImportBatchDTO,
   ImportBatchDetail,
   ImportRowDTO,
@@ -195,8 +198,9 @@ export function useCardInvoices(cardId: string | null) {
 export function useCreditCardMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["credit-cards"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    for (const k of ["credit-cards", "card-invoices", "payable-invoices", "transactions", "dashboard"]) {
+      qc.invalidateQueries({ queryKey: [k] });
+    }
   };
   return {
     create: useMutation({ mutationFn: (b: unknown) => api.post<CreditCard>("/credit-cards", b), onSuccess: invalidate }),
@@ -205,6 +209,11 @@ export function useCreditCardMutations() {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: (id: string) => api.delete(`/credit-cards/${id}`), onSuccess: invalidate }),
+    settlePast: useMutation({
+      mutationFn: (cardId: string) =>
+        api.post<{ settled: number }>(`/credit-cards/${cardId}/settle-past-invoices`, {}),
+      onSuccess: invalidate,
+    }),
   };
 }
 
@@ -215,17 +224,53 @@ export function usePayableInvoices(enabled = true) {
     enabled,
   });
 }
+export function useInvoiceDetail(invoiceId: string | null) {
+  return useQuery({
+    queryKey: ["invoice-detail", invoiceId],
+    queryFn: () => api.get<InvoiceDetail>(`/invoices/${invoiceId}/detail`),
+    enabled: !!invoiceId,
+  });
+}
+
 export function useInvoiceMutations() {
   const qc = useQueryClient();
+  const invalidate = () => {
+    for (const k of [
+      "credit-cards",
+      "card-invoices",
+      "payable-invoices",
+      "invoice-detail",
+      "transactions",
+      "accounts",
+      "dashboard",
+    ]) {
+      qc.invalidateQueries({ queryKey: [k] });
+    }
+  };
   return {
     pay: useMutation({
       mutationFn: ({ invoiceId, accountId, date }: { invoiceId: string; accountId: string; date?: string }) =>
         api.post<PayInvoiceResult>(`/invoices/${invoiceId}/pay`, { accountId, date }),
-      onSuccess: () => {
-        for (const k of ["credit-cards", "card-invoices", "payable-invoices", "transactions", "accounts", "dashboard"]) {
-          qc.invalidateQueries({ queryKey: [k] });
-        }
-      },
+      onSuccess: invalidate,
+    }),
+    setInvoice: useMutation({
+      mutationFn: ({ invoiceId, body }: { invoiceId: string; body: UpdateInvoiceBody }) =>
+        api.patch<CreditCardInvoice>(`/invoices/${invoiceId}`, body),
+      onSuccess: invalidate,
+    }),
+    adjust: useMutation({
+      mutationFn: ({ invoiceId, body }: { invoiceId: string; body: AdjustInvoiceBody }) =>
+        api.post<InvoiceDetail>(`/invoices/${invoiceId}/adjust`, body),
+      onSuccess: invalidate,
+    }),
+    removeAdjustment: useMutation({
+      mutationFn: (txId: string) => api.delete(`/invoices/adjustments/${txId}`),
+      onSuccess: invalidate,
+    }),
+    reconcile: useMutation({
+      mutationFn: (invoiceId: string) =>
+        api.post<CreditCardInvoice>(`/invoices/${invoiceId}/reconcile`, {}),
+      onSuccess: invalidate,
     }),
   };
 }
