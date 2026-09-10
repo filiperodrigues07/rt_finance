@@ -3,17 +3,24 @@ import { cuid, isoDate, amountCents } from "./common.js";
 import { LIMITS } from "../constants.js";
 
 /** Compra parcelada no cartão (doc 03 fluxo 3). Cria plano + N parcelas + N transações. */
-export const createInstallmentPlanBody = z.object({
-  creditCardId: cuid,
-  categoryId: cuid.nullable().optional(),
-  memberId: cuid.optional(),
-  description: z.string().trim().min(1).max(280),
-  totalCents: amountCents,
-  installmentCount: z.number().int().min(LIMITS.minInstallments).max(LIMITS.maxInstallments),
-  purchaseDate: isoDate,
-  /** Se omitido, a 1ª parcela cai na competência calculada pela data da compra. */
-  firstDueDate: isoDate.nullable().optional(),
-});
+export const createInstallmentPlanBody = z
+  .object({
+    creditCardId: cuid,
+    categoryId: cuid.nullable().optional(),
+    memberId: cuid.optional(),
+    description: z.string().trim().min(1).max(280),
+    totalCents: amountCents,
+    installmentCount: z.number().int().min(LIMITS.minInstallments).max(LIMITS.maxInstallments),
+    purchaseDate: isoDate,
+    /** Se omitido, a 1ª parcela cai na competência calculada pela data da compra. */
+    firstDueDate: isoDate.nullable().optional(),
+    /** Parcelas que já vieram em faturas anteriores (compra começada antes do app) — não são lançadas. */
+    alreadyPaidCount: z.number().int().min(0).max(LIMITS.maxInstallments - 1).optional(),
+  })
+  .refine((b) => (b.alreadyPaidCount ?? 0) < b.installmentCount, {
+    message: "parcelas já pagas deve ser menor que o total",
+    path: ["alreadyPaidCount"],
+  });
 export type CreateInstallmentPlanBody = z.infer<typeof createInstallmentPlanBody>;
 
 export const listInstallmentPlansQuery = z.object({

@@ -4,6 +4,8 @@ import {
   invoiceCompetence,
   monthLabelBR,
   todayIso,
+  type AdjustInvoiceBody,
+  type InvoiceDetail,
   type PayInvoiceBody,
   type PayInvoiceResult,
   type PayableInvoice,
@@ -66,15 +68,48 @@ export class InvoicesService {
     });
   }
 
-  /** Recalcula o total (cache) de uma fatura a partir das transações associadas. */
+  /**
+   * Recalcula o total (cache) de uma fatura: saldo inicial (não detalhado) + soma das transações
+   * associadas COM SINAL (EXPENSE − INCOME). Ignora canceladas. A soma com sinal também corrige
+   * estornos/`INCOME` no cartão, que antes aumentavam a fatura.
+   */
   async recalcTotal(invoiceId: string, db: Db = this.prisma): Promise<number> {
-    const agg = await db.transaction.aggregate({
-      where: { invoiceId, status: { not: "CANCELED" } },
-      _sum: { amountCents: true },
-    });
-    const totalCents = agg._sum.amountCents ?? 0;
+    const [inv, byType] = await Promise.all([
+      db.creditCardInvoice.findUnique({
+        where: { id: invoiceId },
+        select: { openingBalanceCents: true },
+      }),
+      db.transaction.groupBy({
+        by: ["type"],
+        where: { invoiceId, status: { not: "CANCELED" } },
+        _sum: { amountCents: true },
+        orderBy: { type: "asc" },
+      }),
+    ]);
+    const s = (t: "EXPENSE" | "INCOME") =>
+      byType.find((r) => r.type === t)?._sum.amountCents ?? 0;
+    const totalCents = (inv?.openingBalanceCents ?? 0) + s("EXPENSE") - s("INCOME");
     await db.creditCardInvoice.update({ where: { id: invoiceId }, data: { totalCents } });
     return totalCents;
+  }
+
+  /** Ajusta saldo inicial (não detalhado) e/ou o valor real da fatura para conferência. */
+  async patch(
+    householdId: string,
+    invoiceId: string,
+    body: { openingBalanceCents?: number; statementTotalCents?: number | null },
+  ): Promise<CreditCardInvoice> {
+    await this.get(householdId, invoiceId);
+    await this.prisma.creditCardInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        openingBalanceCents: body.openingBalanceCents,
+        statementTotalCents:
+          body.statementTotalCents === undefined ? undefined : body.statementTotalCents,
+      },
+    });
+    if (body.openingBalanceCents !== undefined) await this.recalcTotal(invoiceId);
+    return this.get(householdId, invoiceId);
   }
 
   async listForCard(householdId: string, cardId: string): Promise<CreditCardInvoice[]> {
@@ -220,5 +255,175 @@ export class InvoicesService {
       overdue += res.count;
     }
     return { closed, overdue };
+  }
+
+  /**
+   * Quita em massa as faturas de meses ANTERIORES de um cartão, sem debitar conta — para o
+   * onboarding de quem começou a usar o app com fatura já rodando. As parcelas PENDING dessas
+   * faturas viram CLEARED (gasto histórico real, saem de "a pagar").
+   */
+  async settlePast(
+    householdId: string,
+    cardId: string,
+    opts: { throughMonth?: string } = {},
+  ): Promise<{ settled: number }> {
+    const card = await this.prisma.creditCard.findFirst({ where: { id: cardId, householdId } });
+    if (!card) throw new NotFoundError("Cartão");
+
+    const tz = await this.timezone(householdId);
+    const comp = invoiceCompetence({
+      date: todayIso(tz),
+      closingDay: card.closingDay,
+      dueDay: card.dueDay,
+      tz,
+    });
+    const cutoff = dateOnly(opts.throughMonth ?? comp.referenceMonth);
+
+    const invoices = await this.prisma.creditCardInvoice.findMany({
+      where: { creditCardId: card.id, status: { not: "PAID" }, referenceMonth: { lt: cutoff } },
+      select: { id: true, dueDate: true },
+    });
+
+    for (const inv of invoices) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.transaction.updateMany({
+          where: { invoiceId: inv.id, status: "PENDING" },
+          data: { status: "CLEARED", paidAt: inv.dueDate },
+        });
+        await tx.installment.updateMany({
+          where: { invoiceId: inv.id, status: { in: ["SCHEDULED", "BILLED"] } },
+          data: { status: "PAID" },
+        });
+        await tx.creditCardInvoice.update({
+          where: { id: inv.id },
+          data: { status: "PAID", paidAt: new Date() },
+        });
+        await this.recalcTotal(inv.id, tx);
+      });
+    }
+    return { settled: invoices.length };
+  }
+
+  /** Fatura + lançamentos + breakdown para a tela de conciliação. */
+  async detail(householdId: string, invoiceId: string): Promise<InvoiceDetail> {
+    const invoice = await this.prisma.creditCardInvoice.findFirst({
+      where: { id: invoiceId, creditCard: { householdId } },
+      include: {
+        transactions: {
+          where: { status: { not: "CANCELED" } },
+          orderBy: { date: "asc" },
+          select: {
+            id: true,
+            type: true,
+            amountCents: true,
+            description: true,
+            date: true,
+            categoryId: true,
+            source: true,
+          },
+        },
+      },
+    });
+    if (!invoice) throw new NotFoundError("Fatura");
+
+    const signed = (t: { type: string; amountCents: number }) =>
+      t.type === "INCOME" ? -t.amountCents : t.amountCents;
+    const adj = invoice.transactions.filter((t) => t.source === "ADJUSTMENT");
+    const items = invoice.transactions.filter((t) => t.source !== "ADJUSTMENT");
+    const itemizedCents = items.reduce((a, t) => a + signed(t), 0);
+    const adjustmentsCents = adj.reduce((a, t) => a + signed(t), 0);
+    const totalCents = invoice.totalCents;
+    const diffCents = (invoice.statementTotalCents ?? totalCents) - totalCents;
+
+    return {
+      id: invoice.id,
+      creditCardId: invoice.creditCardId,
+      referenceMonth: toIsoDate(invoice.referenceMonth),
+      closingDate: toIsoDate(invoice.closingDate),
+      dueDate: toIsoDate(invoice.dueDate),
+      status: invoice.status,
+      totalCents,
+      openingBalanceCents: invoice.openingBalanceCents,
+      itemizedCents,
+      adjustmentsCents,
+      statementTotalCents: invoice.statementTotalCents,
+      diffCents,
+      reconciledAt: invoice.reconciledAt ? invoice.reconciledAt.toISOString() : null,
+      adjustments: adj.map((t) => ({
+        id: t.id,
+        description: t.description,
+        amountCents: signed(t),
+        date: toIsoDate(t.date),
+        categoryId: t.categoryId,
+      })),
+    };
+  }
+
+  /** Conciliação: joga a diferença no saldo inicial, ou cria um lançamento de ajuste na fatura. */
+  async adjust(
+    householdId: string,
+    invoiceId: string,
+    actingMemberId: string,
+    body: AdjustInvoiceBody,
+  ): Promise<InvoiceDetail> {
+    const invoice = await this.get(householdId, invoiceId);
+    const before = await this.detail(householdId, invoiceId);
+    const amount = body.amountCents ?? before.diffCents;
+    if (!amount) throw new DomainError("Não há diferença para ajustar");
+
+    if (body.mode === "opening") {
+      const next = Math.max(0, invoice.openingBalanceCents + amount);
+      await this.prisma.creditCardInvoice.update({
+        where: { id: invoiceId },
+        data: { openingBalanceCents: next },
+      });
+      await this.recalcTotal(invoiceId);
+    } else {
+      const tz = await this.timezone(householdId);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.transaction.create({
+          data: {
+            householdId,
+            type: amount > 0 ? "EXPENSE" : "INCOME",
+            amountCents: Math.abs(amount),
+            description: body.description?.trim() || "Ajuste de fatura",
+            date: dateOnly(todayIso(tz)),
+            status: "CONFIRMED",
+            source: "ADJUSTMENT",
+            categoryId: body.categoryId ?? null,
+            creditCardId: invoice.creditCardId,
+            invoiceId,
+            memberId: actingMemberId,
+            createdById: actingMemberId,
+          },
+        });
+        await this.recalcTotal(invoiceId, tx);
+      });
+    }
+    return this.detail(householdId, invoiceId);
+  }
+
+  /** Remove um lançamento de ajuste (source ADJUSTMENT) e recalcula a fatura. */
+  async unadjust(householdId: string, txId: string): Promise<{ removed: true }> {
+    const tx = await this.prisma.transaction.findFirst({
+      where: { id: txId, source: "ADJUSTMENT", invoice: { creditCard: { householdId } } },
+      select: { id: true, invoiceId: true },
+    });
+    if (!tx?.invoiceId) throw new NotFoundError("Ajuste");
+    await this.prisma.transaction.delete({ where: { id: tx.id } });
+    await this.recalcTotal(tx.invoiceId);
+    return { removed: true };
+  }
+
+  /** Marca a fatura como conferida; se não houver valor real informado, adota o total do app. */
+  async markReconciled(householdId: string, invoiceId: string): Promise<CreditCardInvoice> {
+    const invoice = await this.get(householdId, invoiceId);
+    return this.prisma.creditCardInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        reconciledAt: new Date(),
+        statementTotalCents: invoice.statementTotalCents ?? invoice.totalCents,
+      },
+    });
   }
 }

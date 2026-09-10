@@ -2,8 +2,10 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/commo
 import {
   createCreditCardBody,
   updateCreditCardBody,
+  settlePastInvoicesBody,
   idParam,
   type CreateCreditCardBody,
+  type SettlePastInvoicesBody,
   type UpdateCreditCardBody,
 } from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
@@ -37,6 +39,15 @@ export class CreditCardsController {
     @Param(new ZodValidationPipe(idParam)) params: { id: string },
   ) {
     return this.invoices.listForCard(householdId, params.id);
+  }
+
+  @Post(":id/settle-past-invoices")
+  settlePast(
+    @CurrentHousehold() householdId: string,
+    @Param(new ZodValidationPipe(idParam)) params: { id: string },
+    @Body(new ZodValidationPipe(settlePastInvoicesBody)) body: SettlePastInvoicesBody,
+  ) {
+    return this.invoices.settlePast(householdId, params.id, body);
   }
 
   @Post()

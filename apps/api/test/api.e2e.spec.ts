@@ -252,6 +252,151 @@ describe("pagar fatura de cartão", () => {
   });
 });
 
+describe("fatura: saldo inicial, conciliação e quitar anteriores", () => {
+  let cardId: string;
+  let invoiceId: string;
+
+  const cardUsed = async () => {
+    const res = await http.get("/api/credit-cards").set(auth());
+    return res.body.find((c: { id: string }) => c.id === cardId).limits.usedCents as number;
+  };
+
+  it("cria cartão e uma despesa que abre a fatura", async () => {
+    const card = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Onboarding Card", limitCents: 1_000_000, closingDay: 10, dueDay: 17 });
+    cardId = card.body.id;
+    await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 10_000, description: "compra", date: "2026-09-05", creditCardId: cardId });
+    const invs = await http.get(`/api/credit-cards/${cardId}/invoices`).set(auth());
+    invoiceId = invs.body[0].id;
+    expect(invs.body[0].totalCents).toBe(10_000);
+  });
+
+  it("saldo inicial entra no total da fatura e no limite usado", async () => {
+    const usedBefore = await cardUsed();
+    const res = await http
+      .patch(`/api/invoices/${invoiceId}`)
+      .set(auth())
+      .send({ openingBalanceCents: 50_000 });
+    expect(res.status).toBe(200);
+    expect(res.body.totalCents).toBe(60_000);
+    expect(await cardUsed()).toBe(usedBefore + 50_000);
+  });
+
+  it("valor real + conciliação: somar a diferença ao saldo inicial", async () => {
+    await http.patch(`/api/invoices/${invoiceId}`).set(auth()).send({ statementTotalCents: 75_000 });
+    const d1 = await http.get(`/api/invoices/${invoiceId}/detail`).set(auth());
+    expect(d1.body.diffCents).toBe(15_000); // 75.000 real − 60.000 app
+
+    const adj = await http
+      .post(`/api/invoices/${invoiceId}/adjust`)
+      .set(auth())
+      .send({ mode: "opening" });
+    expect(adj.status).toBeLessThan(300);
+    expect(adj.body.openingBalanceCents).toBe(65_000);
+    expect(adj.body.totalCents).toBe(75_000);
+    expect(adj.body.diffCents).toBe(0);
+  });
+
+  it("lançamento de ajuste: cria transação ADJUSTMENT e pode ser removido", async () => {
+    await http.patch(`/api/invoices/${invoiceId}`).set(auth()).send({ statementTotalCents: 80_000 });
+    const created = await http
+      .post(`/api/invoices/${invoiceId}/adjust`)
+      .set(auth())
+      .send({ mode: "transaction", description: "diferença anuidade" });
+    expect(created.body.adjustments).toHaveLength(1);
+    expect(created.body.totalCents).toBe(80_000);
+    const txId = created.body.adjustments[0].id;
+
+    const back = await http.delete(`/api/invoices/adjustments/${txId}`).set(auth());
+    expect(back.status).toBe(200);
+    const d = await http.get(`/api/invoices/${invoiceId}/detail`).set(auth());
+    expect(d.body.adjustments).toHaveLength(0);
+    expect(d.body.totalCents).toBe(75_000);
+  });
+
+  it("marcar como conferida grava reconciledAt", async () => {
+    const res = await http.post(`/api/invoices/${invoiceId}/reconcile`).set(auth());
+    expect(res.status).toBeLessThan(300);
+    expect(res.body.reconciledAt).toBeTruthy();
+  });
+
+  it("parcelamento com alreadyPaidCount lança só as restantes", async () => {
+    const c = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Sofa Card", limitCents: 1_000_000, closingDay: 10, dueDay: 17 });
+    const plan = await http
+      .post("/api/installments/plans")
+      .set(auth())
+      .send({
+        creditCardId: c.body.id,
+        description: "Sofá",
+        totalCents: 100_000,
+        installmentCount: 10,
+        purchaseDate: "2026-06-03",
+        alreadyPaidCount: 3,
+      });
+    expect(plan.status).toBe(201);
+    const full = await http.get(`/api/installments/plans/${plan.body.id}`).set(auth());
+    const inst = full.body.installments as { number: number; status: string; transactionId: string | null }[];
+    expect(inst).toHaveLength(10);
+    expect(inst.filter((i) => i.status === "PAID")).toHaveLength(3);
+    expect(inst.filter((i) => i.status === "PAID").every((i) => i.transactionId == null)).toBe(true);
+    expect(inst.filter((i) => i.status === "SCHEDULED")).toHaveLength(7);
+
+    const generatedTx = await prisma.transaction.count({
+      where: { description: { startsWith: "Sofá (" } },
+    });
+    expect(generatedTx).toBe(7);
+    // a 1ª parcela lançada é a de nº 4 → competência 2026-09
+    const firstGen = await prisma.transaction.findFirst({
+      where: { description: "Sofá (4/10)" },
+    });
+    expect(firstGen?.date.toISOString().slice(0, 7)).toBe("2026-09");
+  });
+
+  it("quitar faturas anteriores: passadas viram PAID e suas parcelas CLEARED", async () => {
+    const other = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Legado Card", limitCents: 1_000_000, closingDay: 10, dueDay: 17 });
+    const otherId = other.body.id;
+    await http
+      .post("/api/installments/plans")
+      .set(auth())
+      .send({
+        creditCardId: otherId,
+        description: "Geladeira",
+        totalCents: 40_000,
+        installmentCount: 4,
+        purchaseDate: "2026-05-03",
+      });
+
+    const before = await http.get(`/api/credit-cards/${otherId}/invoices`).set(auth());
+    expect(before.body).toHaveLength(4);
+
+    const res = await http.post(`/api/credit-cards/${otherId}/settle-past-invoices`).set(auth()).send({});
+    expect(res.status).toBeLessThan(300);
+    expect(res.body.settled).toBe(4);
+
+    const after = await http.get(`/api/credit-cards/${otherId}/invoices`).set(auth());
+    expect(after.body.every((i: { status: string }) => i.status === "PAID")).toBe(true);
+
+    const payable = await http.get("/api/invoices/payable").set(auth());
+    expect(payable.body.some((i: { creditCardId: string }) => i.creditCardId === otherId)).toBe(false);
+
+    const cleared = await prisma.transaction.count({
+      where: { description: { startsWith: "Geladeira (" }, status: "CLEARED", paidAt: { not: null } },
+    });
+    expect(cleared).toBe(4);
+  });
+});
+
 describe("dono + banco em contas/cartões", () => {
   it("cria conta com memberId + bankId e o GET devolve os dois + member", async () => {
     const res = await http

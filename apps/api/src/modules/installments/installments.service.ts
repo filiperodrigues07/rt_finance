@@ -111,11 +111,27 @@ export class InstallmentsService {
         });
 
         const touchedInvoices = new Set<string>();
+        // Parcelas que já vieram em faturas anteriores (compra começada antes do app): entram só
+        // como Installment PAID (sem fatura, sem transação), preservando number/valor no plano.
+        const alreadyPaid = Math.min(body.alreadyPaidCount ?? 0, body.installmentCount - 1);
 
         for (let i = 0; i < body.installmentCount; i++) {
           const referenceMonth = addMonths(firstReferenceMonth, i, tz);
           const closingDate = clampDayToMonth(referenceMonth, card.closingDay, tz);
           const dueDate = this.dueDateForReference(referenceMonth, card, tz);
+
+          if (i < alreadyPaid) {
+            await tx.installment.create({
+              data: {
+                planId: plan.id,
+                number: i + 1,
+                amountCents: amounts[i]!,
+                dueDate: dateOnly(dueDate),
+                status: "PAID",
+              },
+            });
+            continue;
+          }
 
           const invoice = await tx.creditCardInvoice.upsert({
             where: {

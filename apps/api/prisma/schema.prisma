@@ -34,6 +34,7 @@ enum TransactionSource {
   WHATSAPP
   RECURRING
   IMPORT
+  ADJUSTMENT
 }
 
 enum CategoryKind {
@@ -354,6 +355,11 @@ model CreditCardInvoice {
   dueDate              DateTime      @db.Date
   status               InvoiceStatus @default(OPEN)
   totalCents           Int           @default(0)
+  /// Valor que já estava na fatura ao começar a usar o app e não vai ser detalhado (parcelas antigas, compras anteriores).
+  openingBalanceCents  Int           @default(0)
+  /// Valor real da fatura (digitado na conciliação ou vindo do import) — base para conferir com o totalCents.
+  statementTotalCents  Int?
+  reconciledAt         DateTime?     @db.Timestamptz(6)
   paidAt               DateTime?     @db.Timestamptz(6)
   paymentTransactionId String?       @unique
   createdAt            DateTime      @default(now()) @db.Timestamptz(6)

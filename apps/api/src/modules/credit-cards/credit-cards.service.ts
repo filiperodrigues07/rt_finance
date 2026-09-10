@@ -65,17 +65,27 @@ export class CreditCardsService {
   private async withLimits(
     card: CreditCard & { member: MemberDto },
   ): Promise<CreditCardWithLimits> {
-    // Limite utilizado = despesas no cartão que ainda não foram pagas (fatura != PAID).
-    const agg = await this.prisma.transaction.aggregate({
-      where: {
-        creditCardId: card.id,
-        type: "EXPENSE",
-        status: { in: ["PENDING", "CONFIRMED", "CLEARED"] },
-        OR: [{ invoiceId: null }, { invoice: { status: { not: "PAID" } } }],
-      },
-      _sum: { amountCents: true },
-    });
-    const usedCents = card.openingUsedCents + (agg._sum.amountCents ?? 0);
+    // Limite utilizado = despesas no cartão que ainda não foram pagas (fatura != PAID)
+    // + saldo inicial (não detalhado) das faturas em aberto.
+    const [agg, openingAgg] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: {
+          creditCardId: card.id,
+          type: "EXPENSE",
+          status: { in: ["PENDING", "CONFIRMED", "CLEARED"] },
+          OR: [{ invoiceId: null }, { invoice: { status: { not: "PAID" } } }],
+        },
+        _sum: { amountCents: true },
+      }),
+      this.prisma.creditCardInvoice.aggregate({
+        where: { creditCardId: card.id, status: { not: "PAID" } },
+        _sum: { openingBalanceCents: true },
+      }),
+    ]);
+    const usedCents =
+      card.openingUsedCents +
+      (agg._sum.amountCents ?? 0) +
+      (openingAgg._sum.openingBalanceCents ?? 0);
     return {
       ...card,
       limits: {

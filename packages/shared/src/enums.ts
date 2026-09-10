@@ -10,7 +10,7 @@ export type TransactionType = z.infer<typeof TransactionType>;
 export const TransactionStatus = z.enum(["PENDING", "CONFIRMED", "CLEARED", "CANCELED"]);
 export type TransactionStatus = z.infer<typeof TransactionStatus>;
 
-export const TransactionSource = z.enum(["MANUAL", "WHATSAPP", "RECURRING", "IMPORT"]);
+export const TransactionSource = z.enum(["MANUAL", "WHATSAPP", "RECURRING", "IMPORT", "ADJUSTMENT"]);
 export type TransactionSource = z.infer<typeof TransactionSource>;
 
 export const CategoryKind = z.enum(["EXPENSE", "INCOME", "BOTH"]);
