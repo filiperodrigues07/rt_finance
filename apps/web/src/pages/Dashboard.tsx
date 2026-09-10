@@ -1,5 +1,6 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/cn";
 import {
   Share2,
   TrendingUp,
@@ -14,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { resolvePeriod, todayIso, APP_TZ, type PeriodPreset, type Insight } from "@rt-finance/shared";
-import { getPrefs } from "@/lib/preferences";
+import { getPrefs, patchPrefs } from "@/lib/preferences";
 import {
   useDashboard,
   useFutureCommitment,
@@ -311,60 +312,175 @@ export function DashboardPage() {
         </div>
       )}
 
+      <DashboardGrid
+        widgets={[
+          {
+            id: "byCategory",
+            body: (
+              <>
+                <CardHeader title="Gastos por categoria" description="No período selecionado" />
+                {isLoading || !data ? <ChartSkeleton className="h-44" /> : <DonutCategories data={data.byCategory} />}
+              </>
+            ),
+          },
+          {
+            id: "monthly",
+            body: (
+              <>
+                <CardHeader title="Evolução mensal" description="Receitas, despesas e saldo — 6 meses" />
+                {isLoading || !data ? <ChartSkeleton className="h-64" /> : <MonthlyEvolutionChart data={data.monthly} />}
+              </>
+            ),
+          },
+          {
+            id: "byMember",
+            body: (
+              <>
+                <CardHeader title="Gastos por pessoa" />
+                {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byMember} />}
+              </>
+            ),
+          },
+          {
+            id: "byCard",
+            body: (
+              <>
+                <CardHeader title="Gastos por cartão" />
+                {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
+              </>
+            ),
+          },
+          {
+            id: "trend",
+            span: 2,
+            hideWhenEmpty: topTrend.length === 0,
+            body: (
+              <>
+                <CardHeader title="Tendência por categoria" description="Últimos 6 meses" />
+                <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {topTrend.map((s) => {
+                    const last = s.points[s.points.length - 1] ?? 0;
+                    const prev = s.points[s.points.length - 2] ?? 0;
+                    const d = deltaPct(last, prev);
+                    return (
+                      <li key={s.categoryId ?? s.name} className="flex items-center gap-3">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                        <span className="min-w-0 flex-1 truncate text-sm">{s.name}</span>
+                        {d !== 0 && (
+                          <span className={`tnum text-xs ${d > 0 ? "text-negative" : "text-positive"}`}>
+                            {d > 0 ? "▲" : "▼"} {Math.abs(d)}%
+                          </span>
+                        )}
+                        <Sparkline data={s.points} color={s.color} className="h-8 w-24 shrink-0" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            ),
+          },
+          {
+            id: "future",
+            span: 2,
+            body: (
+              <>
+                <CardHeader title="Comprometimento futuro" description="Parcelas a vencer nos próximos 12 meses" />
+                {future.isLoading || !future.data ? (
+                  <ChartSkeleton className="h-56" />
+                ) : (
+                  <FutureCommitmentChart data={future.data} />
+                )}
+              </>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+type Widget = { id: string; body: ReactNode; span?: 2; hideWhenEmpty?: boolean };
+
+const WIDGET_LABEL: Record<string, string> = {
+  byCategory: "Gastos por categoria",
+  monthly: "Evolução mensal",
+  byMember: "Gastos por pessoa",
+  byCard: "Gastos por cartão",
+  trend: "Tendência por categoria",
+  future: "Comprometimento futuro",
+};
+
+/** Grade de cards do Dashboard — ordem e visibilidade personalizáveis (preferences.dashboard). */
+function DashboardGrid({ widgets }: { widgets: Widget[] }) {
+  const [editing, setEditing] = useState(false);
+  const prefs = getPrefs().dashboard;
+  const [order, setOrder] = useState<string[]>(() => {
+    const ids = widgets.map((w) => w.id);
+    const kept = prefs.order.filter((id) => ids.includes(id));
+    return [...kept, ...ids.filter((id) => !kept.includes(id))];
+  });
+  const [hidden, setHidden] = useState<string[]>(() => prefs.hidden ?? []);
+
+  const byId = new Map(widgets.map((w) => [w.id, w]));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    setOrder(next);
+  };
+  const toggleHidden = (id: string) =>
+    setHidden((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
+
+  const save = () => {
+    patchPrefs({ dashboard: { order, hidden } });
+    setEditing(false);
+  };
+
+  return (
+    <div>
+      <div className="mb-2 flex justify-end">
+        <button
+          onClick={() => (editing ? save() : setEditing(true))}
+          className="text-xs text-muted hover:text-fg"
+        >
+          {editing ? "Concluir" : "Personalizar"}
+        </button>
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="stagger-item" style={si(1)}>
-          <CardHeader title="Gastos por categoria" description="No período selecionado" />
-          {isLoading || !data ? <ChartSkeleton className="h-44" /> : <DonutCategories data={data.byCategory} />}
-        </Card>
-
-        <Card className="stagger-item" style={si(2)}>
-          <CardHeader title="Evolução mensal" description="Receitas, despesas e saldo — 6 meses" />
-          {isLoading || !data ? <ChartSkeleton className="h-64" /> : <MonthlyEvolutionChart data={data.monthly} />}
-        </Card>
-
-        <Card className="stagger-item" style={si(3)}>
-          <CardHeader title="Gastos por pessoa" />
-          {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byMember} />}
-        </Card>
-
-        <Card className="stagger-item" style={si(4)}>
-          <CardHeader title="Gastos por cartão" />
-          {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
-        </Card>
-
-        {topTrend.length > 0 && (
-          <Card className="stagger-item lg:col-span-2" style={si(5)}>
-            <CardHeader title="Tendência por categoria" description="Últimos 6 meses" />
-            <ul className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {topTrend.map((s) => {
-                const last = s.points[s.points.length - 1] ?? 0;
-                const prev = s.points[s.points.length - 2] ?? 0;
-                const d = deltaPct(last, prev);
-                return (
-                  <li key={s.categoryId ?? s.name} className="flex items-center gap-3">
-                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                    <span className="min-w-0 flex-1 truncate text-sm">{s.name}</span>
-                    {d !== 0 && (
-                      <span className={`tnum text-xs ${d > 0 ? "text-negative" : "text-positive"}`}>
-                        {d > 0 ? "▲" : "▼"} {Math.abs(d)}%
-                      </span>
-                    )}
-                    <Sparkline data={s.points} color={s.color} className="h-8 w-24 shrink-0" />
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
-
-        <Card className="stagger-item lg:col-span-2" style={si(6)}>
-          <CardHeader title="Comprometimento futuro" description="Parcelas a vencer nos próximos 12 meses" />
-          {future.isLoading || !future.data ? (
-            <ChartSkeleton className="h-56" />
-          ) : (
-            <FutureCommitmentChart data={future.data} />
-          )}
-        </Card>
+        {order.map((id, i) => {
+          const w = byId.get(id);
+          if (!w) return null;
+          const isHidden = hidden.includes(id);
+          if (!editing && (isHidden || w.hideWhenEmpty)) return null;
+          return (
+            <Card
+              key={id}
+              className={cn("stagger-item", w.span === 2 && "lg:col-span-2", isHidden && "opacity-45")}
+              style={si(i)}
+            >
+              {editing && (
+                <div className="mb-2 flex items-center gap-1 border-b border-border pb-2 text-xs text-muted">
+                  <span className="flex-1 font-medium text-fg">{WIDGET_LABEL[id] ?? id}</span>
+                  <button className="p-1 hover:text-fg disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)}>
+                    ↑
+                  </button>
+                  <button
+                    className="p-1 hover:text-fg disabled:opacity-30"
+                    disabled={i === order.length - 1}
+                    onClick={() => move(i, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button className="p-1 hover:text-fg" onClick={() => toggleHidden(id)}>
+                    {isHidden ? "mostrar" : "esconder"}
+                  </button>
+                </div>
+              )}
+              {w.body}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
