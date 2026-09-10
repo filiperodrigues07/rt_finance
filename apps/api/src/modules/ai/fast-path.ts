@@ -18,8 +18,31 @@ function parseAmount(text: string): number | null {
   }
 }
 
-const CARD_HINT = /\b(no|na)\s+(cart[aã]o\s+)?(nubank|inter|ita[uú]|c6|bradesco|santander|will|neon|next|original|pan|bmg|digio|xp)\b/i;
 const INSTALLMENT = /\b\d{1,2}\s*(x|vezes|parcelas)\b/i;
+
+/**
+ * Extrai o nome do cartão de frases como "no cartão Itaú", "pelo crédito do Nubank".
+ * Genérico (não uma lista fixa de bancos) — o match real com o cadastro é feito depois
+ * por HintResolver.resolveByHint.
+ */
+function cardHintFrom(raw: string): string | null {
+  const m =
+    raw.match(/\bcart[aã]o\s+(?:de\s+cr[eé]dito\s+)?(?:d[oae]\s+|meu\s+|minha\s+)?([\p{L}][\p{L}\d]{1,20})/iu) ??
+    raw.match(/\bcr[eé]dito\s+(?:d[oae]\s+|meu\s+|minha\s+)?([\p{L}][\p{L}\d]{1,20})/iu);
+  const w = m?.[1]?.trim();
+  if (!w || /^(de|d[oa]|no|na|meu|minha|cr[eé]dito|cart[aã]o)$/i.test(w)) return null;
+  return w;
+}
+
+/** Tira o rabicho do meio de pagamento da descrição ("Fast food no cartão Itaú" -> "Fast food"). */
+function stripPayTail(s: string): string {
+  return s
+    .replace(
+      /\s*(?:,\s*)?(?:no|na|pelo|pela|com|via|usando)?\s*(?:cart[aã]o(?:\s+de\s+cr[eé]dito)?|cr[eé]dito|d[eé]bito|dinheiro|pix|esp[eé]cie)\b.*$/i,
+      "",
+    )
+    .trim();
+}
 
 export function fastPath(
   text: string,
@@ -68,17 +91,20 @@ export function fastPath(
     };
   }
 
-  // despesa simples (sem cartão citado, sem parcelas)
-  if (amount && /^(gastei|paguei|comprei|torrei|foi|custou|gastamos)\b/.test(t) && !CARD_HINT.test(t)) {
+  // despesa simples (sem parcelas — parcelamento cai no LLM/handler próprio)
+  if (amount && /^(gastei|paguei|comprei|torrei|foi|custou|gastamos)\b/.test(t)) {
     const after = raw.replace(/^\s*\S+\s+/i, "").replace(/^(r\$\s*)?[\d.,\s]+(reais|conto|pila)?\s*/i, "").trim();
     const catHint = guessCategory(raw, "EXPENSE");
+    const card = cardHintFrom(raw);
+    const debit = t.match(/d[eé]bito|dinheiro|pix|esp[eé]cie/)?.[0] ?? null;
+    const body = stripPayTail(after.replace(/^(no|na|em|de|com|pra|para|a[o]?)\s+/i, ""));
     return {
       kind: "create_expense",
       amountCents: amount,
-      description: cap(after.replace(/^(no|na|em|de|com|pra|para|a[o]?)\s+/i, "").slice(0, 60)) || "Despesa",
+      description: cap(body.slice(0, 60)) || "Despesa",
       categoryHint: catHint,
       date: ctx.todayIso,
-      paymentHint: /d[eé]bito|dinheiro|pix|esp[eé]cie/.test(t) ? t.match(/d[eé]bito|dinheiro|pix|esp[eé]cie/)![0] : null,
+      paymentHint: card ?? debit,
       memberHint: null,
       confidence: 0.82,
       ambiguous: false,
