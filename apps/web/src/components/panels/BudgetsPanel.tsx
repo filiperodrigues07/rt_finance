@@ -87,7 +87,7 @@ export function BudgetsPanel() {
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="tnum text-muted">
-                      {formatBRL(b.spentCents)} / {formatBRL(b.amountCents)}
+                      {formatBRL(b.spentCents)} / {formatBRL(b.effectiveAmountCents)}
                     </span>
                     <span
                       className={
@@ -109,7 +109,14 @@ export function BudgetsPanel() {
                     </button>
                   </span>
                 </div>
-                <BulletBudget spent={b.spentCents} budget={b.amountCents} color={b.categoryColor} />
+                {b.rollover && b.carryCents !== 0 && (
+                  <div className="mb-1 text-[11px] text-muted">
+                    {formatBRL(b.amountCents)} base{" "}
+                    {b.carryCents > 0 ? "+" : "−"} {formatBRL(Math.abs(b.carryCents))}{" "}
+                    {b.carryCents > 0 ? "de sobra" : "de excesso"} do mês passado
+                  </div>
+                )}
+                <BulletBudget spent={b.spentCents} budget={b.effectiveAmountCents} color={b.categoryColor} />
               </div>
             ))}
           </div>
@@ -156,6 +163,7 @@ function BudgetForm({
   const toast = useToast();
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
+  const [rollover, setRollover] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -168,7 +176,7 @@ function BudgetForm({
       return setError("Valor inválido");
     }
     try {
-      await upsert.mutateAsync({ categoryId, month, amountCents });
+      await upsert.mutateAsync({ categoryId, month, amountCents, rollover });
       toast.success("Orçamento salvo");
       onDone();
     } catch (err) {
@@ -191,6 +199,15 @@ function BudgetForm({
       <Field label="Limite mensal (R$)" error={error ?? undefined}>
         <MoneyInput value={amount} onChange={setAmount} placeholder="1.500,00" autoFocus />
       </Field>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={rollover}
+          onChange={(e) => setRollover(e.target.checked)}
+          className="size-4 accent-[rgb(var(--accent))]"
+        />
+        Acumular sobra/excesso do mês anterior
+      </label>
     </form>
   );
 }

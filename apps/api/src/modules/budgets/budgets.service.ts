@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  addMonths,
   firstDayOfMonth,
   lastDayOfMonth,
   percentOf,
@@ -73,33 +74,65 @@ export class BudgetsService {
     return { deleted: true };
   }
 
+  private spentInRange(
+    householdId: string,
+    categoryId: string,
+    memberId: string | null,
+    from: Date,
+    to: Date,
+  ) {
+    return this.prisma.transaction.aggregate({
+      where: {
+        householdId,
+        type: "EXPENSE",
+        status: { not: "CANCELED" },
+        transferGroupId: null,
+        source: { not: "ADJUSTMENT" },
+        categoryId,
+        ...(memberId ? { memberId } : {}),
+        date: { gte: from, lte: to },
+      },
+      _sum: { amountCents: true },
+    });
+  }
+
   async list(householdId: string, monthIso?: string): Promise<BudgetStatus[]> {
     const tz = await this.tz(householdId);
     const month = firstDayOfMonth(monthIso ?? todayIso(tz), tz);
-    const budgets = await this.prisma.budget.findMany({
-      where: { householdId, month: dateOnly(month) },
-      include: { category: { select: { name: true, icon: true, color: true } } },
-      orderBy: { category: { name: "asc" } },
-    });
+    const prevMonth = firstDayOfMonth(addMonths(month, -1, tz), tz);
+
+    const [budgets, prevBudgets] = await Promise.all([
+      this.prisma.budget.findMany({
+        where: { householdId, month: dateOnly(month) },
+        include: { category: { select: { name: true, icon: true, color: true } } },
+        orderBy: { category: { name: "asc" } },
+      }),
+      this.prisma.budget.findMany({ where: { householdId, month: dateOnly(prevMonth) } }),
+    ]);
+    const prevKey = (categoryId: string, memberId: string | null) => `${categoryId}:${memberId ?? ""}`;
+    const prevMap = new Map(prevBudgets.map((b) => [prevKey(b.categoryId, b.memberId), b]));
 
     const from = dateOnly(month);
     const to = dateOnly(lastDayOfMonth(month, tz));
+    const prevFrom = dateOnly(prevMonth);
+    const prevTo = dateOnly(lastDayOfMonth(prevMonth, tz));
 
     return Promise.all(
       budgets.map(async (b) => {
-        const spent = await this.prisma.transaction.aggregate({
-          where: {
-            householdId,
-            type: "EXPENSE",
-            status: { not: "CANCELED" },
-            transferGroupId: null,
-            categoryId: b.categoryId,
-            ...(b.memberId ? { memberId: b.memberId } : {}),
-            date: { gte: from, lte: to },
-          },
-          _sum: { amountCents: true },
-        });
-        const spentCents = spent._sum.amountCents ?? 0;
+        const spentCents = (await this.spentInRange(householdId, b.categoryId, b.memberId, from, to))
+          ._sum.amountCents ?? 0;
+
+        let carryCents = 0;
+        if (b.rollover) {
+          const pb = prevMap.get(prevKey(b.categoryId, b.memberId));
+          if (pb) {
+            const prevSpent =
+              (await this.spentInRange(householdId, b.categoryId, b.memberId, prevFrom, prevTo))._sum
+                .amountCents ?? 0;
+            carryCents = pb.amountCents - prevSpent;
+          }
+        }
+        const effectiveAmountCents = b.amountCents + carryCents;
         return {
           id: b.id,
           categoryId: b.categoryId,
@@ -108,8 +141,11 @@ export class BudgetsService {
           categoryColor: b.category.color,
           month: toIsoDate(b.month),
           amountCents: b.amountCents,
+          carryCents,
+          effectiveAmountCents,
+          rollover: b.rollover,
           spentCents,
-          percent: percentOf(spentCents, b.amountCents),
+          percent: percentOf(spentCents, Math.max(1, effectiveAmountCents)),
           memberId: b.memberId,
         };
       }),
@@ -142,7 +178,7 @@ export class BudgetsService {
             householdId: hid,
             type: "BUDGET_EXCEEDED",
             title: `⚠️ Orçamento de ${s.categoryIcon} ${s.categoryName} estourado`,
-            body: `Gasto ${formatBRL(s.spentCents)} de ${formatBRL(s.amountCents)} (${s.percent}%) em ${monthLabelBR(monthIso)}.`,
+            body: `Gasto ${formatBRL(s.spentCents)} de ${formatBRL(s.effectiveAmountCents)} (${s.percent}%) em ${monthLabelBR(monthIso)}.`,
             dedupe: `budget:${s.id}:exceeded:${s.month}`,
             data: { budgetId: s.id },
           });
@@ -152,7 +188,7 @@ export class BudgetsService {
             householdId: hid,
             type: "BUDGET_THRESHOLD",
             title: `📊 ${s.categoryIcon} ${s.categoryName}: ${s.percent}% do orçamento`,
-            body: `Vocês já gastaram ${formatBRL(s.spentCents)} de ${formatBRL(s.amountCents)} em ${monthLabelBR(monthIso)}.`,
+            body: `Vocês já gastaram ${formatBRL(s.spentCents)} de ${formatBRL(s.effectiveAmountCents)} em ${monthLabelBR(monthIso)}.`,
             dedupe: `budget:${s.id}:threshold:${s.month}`,
             data: { budgetId: s.id },
           });

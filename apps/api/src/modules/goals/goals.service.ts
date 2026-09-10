@@ -3,6 +3,7 @@ import {
   GOAL_MILESTONES,
   percentOf,
   formatBRL,
+  todayIso,
   type CreateGoalBody,
   type UpdateGoalBody,
   type AddContributionBody,
@@ -51,6 +52,9 @@ export class GoalsService {
         deadline: body.deadline ? dateOnly(body.deadline) : null,
         icon: body.icon,
         color: body.color,
+        autoContributeCents: body.autoContributeCents ?? null,
+        autoContributeDay: body.autoContributeDay ?? null,
+        autoFromAccountId: body.autoFromAccountId ?? null,
       },
     });
   }
@@ -67,8 +71,84 @@ export class GoalsService {
         icon: body.icon,
         color: body.color,
         status: body.status,
+        autoContributeCents:
+          body.autoContributeCents === undefined ? undefined : body.autoContributeCents,
+        autoContributeDay:
+          body.autoContributeDay === undefined ? undefined : body.autoContributeDay,
+        autoFromAccountId:
+          body.autoFromAccountId === undefined ? undefined : body.autoFromAccountId,
       },
     });
+  }
+
+  /**
+   * Aporte automático mensal (chamado pelo scheduler). Idempotente por mês via nota
+   * "auto:YYYY-MM". Debita a conta escolhida, se houver.
+   */
+  async runAutoContributions(): Promise<{ created: number }> {
+    const goals = await this.prisma.financialGoal.findMany({
+      where: { status: "ACTIVE", autoContributeCents: { not: null }, autoContributeDay: { not: null } },
+      include: { household: { select: { timezone: true } } },
+    });
+    let created = 0;
+    for (const g of goals) {
+      const tz = g.household.timezone ?? "America/Sao_Paulo";
+      const today = todayIso(tz);
+      const day = Number(today.slice(8, 10));
+      if (day !== g.autoContributeDay) continue;
+      const ym = today.slice(0, 7);
+      const note = `auto:${ym}`;
+
+      const exists = await this.prisma.goalContribution.findFirst({
+        where: { goalId: g.id, note },
+        select: { id: true },
+      });
+      if (exists) continue;
+
+      const owner = await this.prisma.householdMember.findFirst({
+        where: { householdId: g.householdId, role: "OWNER" },
+        select: { id: true },
+      });
+      const amount = g.autoContributeCents!;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.goalContribution.create({
+          data: {
+            goalId: g.id,
+            memberId: owner!.id,
+            amountCents: amount,
+            date: dateOnly(today),
+            note,
+          },
+        });
+        await tx.financialGoal.update({
+          where: { id: g.id },
+          data: {
+            currentCents: { increment: amount },
+            status: g.currentCents + amount >= g.targetCents ? "ACHIEVED" : g.status,
+          },
+        });
+        if (g.autoFromAccountId) {
+          await tx.transaction.create({
+            data: {
+              householdId: g.householdId,
+              type: "EXPENSE",
+              amountCents: amount,
+              description: `Aporte automático: ${g.name}`,
+              date: dateOnly(today),
+              paidAt: new Date(),
+              status: "CONFIRMED",
+              source: "MANUAL",
+              accountId: g.autoFromAccountId,
+              categoryId: null,
+              memberId: owner!.id,
+              createdById: owner!.id,
+            },
+          });
+        }
+      });
+      created++;
+    }
+    return { created };
   }
 
   async remove(householdId: string, id: string) {

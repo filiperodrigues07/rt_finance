@@ -7,6 +7,7 @@ import { ENV, type Env } from "../../config/env.schema";
 import { dateOnly, toIsoDate } from "../../common/date-only";
 import { InvoicesService } from "../invoices/invoices.service";
 import { BudgetsService } from "../budgets/budgets.service";
+import { GoalsService } from "../goals/goals.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { monthSummary } from "../whatsapp/formatters";
 import { ReportsService } from "../reports/reports.service";
@@ -27,6 +28,7 @@ export class SchedulerService {
     private readonly prisma: PrismaService,
     private readonly invoices: InvoicesService,
     private readonly budgets: BudgetsService,
+    private readonly goals: GoalsService,
     private readonly notifications: NotificationsService,
     private readonly reports: ReportsService,
     private readonly mail: MailService,
@@ -58,6 +60,13 @@ export class SchedulerService {
     if (!this.enabled) return;
     const res = await this.budgets.checkAndNotify();
     this.logger.log(`orçamentos: ${res.checked} verificados, ${res.alerts} alertas`);
+  }
+
+  @Cron("15 6 * * *")
+  async goalAutoContributions(): Promise<void> {
+    if (!this.enabled) return;
+    const res = await this.goals.runAutoContributions();
+    if (res.created) this.logger.log(`aportes automáticos: ${res.created}`);
   }
 
   @Cron("*/30 * * * *")

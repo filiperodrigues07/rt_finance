@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Target, Trophy, Trash2, Coins } from "lucide-react";
 import { toCents, fromCents, percentOf, todayIso, APP_TZ } from "@rt-finance/shared";
-import { useGoals, useGoalMutations } from "@/lib/hooks";
+import { useGoals, useGoalMutations, useAccounts } from "@/lib/hooks";
 import { formatBRL, formatDate } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, Select } from "@/components/ui/Field";
 import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PageHeader, Progress } from "@/components/ui/data";
 import { Badge, EmptyState, Skeleton } from "@/components/ui/misc";
@@ -202,9 +202,13 @@ function GoalCreateForm({
   createMutation: { mutateAsync: (b: unknown) => Promise<unknown> };
 }) {
   const toast = useToast();
+  const accounts = useAccounts();
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [auto, setAuto] = useState("");
+  const [autoDay, setAutoDay] = useState("5");
+  const [autoAcc, setAutoAcc] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -216,8 +220,23 @@ function GoalCreateForm({
     } catch {
       return setError("Valor alvo inválido");
     }
+    let autoContributeCents: number | null = null;
+    if (auto.trim()) {
+      try {
+        autoContributeCents = toCents(auto);
+      } catch {
+        return setError("Valor do aporte inválido");
+      }
+    }
     try {
-      await createMutation.mutateAsync({ name: name.trim(), targetCents, deadline: deadline || null });
+      await createMutation.mutateAsync({
+        name: name.trim(),
+        targetCents,
+        deadline: deadline || null,
+        autoContributeCents,
+        autoContributeDay: autoContributeCents ? Number(autoDay) || 5 : null,
+        autoFromAccountId: autoContributeCents ? autoAcc || null : null,
+      });
       toast.success("Meta criada");
       onDone();
     } catch (err) {
@@ -231,6 +250,27 @@ function GoalCreateForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Valor alvo (R$)"><MoneyInput value={target} onChange={setTarget} placeholder="10.000,00" /></Field>
         <Field label="Prazo (opcional)"><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
+      </div>
+      <div className="rounded-lg border border-border p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          Aporte automático (opcional)
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Valor / mês"><MoneyInput value={auto} onChange={setAuto} placeholder="200,00" /></Field>
+          <Field label="Dia">
+            <Input type="number" min={1} max={28} value={autoDay} onChange={(e) => setAutoDay(e.target.value)} />
+          </Field>
+          <Field label="Debitar de">
+            <Select value={autoAcc} onChange={(e) => setAutoAcc(e.target.value)}>
+              <option value="">Só registrar</option>
+              {(accounts.data ?? []).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
       </div>
       {error && <p className="text-xs text-negative">{error}</p>}
     </form>

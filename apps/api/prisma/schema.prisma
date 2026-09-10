@@ -503,6 +503,10 @@ model FinancialGoal {
   icon         String     @default("🎯")
   color        String     @default("#10B981")
   status       GoalStatus @default(ACTIVE)
+  /// Aporte mensal automático (opcional): valor, dia do mês e conta de onde debitar.
+  autoContributeCents Int?
+  autoContributeDay   Int?
+  autoFromAccountId   String?
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
 

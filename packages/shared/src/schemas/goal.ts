@@ -2,12 +2,19 @@ import { z } from "zod";
 import { cuid, isoDate, amountCents, hexColor } from "./common.js";
 import { GoalStatus } from "../enums.js";
 
+const autoContribute = {
+  autoContributeCents: amountCents.nullable().optional(),
+  autoContributeDay: z.number().int().min(1).max(28).nullable().optional(),
+  autoFromAccountId: cuid.nullable().optional(),
+};
+
 export const createGoalBody = z.object({
   name: z.string().trim().min(1).max(120),
   targetCents: amountCents,
   deadline: isoDate.nullable().optional(),
   icon: z.string().trim().min(1).max(8).default("🎯"),
   color: hexColor.default("#10B981"),
+  ...autoContribute,
 });
 export type CreateGoalBody = z.infer<typeof createGoalBody>;
 
@@ -18,6 +25,7 @@ export const updateGoalBody = z.object({
   icon: z.string().trim().min(1).max(8).optional(),
   color: hexColor.optional(),
   status: GoalStatus.optional(),
+  ...autoContribute,
 });
 export type UpdateGoalBody = z.infer<typeof updateGoalBody>;
 

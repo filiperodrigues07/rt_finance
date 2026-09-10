@@ -23,6 +23,11 @@ export interface BudgetStatus {
   categoryColor: string;
   month: string;
   amountCents: number;
+  /** sobra (+) ou excesso (−) do mês anterior, quando rollover está ligado. */
+  carryCents: number;
+  /** amountCents + carryCents — é sobre este valor que `percent` é calculado. */
+  effectiveAmountCents: number;
+  rollover: boolean;
   spentCents: number;
   percent: number;
   memberId: string | null;

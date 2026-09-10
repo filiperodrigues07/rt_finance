@@ -6,6 +6,7 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp, prisma, resetDb, seedMinimal, type SeedResult } from "./helpers";
 import { BackupService } from "../src/modules/backup/backup.service";
 import { NotificationsService } from "../src/modules/notifications/notifications.service";
+import { GoalsService } from "../src/modules/goals/goals.service";
 
 let app: NestFastifyApplication;
 let http: ReturnType<typeof supertest>;
@@ -566,6 +567,65 @@ describe("contas a pagar em série + orçamentos", () => {
     const b = res.body.find((x: { categoryId: string }) => x.categoryId === seed.categoryMercado);
     expect(b.spentCents).toBe(8500);
     expect(b.percent).toBe(85);
+  });
+
+  it("rollover: sobra do mês anterior entra no disponível", async () => {
+    const catId = (await prisma.category.findFirst({ where: { name: "Contas" } }))!.id;
+    // agosto: orçou 100, gastou 30 → sobra 70
+    await prisma.budget.create({
+      data: { householdId: seed.householdId, categoryId: catId, month: new Date("2026-08-01"), amountCents: 10000 },
+    });
+    await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 3000,
+      description: "luz ago",
+      date: "2026-08-15",
+      categoryId: catId,
+      accountId: seed.accountId,
+    });
+    // setembro: orça 50 com rollover
+    await http
+      .post("/api/budgets")
+      .set(auth())
+      .send({ categoryId: catId, month: "2026-09-01", amountCents: 5000, rollover: true });
+
+    const res = await http.get("/api/budgets?month=2026-09-01").set(auth());
+    const b = res.body.find((x: { categoryId: string }) => x.categoryId === catId);
+    expect(b.carryCents).toBe(7000);
+    expect(b.effectiveAmountCents).toBe(12000);
+  });
+});
+
+describe("metas com aporte automático", () => {
+  it("runAutoContributions cria contribuição + transação e é idempotente no mês", async () => {
+    const day = Number(new Date().toISOString().slice(8, 10));
+    const goal = await http
+      .post("/api/goals")
+      .set(auth())
+      .send({
+        name: "Reserva auto",
+        targetCents: 500000,
+        autoContributeCents: 20000,
+        autoContributeDay: Math.min(28, day),
+        autoFromAccountId: seed.accountId,
+      });
+    expect(goal.status).toBe(201);
+
+    const svc = app.get(GoalsService);
+    const r1 = await svc.runAutoContributions();
+    expect(r1.created).toBeGreaterThanOrEqual(1);
+    const r2 = await svc.runAutoContributions();
+    // idempotente: não cria de novo no mesmo mês
+    const contribs = await prisma.goalContribution.count({ where: { goalId: goal.body.id } });
+    expect(contribs).toBe(1);
+    void r2;
+
+    const g = await prisma.financialGoal.findUnique({ where: { id: goal.body.id } });
+    expect(g!.currentCents).toBe(20000);
+    const tx = await prisma.transaction.findFirst({
+      where: { description: "Aporte automático: Reserva auto" },
+    });
+    expect(tx?.amountCents).toBe(20000);
   });
 });
 
