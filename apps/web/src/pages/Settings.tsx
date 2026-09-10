@@ -17,6 +17,7 @@ import { EmailPanel } from "@/components/settings/EmailPanel";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { PushPanel } from "@/components/settings/PushPanel";
 import { SecurityPanel } from "@/components/settings/SecurityPanel";
+import { PersonalizationPanel } from "@/components/settings/PersonalizationPanel";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -57,6 +58,8 @@ export function SettingsPage() {
       />
 
       <AppearancePanel />
+
+      <PersonalizationPanel />
 
       <SecurityPanel />
 

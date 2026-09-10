@@ -54,19 +54,24 @@
   --card-top: inset 0 1px 0 0 rgb(255 255 255 / 0.035);
 }
 
-/* --- HUE: só o acento muda (azul do Filipe / rosa da Julia) --- */
-html:not(.dark)[data-hue="blue"] {
-  --accent: 37 99 235;
-}
-html.dark[data-hue="blue"] {
-  --accent: 96 165 250;
-}
-html:not(.dark)[data-hue="pink"] {
-  --accent: 219 39 119;
-}
-html.dark[data-hue="pink"] {
-  --accent: 244 114 182;
-}
+/* --- ACENTO: só a cor de destaque muda (data-hue) --- */
+html:not(.dark)[data-hue="blue"]    { --accent:  37  99 235; }
+html.dark[data-hue="blue"]          { --accent:  96 165 250; }
+html:not(.dark)[data-hue="pink"]    { --accent: 219  39 119; }
+html.dark[data-hue="pink"]          { --accent: 244 114 182; }
+html:not(.dark)[data-hue="violet"]  { --accent: 124  58 237; }
+html.dark[data-hue="violet"]        { --accent: 167 139 250; }
+html:not(.dark)[data-hue="emerald"] { --accent:   5 150 105; }
+html.dark[data-hue="emerald"]       { --accent:  52 211 153; }
+html:not(.dark)[data-hue="amber"]   { --accent: 217 119   6; }
+html.dark[data-hue="amber"]         { --accent: 251 191  36; }
+html:not(.dark)[data-hue="rose"]    { --accent: 225  29  72; }
+html.dark[data-hue="rose"]          { --accent: 251 113 133; }
+html:not(.dark)[data-hue="slate"]   { --accent:  71  85 105; }
+html.dark[data-hue="slate"]         { --accent: 148 163 184; }
+
+/* escala de fonte (personalização) */
+html { font-size: calc(100% * var(--rt-font-scale, 1)); }
 
 * {
   border-color: rgb(var(--border));

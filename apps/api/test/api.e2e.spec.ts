@@ -1491,6 +1491,37 @@ describe("webhook do WhatsApp", () => {
   });
 });
 
+describe("preferências do usuário", () => {
+  it("GET começa com os defaults; PUT faz merge raso e persiste", async () => {
+    const g0 = await http.get("/api/me/preferences").set(auth());
+    expect(g0.status).toBe(200);
+    expect(g0.body.theme.accent).toBe("blue");
+    expect(g0.body.quickAddTemplates).toEqual([]);
+
+    const p1 = await http
+      .put("/api/me/preferences")
+      .set(auth())
+      .send({ theme: { accent: "violet" }, quickAddTemplates: [{ label: "Uber", text: "gastei 20 uber" }] });
+    expect(p1.status).toBe(200);
+    expect(p1.body.theme.accent).toBe("violet");
+    expect(p1.body.theme.mode).toBe("dark"); // merge não zerou o resto
+    expect(p1.body.quickAddTemplates).toHaveLength(1);
+
+    const p2 = await http.put("/api/me/preferences").set(auth()).send({ defaultPeriod: "THIS_YEAR" });
+    expect(p2.body.theme.accent).toBe("violet"); // preservado
+    expect(p2.body.defaultPeriod).toBe("THIS_YEAR");
+
+    const g1 = await http.get("/api/me/preferences").set(auth());
+    expect(g1.body.theme.accent).toBe("violet");
+    expect(g1.body.defaultPeriod).toBe("THIS_YEAR");
+  });
+
+  it("rejeita acento inválido (400)", async () => {
+    const res = await http.put("/api/me/preferences").set(auth()).send({ theme: { accent: "turquesa" } });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("web push", () => {
   const endpoint = "https://push.example.com/sub/abc123";
 

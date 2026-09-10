@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { resolvePeriod, todayIso, APP_TZ, type PeriodPreset, type Insight } from "@rt-finance/shared";
+import { getPrefs } from "@/lib/preferences";
 import {
   useDashboard,
   useFutureCommitment,
@@ -69,7 +70,7 @@ const PRESETS: { value: PeriodPreset; label: string }[] = [
 const si = (i: number) => ({ "--rt-i": i }) as CSSProperties;
 
 export function DashboardPage() {
-  const [preset, setPreset] = useState<PeriodPreset>("THIS_MONTH");
+  const [preset, setPreset] = useState<PeriodPreset>(() => getPrefs().defaultPeriod);
   const thisMonth = useMemo(() => resolvePeriod("THIS_MONTH", {}), []);
   const [customFrom, setCustomFrom] = useState(thisMonth.from);
   const [customTo, setCustomTo] = useState(todayIso(APP_TZ));

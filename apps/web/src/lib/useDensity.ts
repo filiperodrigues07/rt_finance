@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { patchPrefs } from "./preferences";
 
 const KEY = "rt-density";
 const EVENT = "rt:density";
@@ -47,6 +48,7 @@ export function useDensity() {
     }
     applyDensityClass();
     window.dispatchEvent(new Event(EVENT));
+    patchPrefs({ theme: { density: next ? "compact" : "cozy" } });
   }, []);
 
   const toggle = useCallback(() => setValue(!read()), [setValue]);

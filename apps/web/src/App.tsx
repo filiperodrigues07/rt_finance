@@ -1,6 +1,7 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { syncPrefsFromServer } from "@/lib/preferences";
 import { Spinner } from "@/components/ui/misc";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppLock } from "@/components/AppLock";
@@ -34,6 +35,10 @@ function Loading() {
 
 export function App() {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (user) void syncPrefsFromServer();
+  }, [user?.id]);
 
   // Redefinição por e-mail: telas standalone, acessíveis logado ou não, mesmo durante o loading.
   if (window.location.pathname === "/redefinir-senha") {

@@ -14,6 +14,7 @@ import { AuditInterceptor } from "./common/interceptors/audit.interceptor";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { HouseholdsModule } from "./modules/households/households.module";
+import { MeModule } from "./modules/me/me.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
 import { CreditCardsModule } from "./modules/credit-cards/credit-cards.module";
@@ -71,6 +72,7 @@ import { HealthModule } from "./modules/health/health.module";
 
     AuthModule,
     HouseholdsModule,
+    MeModule,
     CategoriesModule,
     AccountsModule,
     CreditCardsModule,

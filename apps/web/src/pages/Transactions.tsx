@@ -24,6 +24,7 @@ import {
   Rows4,
 } from "lucide-react";
 import { useDensity } from "@/lib/useDensity";
+import { getPrefs } from "@/lib/preferences";
 import type { ListTransactionsQuery, QuickAddPreviewPlan, QuickAddDraft } from "@rt-finance/shared";
 import { resolvePeriod, APP_TZ, toCents, todayIso } from "@rt-finance/shared";
 import {
@@ -260,8 +261,10 @@ export function TransactionsPage() {
   }
 
   // ---------- quick add ----------
-  async function submitQuick() {
-    const text = quick.trim();
+  const quickTemplates = getPrefs().quickAddTemplates;
+
+  async function submitQuick(raw?: string) {
+    const text = (raw ?? quick).trim();
     if (!text) return;
     try {
       const res = await tx.quickAdd.mutateAsync(text);
@@ -552,12 +555,26 @@ export function TransactionsPage() {
               <Button
                 className="h-11 shrink-0 sm:w-28"
                 loading={tx.quickAdd.isPending}
-                onClick={submitQuick}
+                onClick={() => submitQuick()}
                 disabled={!quick.trim()}
               >
                 Lançar
               </Button>
             </div>
+            {quickTemplates.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {quickTemplates.map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => submitQuick(t.text)}
+                    disabled={tx.quickAdd.isPending}
+                    className="rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium hover:border-accent/50 hover:text-accent disabled:opacity-50"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="mt-1.5 text-xs text-muted">
               Linguagem natural — a IA interpreta valor, categoria, cartão e parcelas. Compra
               parcelada pede confirmação.

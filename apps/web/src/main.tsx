@@ -9,9 +9,11 @@ import { ToastProvider } from "@/lib/toast";
 import { App } from "@/App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { applyDensityClass } from "@/lib/useDensity";
+import { applyPrefs } from "@/lib/preferences";
 import "@/index.css";
 
 applyDensityClass();
+applyPrefs();
 
 // service worker (PWA) — autoUpdate; avisa quando há versão nova
 if (import.meta.env.PROD) {

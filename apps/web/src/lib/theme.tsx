@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { getPrefs, onPrefsChange, patchPrefs } from "./preferences";
 
 export type ThemePref = "dark" | "light" | "system";
-export type Hue = "blue" | "pink";
+export type Hue = "blue" | "pink" | "violet" | "emerald" | "amber" | "rose" | "slate";
+const HUES: Hue[] = ["blue", "pink", "violet", "emerald", "amber", "rose", "slate"];
 type Resolved = "dark" | "light";
 
 const KEY = "rt-theme";
@@ -36,8 +38,8 @@ function readPref(): ThemePref {
 
 function readHue(): Hue | null {
   try {
-    const v = localStorage.getItem(KEY_HUE);
-    return v === "blue" || v === "pink" ? v : null;
+    const v = localStorage.getItem(KEY_HUE) as Hue | null;
+    return v && HUES.includes(v) ? v : null;
   } catch {
     return null;
   }
@@ -76,23 +78,34 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.hue = hue;
   }, [hue]);
 
+  // adota mudanças vindas das preferências sincronizadas (outra aba / servidor / painel)
+  useEffect(() => {
+    return onPrefsChange(() => {
+      const p = getPrefs();
+      setPrefState(p.theme.mode);
+      setHueState(p.theme.accent);
+    });
+  }, []);
+
+  const setPref = (p: ThemePref) => {
+    setPrefState(p);
+    patchPrefs({ theme: { mode: p } });
+  };
+  const setHue = (h: Hue) => {
+    setHueState(h);
+    patchPrefs({ theme: { accent: h } });
+  };
+
   return (
     <ThemeContext.Provider
       value={{
         pref,
         resolved,
-        setPref: setPrefState,
-        toggle: () => setPrefState(resolved === "dark" ? "light" : "dark"),
+        setPref,
+        toggle: () => setPref(resolved === "dark" ? "light" : "dark"),
         hue,
         hueChosen: hueState !== null,
-        setHue: (h) => {
-          setHueState(h);
-          try {
-            localStorage.setItem(KEY_HUE, h);
-          } catch {
-            /* ignore */
-          }
-        },
+        setHue,
       }}
     >
       {children}

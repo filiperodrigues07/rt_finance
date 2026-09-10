@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import type { CreateTransactionBody } from "@rt-finance/shared";
 import { useAccounts, useCategories, useCreditCards, useTransactionMutations } from "@/lib/hooks";
+import { getPrefs } from "@/lib/preferences";
 import { useAuth } from "@/lib/auth";
 import { useHousehold } from "@/lib/hooks";
 import { ApiError } from "@/lib/api";
@@ -77,15 +78,16 @@ export function TransactionForm({
       setDueDate((editing.dueDate ?? editing.date).slice(0, 10));
       setRepeat("1");
     } else {
+      const dft = getPrefs().defaults;
       setType("EXPENSE");
       setAmount(seedAmount ?? "");
       setDescription(seedDescription ?? "");
       setDate(todayIso(APP_TZ));
       setCategoryId("");
       setMemberId(user?.memberId ?? "");
-      setPayKind("account");
-      setAccountId("");
-      setCreditCardId("");
+      setPayKind(dft.cardId && !dft.accountId ? "card" : "account");
+      setAccountId(dft.accountId ?? "");
+      setCreditCardId(dft.cardId ?? "");
       setNotes("");
       setWhen(defaultScheduled ? "scheduled" : "paid");
       setDueDate(todayIso(APP_TZ));
