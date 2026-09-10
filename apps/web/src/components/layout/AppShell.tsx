@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { NotificationsBell } from "./NotificationsBell";
 import { UserMenu } from "./UserMenu";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ConnectivityBar, InstallNudge } from "@/components/PwaBits";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { NAV, NAV_GROUPS, MOBILE_NAV } from "./nav";
 
@@ -319,7 +321,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
+        <ConnectivityBar />
+        <InstallNudge />
+
+        <PullToRefresh>
+          <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
+        </PullToRefresh>
 
         <footer className="mx-auto w-full max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-6 text-center text-[11px] leading-relaxed text-muted sm:px-6 lg:pb-6">
           © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por

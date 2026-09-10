@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { CheckCircle2, XCircle, Info, X } from "lucide-react";
 import { cn } from "./cn";
+import { buzz } from "./haptics";
 
 type Kind = "success" | "error" | "info";
 interface Toast {
@@ -37,6 +38,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback(
     (kind: Kind, message: string) => {
       const id = ++seq;
+      buzz(kind === "error" ? "error" : kind === "success" ? "success" : "tap");
       setToasts((t) => [...t.slice(-(MAX_TOASTS - 1)), { id, kind, message }]);
       window.setTimeout(() => remove(id), 4200);
     },

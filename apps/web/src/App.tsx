@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/ui/misc";
 import { AppShell } from "@/components/layout/AppShell";
+import { AppLock } from "@/components/AppLock";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoginPage } from "@/pages/Login";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPassword";
@@ -63,8 +64,9 @@ export function App() {
   }
 
   return (
-    <AppShell>
-      <ErrorBoundary>
+    <AppLock>
+      <AppShell>
+        <ErrorBoundary>
         <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -88,7 +90,8 @@ export function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </Suspense>
-      </ErrorBoundary>
-    </AppShell>
+        </ErrorBoundary>
+      </AppShell>
+    </AppLock>
   );
 }

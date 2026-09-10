@@ -50,9 +50,15 @@ export default {
           from: { transform: "translateY(100%)" },
           to: { transform: "translateY(0)" },
         },
+        shake: {
+          "0%,100%": { transform: "translateX(0)" },
+          "20%,60%": { transform: "translateX(-6px)" },
+          "40%,80%": { transform: "translateX(6px)" },
+        },
       },
       animation: {
         "sheet-up": "sheet-up 0.24s cubic-bezier(0.22,1,0.36,1)",
+        shake: "shake 0.4s ease-in-out",
       },
     },
   },
