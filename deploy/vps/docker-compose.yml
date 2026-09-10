@@ -39,7 +39,7 @@ services:
       - rtf_redisdata:/data
 
   evolution:
-    image: evoapicloud/evolution-api:v2.3.1
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: rtf-evolution
     restart: unless-stopped
     depends_on:
@@ -65,7 +65,8 @@ services:
       CACHE_REDIS_SAVE_INSTANCES: "true"
       CACHE_LOCAL_ENABLED: "false"
       CONFIG_SESSION_PHONE_CLIENT: "RT Finance"
-      CONFIG_SESSION_PHONE_VERSION: "2.3000.1023204200"
+      # sem CONFIG_SESSION_PHONE_VERSION: deixa o Baileys buscar a versão atual do WhatsApp Web
+      # (pin velho = WhatsApp rejeita o handshake -> stream:error 401/515 e falha de descriptografia)
       QRCODE_LIMIT: "30"
       LOG_LEVEL: "ERROR"
       DEL_INSTANCE: "false"
