@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
+import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight, Search, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -126,6 +127,23 @@ function ThemeToggle() {
   return (
     <Button variant="ghost" size="icon" onClick={toggle} aria-label="Alternar tema (escuro/claro)">
       {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </Button>
+  );
+}
+
+/** Força a rebuscar tudo — útil no PWA depois de lançar algo pelo bot. Gira enquanto busca. */
+function RefreshButton() {
+  const qc = useQueryClient();
+  const fetching = useIsFetching();
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => qc.invalidateQueries()}
+      aria-label="Atualizar dados"
+      title="Atualizar"
+    >
+      <RefreshCw className={cn("size-4", fetching > 0 && "animate-spin")} />
     </Button>
   );
 }
@@ -295,6 +313,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="hidden flex-1 lg:block" />
           <div className="flex items-center gap-0.5">
+            <RefreshButton />
             <NotificationsBell />
             <ThemeToggle />
           </div>

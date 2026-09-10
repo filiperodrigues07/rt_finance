@@ -9,7 +9,10 @@ export const queryClient = new QueryClient({
         if (err instanceof ApiError && [400, 401, 403, 404, 422].includes(err.status)) return false;
         return count < 2;
       },
-      refetchOnWindowFocus: false,
+      // volta a buscar ao reabrir o app (PWA) ou reconectar — respeita o staleTime,
+      // então não fica atualizando à toa. O botão "Atualizar" no topo força tudo na hora.
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   },
 });
