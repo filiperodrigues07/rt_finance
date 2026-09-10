@@ -596,6 +596,62 @@ describe("contas a pagar em série + orçamentos", () => {
   });
 });
 
+describe("acerto do casal", () => {
+  const M = () => new Date().toISOString().slice(0, 7);
+
+  it("toggle do recurso: dono liga, membro comum recebe 403", async () => {
+    const on = await http.put("/api/household/features").set(auth()).send({ settleUp: true });
+    expect(on.status).toBe(200);
+    expect(on.body.settleUp).toBe(true);
+
+    const login = await http.post("/api/auth/login").send({ email: "partner@test.local", password: "test1234" });
+    const forbidden = await http
+      .put("/api/household/features")
+      .set({ Authorization: `Bearer ${login.body.tokens.accessToken}` })
+      .send({ settleUp: false });
+    expect(forbidden.status).toBe(403);
+  });
+
+  it("settle-up soma por pagador e aponta quem deve", async () => {
+    const day = `${M()}-05`;
+    await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 10000,
+      description: "acerto owner",
+      date: day,
+      categoryId: seed.categoryMercado,
+      accountId: seed.accountId,
+      memberId: seed.ownerMemberId,
+    });
+    await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 4000,
+      description: "acerto partner",
+      date: day,
+      categoryId: seed.categoryMercado,
+      accountId: seed.accountId,
+      memberId: seed.partnerMemberId,
+    });
+
+    const from = `${M()}-01`;
+    const to = `${M()}-28`;
+    const res = await http.get(`/api/reports/settle-up?from=${from}&to=${to}`).set(auth());
+    expect(res.status).toBe(200);
+    const owner = res.body.perMember.find((m: { memberId: string }) => m.memberId === seed.ownerMemberId);
+    expect(owner.paidCents).toBeGreaterThanOrEqual(10000);
+    expect(res.body.net.fromMemberId).toBe(seed.partnerMemberId);
+    expect(res.body.net.toMemberId).toBe(seed.ownerMemberId);
+
+    // sem contas padrão distintas → não acerta, mas não quebra
+    const settle = await http
+      .post("/api/reports/settle-up/settle")
+      .set(auth())
+      .send({ from, to });
+    expect(settle.status).toBeLessThan(300);
+    expect(settle.body.ok).toBe(false);
+  });
+});
+
 describe("metas com aporte automático", () => {
   it("runAutoContributions cria contribuição + transação e é idempotente no mês", async () => {
     const day = Number(new Date().toISOString().slice(8, 10));

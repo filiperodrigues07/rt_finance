@@ -11,6 +11,7 @@ import type {
   Insight,
   MemberComparison,
   MonthPace,
+  SettleUpReport,
   ReportAnalysis,
   PayableInvoice,
   PayInvoiceResult,
@@ -28,6 +29,7 @@ import type {
 import type {
   BulkActionResult,
   TransactionAttachmentDTO,
+  ReceiptScan,
   TransactionCommentDTO,
   ActivityPage,
   ShareKind,
@@ -419,6 +421,10 @@ export function useAttachmentMutations(transactionId: string | undefined) {
         saveBlob(blob, att.fileName);
       },
     }),
+    scan: useMutation({
+      mutationFn: (attachmentId: string) =>
+        api.post<ReceiptScan>(`/transactions/attachments/${attachmentId}/scan`, {}),
+    }),
   };
 }
 
@@ -690,6 +696,40 @@ export function useWhatsappActions() {
 // ---------------- household / perfil ----------------
 export function useHousehold() {
   return useQuery({ queryKey: ["household"], queryFn: () => api.get<Household>("/household") });
+}
+
+export function useHouseholdFeatures() {
+  return useQuery({
+    queryKey: ["household-features"],
+    queryFn: () => api.get<{ settleUp: boolean }>("/household/features"),
+  });
+}
+export function useHouseholdFeaturesMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { settleUp: boolean }) => api.put("/household/features", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["household-features"] }),
+  });
+}
+
+export function useSettleUp(from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: ["settle-up", from, to],
+    queryFn: () => api.get<SettleUpReport>(`/reports/settle-up?from=${from}&to=${to}`),
+    enabled,
+  });
+}
+export function useSettleUpMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { from: string; to: string }) =>
+      api.post<{ ok: boolean; amountCents?: number; reason?: string }>("/reports/settle-up/settle", b),
+    onSuccess: () => {
+      for (const k of ["settle-up", "transactions", "accounts", "dashboard"]) {
+        qc.invalidateQueries({ queryKey: [k] });
+      }
+    },
+  });
 }
 export function useProfile() {
   return useQuery({ queryKey: ["profile"], queryFn: () => api.get<Profile>("/me/profile") });

@@ -65,3 +65,9 @@ export type ResetDataBody = z.infer<typeof resetDataBody>;
 export interface ResetDataResult {
   cleared: string[]; // rótulos do que foi apagado
 }
+
+/** Recursos opcionais do household, ligados/desligados pelo dono. */
+export const householdFeaturesBody = z.object({
+  settleUp: z.boolean(),
+});
+export type HouseholdFeatures = z.infer<typeof householdFeaturesBody>;

@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
-import type { TransactionAttachmentDTO } from "@rt-finance/shared";
+import { Injectable, Logger } from "@nestjs/common";
+import type { ReceiptScan, TransactionAttachmentDTO } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { DomainError, NotFoundError } from "../../common/errors/domain-error";
 import type { UploadedFile } from "../../common/read-upload";
+import { extractImageText } from "../imports/parsers/image-text";
+import { parseReceipt } from "./receipt-parse";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = ["application/pdf", "image/png", "image/jpeg"];
@@ -28,7 +30,30 @@ function toDto(a: {
 /** Boleto (antes de pagar) e comprovante (depois) anexados a um lançamento — guardados no Postgres. */
 @Injectable()
 export class TransactionAttachmentsService {
+  private readonly logger = new Logger(TransactionAttachmentsService.name);
   constructor(private readonly prisma: PrismaService) {}
+
+  /** OCR sob demanda de um anexo-imagem: devolve valor/data/descrição sugeridos. */
+  async scan(householdId: string, attachmentId: string): Promise<ReceiptScan> {
+    const att = await this.prisma.transactionAttachment.findFirst({
+      where: { id: attachmentId, transaction: { householdId } },
+      select: { mimeType: true, fileName: true, data: true },
+    });
+    if (!att) throw new NotFoundError("Anexo");
+    const isImage = /^image\//.test(att.mimeType) || /\.(png|jpe?g)$/i.test(att.fileName);
+    if (!isImage) throw new DomainError("Só dá pra ler foto (PNG/JPG) — PDF não.");
+
+    try {
+      const text = await Promise.race([
+        extractImageText(att.data),
+        new Promise<string>((_, rej) => setTimeout(() => rej(new Error("timeout")), 25_000)),
+      ]);
+      return parseReceipt(text);
+    } catch (err) {
+      this.logger.warn(`OCR do anexo falhou: ${(err as Error).message}`);
+      return { isBoleto: false };
+    }
+  }
 
   private async assertTransaction(householdId: string, transactionId: string): Promise<void> {
     const tx = await this.prisma.transaction.findFirst({

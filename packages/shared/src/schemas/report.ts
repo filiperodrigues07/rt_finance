@@ -145,3 +145,20 @@ export interface MonthPace {
   /** janela usada na média do gasto variável */
   basisDays: number;
 }
+
+// --- acerto do casal ("quem deve pra quem") ---
+export const settleUpSettleBody = z.object({
+  from: isoDate,
+  to: isoDate,
+});
+export type SettleUpSettleBody = z.infer<typeof settleUpSettleBody>;
+
+export interface SettleUpReport {
+  from: string;
+  to: string;
+  perMember: { memberId: string; displayName: string; paidCents: number }[];
+  totalCents: number;
+  /** null = já está quitado (ninguém deve). */
+  net: { fromMemberId: string; fromName: string; toMemberId: string; toName: string; cents: number } | null;
+}
+

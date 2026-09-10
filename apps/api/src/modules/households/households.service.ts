@@ -70,6 +70,28 @@ export class HouseholdsService {
     return this.getEmailPrefs(actor.householdId);
   }
 
+  // ---------------- recursos opcionais do household ----------------
+  private static FEATURES_KEY = "household:features";
+
+  async getFeatures(householdId: string): Promise<{ settleUp: boolean }> {
+    const row = await this.prisma.setting.findUnique({
+      where: { householdId_key: { householdId, key: HouseholdsService.FEATURES_KEY } },
+    });
+    const v = (row?.value as { settleUp?: boolean } | undefined) ?? {};
+    return { settleUp: v.settleUp ?? false };
+  }
+
+  async updateFeatures(actor: AuthUser, body: { settleUp: boolean }): Promise<{ settleUp: boolean }> {
+    if (actor.role !== "OWNER") throw new ForbiddenException("Apenas o dono edita isto");
+    const value = { settleUp: body.settleUp } as unknown as Prisma.InputJsonObject;
+    await this.prisma.setting.upsert({
+      where: { householdId_key: { householdId: actor.householdId, key: HouseholdsService.FEATURES_KEY } },
+      create: { householdId: actor.householdId, key: HouseholdsService.FEATURES_KEY, value },
+      update: { value },
+    });
+    return this.getFeatures(actor.householdId);
+  }
+
   async getHousehold(householdId: string) {
     const household = await this.prisma.household.findUnique({
       where: { id: householdId },

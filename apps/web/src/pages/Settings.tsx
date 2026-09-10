@@ -18,6 +18,7 @@ import { AppearancePanel } from "@/components/settings/AppearancePanel";
 import { PushPanel } from "@/components/settings/PushPanel";
 import { SecurityPanel } from "@/components/settings/SecurityPanel";
 import { PersonalizationPanel } from "@/components/settings/PersonalizationPanel";
+import { FeaturesPanel } from "@/components/settings/FeaturesPanel";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -68,6 +69,8 @@ export function SettingsPage() {
       <WhatsAppPanel />
 
       <EmailPanel />
+
+      {user?.role === "OWNER" && <FeaturesPanel />}
 
       {user?.role === "OWNER" && <BackupPanel />}
 

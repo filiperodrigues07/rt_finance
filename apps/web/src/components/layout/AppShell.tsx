@@ -4,6 +4,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Menu, X, ChevronLeft, ChevronRight, Search, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
+import { useHouseholdFeatures } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/Button";
 import { NotificationsBell } from "./NotificationsBell";
@@ -65,7 +66,12 @@ function NavItems({
   collapsed?: boolean;
 }) {
   const { user } = useAuth();
-  const visible = NAV.filter((n) => !n.admin || user?.isSuperAdmin);
+  const features = useHouseholdFeatures().data;
+  const visible = NAV.filter(
+    (n) =>
+      (!n.admin || user?.isSuperAdmin) &&
+      (!n.feature || features?.[n.feature]),
+  );
 
   const link = (item: (typeof NAV)[number]) => {
     const el = (

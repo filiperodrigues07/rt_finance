@@ -9,6 +9,7 @@ import {
   Users,
   Settings,
   Shield,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +23,8 @@ export interface NavItem {
   soon?: boolean;
   /** só aparece para o super-admin */
   admin?: boolean;
+  /** só aparece quando o recurso do household está ligado */
+  feature?: "settleUp";
 }
 
 export const NAV_GROUPS: { id: NavGroup; label: string }[] = [
@@ -37,6 +40,7 @@ export const NAV: NavItem[] = [
   { to: "/carteira", label: "Carteira", icon: Wallet, group: "finance" },
   { to: "/categorias", label: "Categorias", icon: Tag, group: "finance" },
   { to: "/metas", label: "Metas", icon: Target, group: "finance" },
+  { to: "/acerto", label: "Acerto", icon: Scale, group: "finance", feature: "settleUp" },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3, group: "finance" },
   { to: "/usuarios", label: "Usuários", icon: Users, group: "system" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, group: "system" },

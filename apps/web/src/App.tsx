@@ -18,6 +18,7 @@ const CategoriesPage = lazy(() => import("@/pages/Categories").then((m) => ({ de
 const UsersPage = lazy(() => import("@/pages/Users").then((m) => ({ default: m.UsersPage })));
 const SettingsPage = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const GoalsPage = lazy(() => import("@/pages/Goals").then((m) => ({ default: m.GoalsPage })));
+const SettleUpPage = lazy(() => import("@/pages/SettleUp").then((m) => ({ default: m.SettleUpPage })));
 const ActivityPage = lazy(() => import("@/pages/Activity").then((m) => ({ default: m.ActivityPage })));
 const ReportsPage = lazy(() => import("@/pages/Reports").then((m) => ({ default: m.ReportsPage })));
 const AdminPage = lazy(() => import("@/pages/Admin").then((m) => ({ default: m.AdminPage })));
@@ -78,6 +79,7 @@ export function App() {
           <Route path="/transacoes" element={<TransactionsPage />} />
           <Route path="/carteira" element={<CarteiraPage />} />
           <Route path="/metas" element={<GoalsPage />} />
+          <Route path="/acerto" element={<SettleUpPage />} />
           <Route path="/atividade" element={<ActivityPage />} />
           <Route path="/relatorios" element={<ReportsPage />} />
           <Route path="/importar/:id" element={<ImportReviewPage />} />

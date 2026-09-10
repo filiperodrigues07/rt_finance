@@ -8,6 +8,8 @@ import {
   changePasswordBody,
   resetDataBody,
   householdEmailPrefsBody,
+  householdFeaturesBody,
+  type HouseholdFeatures,
   idParam,
   type UpdateHouseholdBody,
   type UpdateMemberBody,
@@ -102,6 +104,19 @@ export class HouseholdsController {
     @Body(new ZodValidationPipe(householdEmailPrefsBody)) body: HouseholdEmailPrefsBody,
   ) {
     return this.households.updateEmailPrefs(user, body);
+  }
+
+  @Get("household/features")
+  getFeatures(@CurrentHousehold() householdId: string) {
+    return this.households.getFeatures(householdId);
+  }
+
+  @Put("household/features")
+  updateFeatures(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(householdFeaturesBody)) body: HouseholdFeatures,
+  ) {
+    return this.households.updateFeatures(user, body);
   }
 
   @Post("household/reset-data")

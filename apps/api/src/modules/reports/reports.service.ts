@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import {
@@ -17,6 +18,7 @@ import {
   type CategoryTrend,
   type MemberComparison,
   type MonthPace,
+  type SettleUpReport,
 } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { ENV, type Env } from "../../config/env.schema";
@@ -868,5 +870,111 @@ export class ReportsService {
       projectedIncomeCents,
       basisDays: PACE_BASIS_DAYS,
     };
+  }
+
+  // ---------------- acerto do casal ----------------
+
+  private async defaultAccountId(householdId: string, memberId: string): Promise<string | null> {
+    const row = await this.prisma.setting.findUnique({
+      where: { householdId_key: { householdId, key: `member:${memberId}:prefs` } },
+    });
+    const v = (row?.value as { defaults?: { accountId?: string | null } } | undefined) ?? {};
+    if (v.defaults?.accountId) return v.defaults.accountId;
+    const acc = await this.prisma.account.findFirst({
+      where: { householdId, archivedAt: null },
+      orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+    return acc?.id ?? null;
+  }
+
+  async settleUp(householdId: string, from: string, to: string): Promise<SettleUpReport> {
+    const members = await this.prisma.householdMember.findMany({
+      where: { householdId },
+      select: { id: true, displayName: true },
+      orderBy: { joinedAt: "asc" },
+    });
+    const grouped = await this.prisma.transaction.groupBy({
+      by: ["memberId"],
+      where: {
+        householdId,
+        type: "EXPENSE",
+        status: { in: ["CONFIRMED", "CLEARED"] },
+        transferGroupId: null,
+        source: { not: "ADJUSTMENT" },
+        date: { gte: dateOnly(from), lte: dateOnly(to) },
+      },
+      _sum: { amountCents: true },
+    });
+    const paid = new Map(grouped.map((g) => [g.memberId, g._sum.amountCents ?? 0]));
+    const perMember = members.map((m) => ({
+      memberId: m.id,
+      displayName: m.displayName,
+      paidCents: paid.get(m.id) ?? 0,
+    }));
+    const totalCents = perMember.reduce((a, m) => a + m.paidCents, 0);
+
+    let net: SettleUpReport["net"] = null;
+    if (perMember.length === 2 && totalCents > 0) {
+      const [a, b] = [...perMember].sort((x, y) => y.paidCents - x.paidCents) as [
+        (typeof perMember)[number],
+        (typeof perMember)[number],
+      ];
+      const cents = Math.round(a.paidCents - totalCents / 2);
+      if (cents > 0) {
+        net = {
+          fromMemberId: b.memberId,
+          fromName: b.displayName,
+          toMemberId: a.memberId,
+          toName: a.displayName,
+          cents,
+        };
+      }
+    }
+    return { from, to, perMember, totalCents, net };
+  }
+
+  async settleUpSettle(
+    householdId: string,
+    actingMemberId: string,
+    from: string,
+    to: string,
+  ): Promise<{ ok: true; amountCents: number } | { ok: false; reason: string }> {
+    const report = await this.settleUp(householdId, from, to);
+    if (!report.net) return { ok: false, reason: "Não há nada a acertar no período." };
+
+    const [fromAcc, toAcc] = await Promise.all([
+      this.defaultAccountId(householdId, report.net.fromMemberId),
+      this.defaultAccountId(householdId, report.net.toMemberId),
+    ]);
+    if (!fromAcc || !toAcc || fromAcc === toAcc) {
+      return {
+        ok: false,
+        reason: "Defina uma conta padrão diferente para cada pessoa em Configurações.",
+      };
+    }
+
+    const groupId = randomUUID();
+    const shared = {
+      householdId,
+      amountCents: report.net.cents,
+      date: dateOnly(to),
+      status: "CONFIRMED" as const,
+      source: "MANUAL" as const,
+      transferGroupId: groupId,
+      memberId: actingMemberId,
+      createdById: actingMemberId,
+      categoryId: null,
+    };
+    const label = `Acerto ${report.net.fromName} → ${report.net.toName}`;
+    await this.prisma.$transaction([
+      this.prisma.transaction.create({
+        data: { ...shared, type: "EXPENSE", description: `${label} (saída)`, accountId: fromAcc },
+      }),
+      this.prisma.transaction.create({
+        data: { ...shared, type: "INCOME", description: `${label} (entrada)`, accountId: toAcc },
+      }),
+    ]);
+    return { ok: true, amountCents: report.net.cents };
   }
 }

@@ -1,8 +1,14 @@
-import { Controller, Get, Header, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, Header, Post, Query, Res } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
-import { dashboardQuery, type DashboardQuery } from "@rt-finance/shared";
+import {
+  dashboardQuery,
+  settleUpSettleBody,
+  type DashboardQuery,
+  type AuthUser,
+  type SettleUpSettleBody,
+} from "@rt-finance/shared";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
-import { CurrentHousehold } from "../../common/decorators/current-user.decorator";
+import { CurrentHousehold, CurrentUser } from "../../common/decorators/current-user.decorator";
 import { ReportsService } from "./reports.service";
 import { ReportExportService } from "./report-export.service";
 
@@ -61,6 +67,23 @@ export class ReportsController {
   @Get("pace")
   pace(@CurrentHousehold() householdId: string) {
     return this.reports.pace(householdId);
+  }
+
+  @Get("settle-up")
+  settleUp(
+    @CurrentHousehold() householdId: string,
+    @Query("from") from: string,
+    @Query("to") to: string,
+  ) {
+    return this.reports.settleUp(householdId, from, to);
+  }
+
+  @Post("settle-up/settle")
+  settleUpSettle(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(settleUpSettleBody)) body: SettleUpSettleBody,
+  ) {
+    return this.reports.settleUpSettle(user.householdId, user.memberId, body.from, body.to);
   }
 
   @Get("insights")

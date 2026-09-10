@@ -154,6 +154,11 @@ export class TransactionsController {
     return file.data;
   }
 
+  @Post("attachments/:attId/scan")
+  scanAttachment(@CurrentHousehold() householdId: string, @Param("attId") attId: string) {
+    return this.attachments.scan(householdId, attId);
+  }
+
   @Delete("attachments/:attId")
   removeAttachment(@CurrentHousehold() householdId: string, @Param("attId") attId: string) {
     return this.attachments.remove(householdId, attId);

@@ -26,7 +26,7 @@ export function Attachments({
 }) {
   const toast = useToast();
   const { data, isLoading } = useAttachments(transactionId);
-  const { upload, remove, download } = useAttachmentMutations(transactionId);
+  const { upload, remove, download, scan } = useAttachmentMutations(transactionId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<"BOLETO" | "RECEIPT" | "OTHER">(defaultKind);
 
@@ -82,7 +82,29 @@ export function Attachments({
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {data.map((a) => (
-            <AttachmentRow key={a.id} att={a} onDownload={() => download.mutate(a)} onRemove={() => remove.mutate(a.id)} />
+            <AttachmentRow
+              key={a.id}
+              att={a}
+              scanning={scan.isPending}
+              onDownload={() => download.mutate(a)}
+              onRemove={() => remove.mutate(a.id)}
+              onScan={async () => {
+                try {
+                  const r = await scan.mutateAsync(a.id);
+                  const parts = [
+                    r.amountCents != null &&
+                      (r.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+                    r.date && r.date.split("-").reverse().join("/"),
+                    r.description,
+                  ].filter(Boolean);
+                  toast[parts.length ? "info" : "error"](
+                    parts.length ? `Li do recibo: ${parts.join(" · ")}` : "Não consegui ler a foto",
+                  );
+                } catch {
+                  toast.error("Não consegui ler a foto");
+                }
+              }}
+            />
           ))}
         </ul>
       )}
@@ -92,12 +114,16 @@ export function Attachments({
 
 function AttachmentRow({
   att,
+  scanning,
   onDownload,
   onRemove,
+  onScan,
 }: {
   att: TransactionAttachmentDTO;
+  scanning: boolean;
   onDownload: () => void;
   onRemove: () => void;
+  onScan: () => void;
 }) {
   const isImg = att.mimeType.startsWith("image/");
   return (
@@ -109,6 +135,11 @@ function AttachmentRow({
           {KIND_LABEL[att.kind] ?? att.kind} · {formatSize(att.sizeBytes)}
         </div>
       </div>
+      {isImg && (
+        <Button variant="ghost" size="sm" loading={scanning} onClick={onScan}>
+          Ler foto
+        </Button>
+      )}
       <Button variant="ghost" size="icon" onClick={onDownload} aria-label="Baixar">
         <Download className="size-4" />
       </Button>
