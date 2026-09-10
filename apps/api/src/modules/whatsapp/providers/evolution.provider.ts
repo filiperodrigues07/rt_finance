@@ -178,12 +178,13 @@ export class EvolutionProvider extends WhatsAppService {
     instance?: string,
   ): Promise<{ base64: string; mimetype: string } | null> {
     const item = raw as Record<string, any> | undefined;
-    const key = item?.key;
-    if (!key) return null;
+    if (!item?.key) return null;
     try {
+      // Evolution v2.3.7 exige a mensagem completa (key + message.audioMessage), não só a key —
+      // ele não persiste a mensagem p/ resolver pela key (DATABASE_SAVE_DATA_NEW_MESSAGE=false).
       const json = await this.call<{ base64?: string; mimetype?: string; media?: string }>(
         `/chat/getBase64FromMediaMessage/${this.inst(instance)}`,
-        { message: { key }, convertToMp4: false },
+        { message: item, convertToMp4: false },
       );
       const base64 = json.base64 ?? json.media ?? null;
       if (!base64) return null;
