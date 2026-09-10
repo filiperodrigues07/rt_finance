@@ -24,6 +24,7 @@ import { ReportsModule } from "./modules/reports/reports.module";
 import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { GoalsModule } from "./modules/goals/goals.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { PushModule } from "./modules/push/push.module";
 import { ActivityModule } from "./modules/activity/activity.module";
 import { ShareModule } from "./modules/share/share.module";
 import { ChartsModule } from "./modules/charts/charts.module";
@@ -79,6 +80,7 @@ import { HealthModule } from "./modules/health/health.module";
     ReportsModule,
     BudgetsModule,
     GoalsModule,
+    PushModule,
     NotificationsModule,
     ActivityModule,
     ShareModule,

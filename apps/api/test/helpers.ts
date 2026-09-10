@@ -15,7 +15,7 @@ export async function resetDb(): Promise<void> {
     "AuditLog", "AiInteraction", "AiConversation", "WhatsappMessage",
     "GoalContribution", "FinancialGoal", "Budget",
     "TransactionComment", "TransactionAttachment",
-    "HouseholdBackup",
+    "HouseholdBackup", "PushSubscription",
     "Installment", "InstallmentPlan", "Transaction", "CreditCardInvoice", "CreditCard",
     "Account", "Category", "NotificationPreference", "Notification", "Setting", "AppSetting",
     "PasswordResetToken", "Session", "HouseholdMember", "User", "Household",

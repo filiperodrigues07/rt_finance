@@ -4,6 +4,28 @@ import type { UpdateNotificationPrefsBody } from "@rt-finance/shared";
 import { PrismaService } from "../../lib/prisma.service";
 import { NotFoundError } from "../../common/errors/domain-error";
 import { WhatsAppService } from "../whatsapp/whatsapp.types";
+import { PushService } from "../push/push.service";
+
+/** Rota interna para o clique da notificação push, por tipo. */
+function linkForType(type: NotificationType, data: unknown): string {
+  const d = (typeof data === "object" && data ? data : {}) as Record<string, unknown>;
+  if (typeof d.link === "string") return d.link;
+  switch (type) {
+    case "TRANSACTION_COMMENT":
+      return d.transactionId ? `/transacoes?comments=${d.transactionId}` : "/transacoes";
+    case "INVOICE_DUE":
+      return "/carteira?tab=cartoes";
+    case "BUDGET_THRESHOLD":
+    case "BUDGET_EXCEEDED":
+      return "/carteira?tab=orcamentos";
+    case "GOAL_MILESTONE":
+      return "/metas";
+    case "WEEKLY_SUMMARY":
+      return "/relatorios";
+    default:
+      return "/";
+  }
+}
 
 interface PushInput {
   householdId: string;
@@ -34,6 +56,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsAppService,
+    private readonly pushService: PushService,
   ) {}
 
   async push(input: PushInput): Promise<void> {
@@ -78,6 +101,22 @@ export class NotificationsService {
       ).catch((err) =>
         this.logger.warn(`falha ao enviar notificação no WhatsApp: ${(err as Error).message}`),
       );
+    }
+
+    const wantsWebPush = channel !== "WHATSAPP" && (!pref || pref.channelWeb);
+    if (wantsWebPush) {
+      await this.pushService
+        .sendToHousehold(
+          input.householdId,
+          {
+            title: input.title,
+            body: input.body,
+            link: linkForType(input.type, data),
+            tag: input.dedupe,
+          },
+          { targetUserId: input.targetUserId ?? null },
+        )
+        .catch((err) => this.logger.warn(`falha ao enviar push web: ${(err as Error).message}`));
     }
 
     await this.prisma.notification.update({

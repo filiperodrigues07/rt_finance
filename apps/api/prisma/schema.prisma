@@ -175,6 +175,7 @@ model Household {
   goals             FinancialGoal[]
   notifications     Notification[]
   notifPreferences  NotificationPreference[]
+  pushSubscriptions PushSubscription[]
   whatsappMessages  WhatsappMessage[]
   aiConversations   AiConversation[]
   settings          Setting[]
@@ -213,6 +214,7 @@ model User {
   memberships HouseholdMember[]
   sessions    Session[]
   passwordResetTokens PasswordResetToken[]
+  pushSubscriptions   PushSubscription[]
 }
 
 model PasswordResetToken {
@@ -561,6 +563,24 @@ model NotificationPreference {
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
   @@unique([householdId, type])
+}
+
+/// Inscrição de Web Push (Push API do navegador), por dispositivo/usuário.
+model PushSubscription {
+  id          String   @id @default(cuid())
+  householdId String
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@index([userId])
 }
 
 // ===================== WHATSAPP / IA (ETAPAS 4-5) =====================

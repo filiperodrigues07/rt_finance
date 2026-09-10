@@ -5,6 +5,7 @@ import supertest from "supertest";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createTestApp, prisma, resetDb, seedMinimal, type SeedResult } from "./helpers";
 import { BackupService } from "../src/modules/backup/backup.service";
+import { NotificationsService } from "../src/modules/notifications/notifications.service";
 
 let app: NestFastifyApplication;
 let http: ReturnType<typeof supertest>;
@@ -1487,6 +1488,45 @@ describe("webhook do WhatsApp", () => {
       orderBy: { createdAt: "desc" },
     });
     expect(confirm?.text ?? "").toMatch(/parcel/i);
+  });
+});
+
+describe("web push", () => {
+  const endpoint = "https://push.example.com/sub/abc123";
+
+  it("GET /push/vapid-key devolve chave (vazia se não configurado)", async () => {
+    const res = await http.get("/api/push/vapid-key").set(auth());
+    expect(res.status).toBe(200);
+    expect(typeof res.body.publicKey).toBe("string");
+  });
+
+  it("subscribe grava a inscrição do usuário e é idempotente por endpoint", async () => {
+    const body = { endpoint, keys: { p256dh: "p256dh-key", auth: "auth-key" }, userAgent: "vitest" };
+    const r1 = await http.post("/api/push/subscribe").set(auth()).send(body);
+    expect(r1.status).toBeLessThan(300);
+    const r2 = await http.post("/api/push/subscribe").set(auth()).send(body);
+    expect(r2.status).toBeLessThan(300);
+    const count = await prisma.pushSubscription.count({ where: { endpoint } });
+    expect(count).toBe(1);
+  });
+
+  it("disparar notificação com inscrições presentes não quebra", async () => {
+    const svc = app.get(NotificationsService);
+    await expect(
+      svc.push({
+        householdId: seed.householdId,
+        type: "WEEKLY_SUMMARY",
+        title: "teste push",
+        body: "corpo",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("unsubscribe remove a inscrição", async () => {
+    const res = await http.post("/api/push/unsubscribe").set(auth()).send({ endpoint });
+    expect(res.status).toBeLessThan(300);
+    const count = await prisma.pushSubscription.count({ where: { endpoint } });
+    expect(count).toBe(0);
   });
 });
 

@@ -35,6 +35,13 @@ export const envSchema = z.object({
   MAIL_FROM: z.string().optional(), // ex.: "RT Finance <no-reply@…>"; default = SMTP_USER
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(45),
 
+  // Web Push (Push API do navegador). Gere o par uma vez:
+  //   npx web-push generate-vapid-keys
+  // Sem as duas chaves, o push web fica desligado (as notificações continuam in-app + WhatsApp).
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:no-reply@rtfinance.local"),
+
   // usados a partir das ETAPAS 4-6 (opcionais por enquanto)
   // "nvidia" (real) | "mock" (regras locais, sem custo/rede — usado se faltar NVIDIA_API_KEY)
   AI_PROVIDER: z.enum(["nvidia", "mock"]).default("nvidia"),

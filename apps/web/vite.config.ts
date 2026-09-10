@@ -27,6 +27,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // handlers de push/notificationclick — script simples, sem workbox
+        importScripts: ["push-sw.js"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

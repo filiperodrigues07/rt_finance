@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/data";
 import { WhatsAppPanel } from "@/components/settings/WhatsAppPanel";
 import { EmailPanel } from "@/components/settings/EmailPanel";
 import { AppearancePanel } from "@/components/settings/AppearancePanel";
+import { PushPanel } from "@/components/settings/PushPanel";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -55,6 +56,8 @@ export function SettingsPage() {
       />
 
       <AppearancePanel />
+
+      <PushPanel />
 
       <WhatsAppPanel />
 
