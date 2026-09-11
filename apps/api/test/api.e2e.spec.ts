@@ -1612,6 +1612,39 @@ describe("webhook do WhatsApp", () => {
     });
     expect(confirm?.text ?? "").toMatch(/parcel/i);
   });
+
+  it("foto com legenda lança normalmente; foto sem legenda pede legenda", async () => {
+    const imgPayload = (id: string, caption?: string) => ({
+      event: "messages.upsert",
+      instance: "rtfinance",
+      data: {
+        key: { remoteJid: OWNER_JID, fromMe: false, id },
+        message: { imageMessage: caption ? { caption } : {} },
+        messageTimestamp: 1_780_000_000,
+        pushName: "Owner",
+      },
+    });
+
+    const withCaption = await http
+      .post("/api/whatsapp/webhook")
+      .send(imgPayload("WA_IMG_1", "gastei 45 de padaria"));
+    expect(withCaption.status).toBeLessThan(300);
+    const tx = await prisma.transaction.findFirst({ where: { description: { contains: "padaria", mode: "insensitive" } } });
+    expect(tx?.amountCents).toBe(4500);
+
+    const noCaption = await http.post("/api/whatsapp/webhook").send(imgPayload("WA_IMG_2"));
+    expect(noCaption.status).toBeLessThan(300);
+    const reply = await prisma.whatsappMessage.findFirst({
+      where: { providerMessageId: "WA_IMG_2" },
+    });
+    // a mensagem entrou como IMAGE
+    expect(reply?.type).toBe("IMAGE");
+    const out = await prisma.whatsappMessage.findFirst({
+      where: { direction: "OUTBOUND", text: { contains: "legenda" } },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(out).toBeTruthy();
+  });
 });
 
 describe("preferências do usuário", () => {

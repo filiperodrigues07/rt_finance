@@ -45,4 +45,8 @@ export class ConsoleProvider extends WhatsAppService {
   async fetchAudio(): Promise<{ base64: string; mimetype: string } | null> {
     return null;
   }
+
+  async fetchImage(): Promise<{ base64: string; mimetype: string } | null> {
+    return null;
+  }
 }

@@ -58,4 +58,9 @@ export abstract class WhatsAppService {
     raw: unknown,
     instance?: string,
   ): Promise<{ base64: string; mimetype: string } | null>;
+  /** Igual ao fetchAudio, para mensagens de imagem (foto de recibo/NF). */
+  abstract fetchImage(
+    raw: unknown,
+    instance?: string,
+  ): Promise<{ base64: string; mimetype: string } | null>;
 }

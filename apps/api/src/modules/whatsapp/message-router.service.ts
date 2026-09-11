@@ -5,6 +5,7 @@ import { ENV, type Env } from "../../config/env.schema";
 import { ReportsService } from "../reports/reports.service";
 import { FinanceAssistant } from "../ai/finance-assistant.service";
 import { TranscriptionService } from "../ai/transcription.service";
+import { TransactionAttachmentsService } from "../transactions/transaction-attachments.service";
 import { WhatsAppService, type InboundMessage, type StatusUpdate } from "./whatsapp.types";
 import { phoneCandidates, phonesMatch } from "@rt-finance/shared";
 import * as fmt from "./formatters";
@@ -28,6 +29,7 @@ export class MessageRouter {
     private readonly reports: ReportsService,
     private readonly assistant: FinanceAssistant,
     private readonly transcription: TranscriptionService,
+    private readonly attachments: TransactionAttachmentsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -212,6 +214,39 @@ export class MessageRouter {
       msg = { ...msg, text: result.text, type: "TEXT" };
     }
 
+    // Imagem (foto de recibo/NF): baixa; usa a legenda se houver, senão OCR.
+    // Guarda o buffer pra anexar como comprovante se um lançamento for criado.
+    let receipt: { buffer: Buffer; mimetype: string } | null = null;
+    if (msg.type === "IMAGE") {
+      const media = await this.whatsapp
+        .fetchImage(msg.raw, sender.whatsappInstance ?? undefined)
+        .catch(() => null);
+      if (media) receipt = { buffer: Buffer.from(media.base64, "base64"), mimetype: media.mimetype };
+
+      const caption = (msg.text ?? "").trim();
+      if (caption) {
+        msg = { ...msg, text: caption, type: "TEXT" };
+      } else if (receipt) {
+        const scan = await this.attachments
+          .scanBuffer(receipt.buffer, receipt.mimetype, "recibo.jpg")
+          .catch(() => null);
+        if (scan?.amountCents) {
+          const val = (scan.amountCents / 100).toFixed(2).replace(".", ",");
+          const d = scan.date ? ` em ${scan.date.split("-").reverse().join("/")}` : "";
+          const desc = scan.description ? ` ${scan.description}` : " em compra";
+          msg = { ...msg, text: `gastei ${val}${desc}${d}`, type: "TEXT" };
+        }
+      }
+      if (!(msg.text ?? "").trim()) {
+        await this.safeReply(
+          replyTo,
+          "Recebi a foto, mas não consegui ler o valor. Me manda com uma legenda, ex.: *gastei 88 no mercado*.",
+          sender,
+        );
+        return;
+      }
+    }
+
     const text = (msg.text ?? "").trim();
     const cmd = text.toLowerCase().replace(/[!.?]/g, "").trim();
 
@@ -260,6 +295,21 @@ export class MessageRouter {
         text,
         messageId,
       });
+
+      // Se veio foto e um lançamento foi criado, anexa a foto como comprovante.
+      if (receipt && out.createdTransactionId) {
+        await this.attachments
+          .uploadBuffer(
+            sender.householdId,
+            out.createdTransactionId,
+            receipt.buffer,
+            receipt.mimetype,
+            "recibo-whatsapp.jpg",
+            "RECEIPT",
+          )
+          .catch((e) => this.logger.warn(`falha ao anexar recibo do WhatsApp: ${(e as Error).message}`));
+      }
+
       if (out.image) {
         const res = await this.whatsapp.sendImage(replyTo, out.image, out.reply, sender.whatsappInstance || undefined);
         await this.prisma.whatsappMessage.create({

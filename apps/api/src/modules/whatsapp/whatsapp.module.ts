@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ReportsModule } from "../reports/reports.module";
 import { AiModule } from "../ai/ai.module";
+import { TransactionsModule } from "../transactions/transactions.module";
 import { ENV, type Env } from "../../config/env.schema";
 import { WhatsappController } from "./whatsapp.controller";
 import { MessageRouter } from "./message-router.service";
@@ -11,7 +12,7 @@ import { EvolutionAdminService } from "./evolution-admin.service";
 import { WhatsappHealthService } from "./whatsapp-health.service";
 
 @Module({
-  imports: [ReportsModule, AiModule],
+  imports: [ReportsModule, AiModule, TransactionsModule],
   controllers: [WhatsappController],
   providers: [
     EvolutionProvider,

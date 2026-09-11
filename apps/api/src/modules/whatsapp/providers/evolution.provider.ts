@@ -200,6 +200,30 @@ export class EvolutionProvider extends WhatsAppService {
     }
   }
 
+  async fetchImage(
+    raw: unknown,
+    instance?: string,
+  ): Promise<{ base64: string; mimetype: string } | null> {
+    const item = raw as Record<string, any> | undefined;
+    if (!item?.key) return null;
+    try {
+      const json = await this.call<{ base64?: string; mimetype?: string; media?: string }>(
+        `/chat/getBase64FromMediaMessage/${this.inst(instance)}`,
+        { message: item, convertToMp4: false },
+      );
+      const base64 = json.base64 ?? json.media ?? null;
+      if (!base64) return null;
+      if (base64.length * 0.75 > 8 * 1024 * 1024) {
+        this.logger.warn("imagem acima de 8 MB; ignorada");
+        return null;
+      }
+      return { base64, mimetype: json.mimetype ?? "image/jpeg" };
+    } catch (err) {
+      this.logger.warn(`falha ao baixar imagem: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   verifyWebhook(
     headers: Record<string, unknown>,
     query: Record<string, unknown>,

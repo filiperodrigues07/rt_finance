@@ -35,9 +35,13 @@ export interface AssistantInput {
 export interface AssistantReply {
   reply: string;
   image?: Buffer;
+  /** id da transação criada nesta mensagem (p/ o bot anexar a foto do recibo). */
+  createdTransactionId?: string;
 }
 
 const R = (reply: string): AssistantReply => ({ reply });
+
+type Routed = { text: string; txId?: string };
 
 /** Cache curto (60s) da parte estável do contexto do household — evita 5 queries por mensagem. */
 type StaticCtx = Pick<
@@ -95,7 +99,10 @@ export class FinanceAssistant {
     // ---- resposta a uma confirmação pendente ----
     if (pending) {
       if (result.kind === "confirmation_reply") {
-        if (result.choice === "YES") return R(await this.commitPending(conv.id, input, pending));
+        if (result.choice === "YES") {
+          const done = await this.commitPending(conv.id, input, pending);
+          return { reply: done.text, createdTransactionId: done.txId };
+        }
         if (result.choice === "NO") {
           await this.conversations.clear(conv.id, "canceled");
           return R("Ok, cancelei. 👍");
@@ -110,9 +117,9 @@ export class FinanceAssistant {
       await this.conversations.clear(conv.id);
     }
 
-    let text: string;
+    let routed: Routed;
     try {
-      text = await this.route(conv.id, input, result);
+      routed = await this.route(conv.id, input, result);
     } catch (err) {
       this.logger.error(
         `route falhou (kind=${result.kind}): ${(err as Error).stack ?? String(err)}`,
@@ -127,7 +134,7 @@ export class FinanceAssistant {
         return undefined;
       });
     }
-    return { reply: text, image };
+    return { reply: routed.text, image, createdTransactionId: routed.txId };
   }
 
   private async buildChart(
@@ -152,26 +159,26 @@ export class FinanceAssistant {
     return slices.length ? this.charts.donut("Gastos por categoria", slices) : undefined;
   }
 
-  private async route(convId: string, input: AssistantInput, result: AiResult): Promise<string> {
+  private async route(convId: string, input: AssistantInput, result: AiResult): Promise<Routed> {
     switch (result.kind) {
       case "help":
-        return helpText(input.memberName);
+        return { text: helpText(input.memberName) };
 
       case "unknown":
-        return rf.dontUnderstand();
+        return { text: rf.dontUnderstand() };
 
       case "confirmation_reply":
-        return "Não há nada pendente pra confirmar. Pode mandar o lançamento ou a pergunta.";
+        return { text: "Não há nada pendente pra confirmar. Pode mandar o lançamento ou a pergunta." };
 
       case "create_expense":
       case "create_income":
         return this.handleCreateTransaction(convId, input, result);
 
       case "create_installment_purchase":
-        return this.handleInstallment(convId, input, result);
+        return { text: await this.handleInstallment(convId, input, result) };
 
       case "query":
-        return this.handleQuery(input.householdId, input.memberId, result);
+        return { text: await this.handleQuery(input.householdId, input.memberId, result) };
     }
   }
 
@@ -180,12 +187,12 @@ export class FinanceAssistant {
     convId: string,
     input: AssistantInput,
     r: Extract<AiResult, { kind: "create_expense" | "create_income" }>,
-  ): Promise<string> {
+  ): Promise<Routed> {
     const type = r.kind === "create_expense" ? "EXPENSE" : "INCOME";
     const kindKey = type === "EXPENSE" ? "EXPENSE" : "INCOME";
 
     if (r.ambiguous && r.clarification) {
-      return `🤔 ${r.clarification}`;
+      return { text: `🤔 ${r.clarification}` };
     }
 
     const { category } = await this.hints.resolveCategory(input.householdId, r.categoryHint, kindKey);
@@ -193,7 +200,7 @@ export class FinanceAssistant {
     const pay = await this.hints.resolvePayment(input.householdId, r.paymentHint);
 
     if (!pay.accountId && !pay.creditCardId) {
-      return "Você ainda não tem contas nem cartões cadastrados. Cadastre um no painel primeiro. 🙂";
+      return { text: "Você ainda não tem contas nem cartões cadastrados. Cadastre um no painel primeiro. 🙂" };
     }
 
     const body: CreateTransactionBody = {
@@ -218,16 +225,19 @@ export class FinanceAssistant {
     const categoryLabel = category ? `${category.icon} ${category.name}` : "Sem categoria";
 
     if (direct) {
-      await this.transactions.create(input.householdId, input.memberId, body);
+      const created = await this.transactions.create(input.householdId, input.memberId, body);
       await this.conversations.clear(convId, r.kind);
-      return rf.expenseRegistered({
-        type,
-        amountCents: r.amountCents,
-        categoryLabel,
-        dateIso: r.date,
-        payLabel: pay.label,
-        memberLabel: member?.displayName ?? input.memberName,
-      });
+      return {
+        text: rf.expenseRegistered({
+          type,
+          amountCents: r.amountCents,
+          categoryLabel,
+          dateIso: r.date,
+          payLabel: pay.label,
+          memberLabel: member?.displayName ?? input.memberName,
+        }),
+        txId: created.id,
+      };
     }
 
     const pending: PendingAction = {
@@ -244,7 +254,7 @@ export class FinanceAssistant {
       createdAtIso: new Date().toISOString(),
     };
     await this.conversations.setPending(convId, pending, r.kind);
-    return pending.summary;
+    return { text: pending.summary };
   }
 
   // ---------------- create installment ----------------
@@ -341,20 +351,22 @@ export class FinanceAssistant {
     convId: string,
     input: AssistantInput,
     pending: PendingAction,
-  ): Promise<string> {
+  ): Promise<Routed> {
     try {
       if (pending.kind === "installment_purchase") {
         const body = pending.payload as unknown as CreateInstallmentPlanBody;
         await this.installments.create(input.householdId, input.memberId, body);
         await this.conversations.clear(convId, "committed");
-        return rf.installmentRegistered({
-          description: body.description,
-          totalCents: body.totalCents,
-          count: body.installmentCount,
-          cardLabel: (
-            await this.prisma.creditCard.findUnique({ where: { id: body.creditCardId } })
-          )?.name ?? "cartão",
-        });
+        return {
+          text: rf.installmentRegistered({
+            description: body.description,
+            totalCents: body.totalCents,
+            count: body.installmentCount,
+            cardLabel: (
+              await this.prisma.creditCard.findUnique({ where: { id: body.creditCardId } })
+            )?.name ?? "cartão",
+          }),
+        };
       }
 
       const body = pending.payload as unknown as CreateTransactionBody;
@@ -371,18 +383,21 @@ export class FinanceAssistant {
         ? (await this.prisma.creditCard.findUnique({ where: { id: body.creditCardId } }))?.name ?? "cartão"
         : (await this.prisma.account.findUnique({ where: { id: body.accountId ?? "" } }))?.name ?? "conta";
 
-      return rf.expenseRegistered({
-        type: body.type,
-        amountCents: tx.amountCents,
-        categoryLabel: category ? `${category.icon} ${category.name}` : "Sem categoria",
-        dateIso: toIsoDate(tx.date),
-        payLabel,
-        memberLabel: member?.displayName ?? input.memberName,
-      });
+      return {
+        text: rf.expenseRegistered({
+          type: body.type,
+          amountCents: tx.amountCents,
+          categoryLabel: category ? `${category.icon} ${category.name}` : "Sem categoria",
+          dateIso: toIsoDate(tx.date),
+          payLabel,
+          memberLabel: member?.displayName ?? input.memberName,
+        }),
+        txId: tx.id,
+      };
     } catch (err) {
       this.logger.error({ err }, "falha ao efetivar ação pendente");
       await this.conversations.clear(convId, "error");
-      return "❌ Não consegui salvar o lançamento. Tente novamente ou use o painel.";
+      return { text: "❌ Não consegui salvar o lançamento. Tente novamente ou use o painel." };
     }
   }
 

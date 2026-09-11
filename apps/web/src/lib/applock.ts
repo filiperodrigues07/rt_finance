@@ -30,7 +30,10 @@ async function sha256Hex(s: string): Promise<string> {
 }
 
 export function lockEnabled(): boolean {
-  return ls(K_ENABLED) === "1" && !!ls(K_PIN);
+  return ls(K_ENABLED) === "1" && (!!ls(K_PIN) || !!ls(K_CRED));
+}
+export function lockHasPin(): boolean {
+  return !!ls(K_PIN);
 }
 export function autolockMin(): number {
   const n = Number(ls(K_AUTOLOCK));
@@ -51,6 +54,9 @@ export function disableLock(): void {
   set(K_ENABLED, null);
   set(K_PIN, null);
   set(K_CRED, null);
+}
+export function clearPin(): void {
+  set(K_PIN, null);
 }
 export function setAutolock(min: number): void {
   set(K_AUTOLOCK, String(min));

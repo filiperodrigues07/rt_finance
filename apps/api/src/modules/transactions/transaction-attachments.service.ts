@@ -91,14 +91,38 @@ export class TransactionAttachmentsService {
     if (!ALLOWED_MIME.includes(upload.mimetype) && !okExt) {
       throw new DomainError("Formato não aceito. Envie PDF, PNG ou JPG.");
     }
+    return this.persist(transactionId, upload.buffer, upload.mimetype, upload.filename, kind);
+  }
+
+  /** Anexa a partir de um buffer cru (usado pelo bot ao receber foto no WhatsApp). */
+  async uploadBuffer(
+    householdId: string,
+    transactionId: string,
+    buffer: Buffer,
+    mimeType: string,
+    fileName: string,
+    kind: "BOLETO" | "RECEIPT" | "OTHER",
+  ): Promise<TransactionAttachmentDTO> {
+    await this.assertTransaction(householdId, transactionId);
+    if (buffer.length > MAX_BYTES) throw new DomainError("Arquivo muito grande — o limite é 5 MB.");
+    return this.persist(transactionId, buffer, mimeType, fileName, kind);
+  }
+
+  private async persist(
+    transactionId: string,
+    buffer: Buffer,
+    mimeType: string,
+    fileName: string,
+    kind: "BOLETO" | "RECEIPT" | "OTHER",
+  ): Promise<TransactionAttachmentDTO> {
     const created = await this.prisma.transactionAttachment.create({
       data: {
         transactionId,
         kind,
-        fileName: upload.filename.slice(0, 200),
-        mimeType: upload.mimetype || "application/octet-stream",
-        sizeBytes: upload.buffer.length,
-        data: upload.buffer,
+        fileName: fileName.slice(0, 200),
+        mimeType: mimeType || "application/octet-stream",
+        sizeBytes: buffer.length,
+        data: buffer,
       },
       select: { id: true, kind: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true },
     });

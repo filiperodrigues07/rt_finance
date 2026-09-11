@@ -9,6 +9,6 @@ import { InvoicesModule } from "../invoices/invoices.module";
   imports: [InvoicesModule],
   controllers: [TransactionsController],
   providers: [TransactionsService, TransactionAttachmentsService, TransactionCommentsService],
-  exports: [TransactionsService],
+  exports: [TransactionsService, TransactionAttachmentsService],
 })
 export class TransactionsModule {}

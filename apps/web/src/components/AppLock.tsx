@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Delete, Fingerprint, Lock } from "lucide-react";
+import { Delete, Fingerprint, Lock, ScanFace } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { buzz } from "@/lib/haptics";
+import { useAuth } from "@/lib/auth";
 import {
   autolockMin,
   biometricRegistered,
   lockEnabled,
+  lockHasPin,
   verifyBiometric,
   verifyPin,
 } from "@/lib/applock";
 
 let hiddenAt = 0;
 
-/** Envolve o app: mostra a tela de PIN quando a trava local está ligada e "vencida". */
+/** Envolve o app: mostra a tela de desbloqueio quando a trava local está ligada e "vencida". */
 export function AppLock({ children }: { children: ReactNode }) {
   const [locked, setLocked] = useState(() => lockEnabled());
 
@@ -25,7 +27,6 @@ export function AppLock({ children }: { children: ReactNode }) {
       }
     };
     document.addEventListener("visibilitychange", onVis);
-    // liga/desliga a trava vindo das Configurações
     const onChange = () => setLocked(lockEnabled());
     window.addEventListener("rt:lock-changed", onChange);
     return () => {
@@ -39,17 +40,26 @@ export function AppLock({ children }: { children: ReactNode }) {
 }
 
 function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const { logout } = useAuth();
+  const hasPin = lockHasPin();
+  const hasBio = biometricRegistered();
   const [pin, setPin] = useState("");
   const [wrong, setWrong] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
   const tried = useRef(false);
 
   const tryBiometric = useCallback(async () => {
-    if (!biometricRegistered()) return;
-    if (await verifyBiometric()) {
-      buzz("success");
-      onUnlock();
+    if (!hasBio || bioBusy) return;
+    setBioBusy(true);
+    try {
+      if (await verifyBiometric()) {
+        buzz("success");
+        onUnlock();
+      }
+    } finally {
+      setBioBusy(false);
     }
-  }, [onUnlock]);
+  }, [hasBio, bioBusy, onUnlock]);
 
   useEffect(() => {
     if (!tried.current) {
@@ -80,6 +90,33 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     buzz("tap");
     setPin((p) => p + d);
   };
+
+  // Só biometria (sem PIN): tela enxuta.
+  if (!hasPin) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-bg p-6">
+        <div className="w-full max-w-xs text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-surface-2 text-accent">
+            <Lock className="size-7" />
+          </div>
+          <p className="mt-4 text-sm text-muted">RT Finance está bloqueado</p>
+          <button
+            onClick={() => void tryBiometric()}
+            disabled={bioBusy}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-3 font-medium text-accent-fg disabled:opacity-60"
+          >
+            <ScanFace className="size-5" /> {bioBusy ? "Verificando…" : "Desbloquear"}
+          </button>
+          <button
+            onClick={() => logout()}
+            className="mt-4 block w-full text-xs text-muted hover:text-fg"
+          >
+            Entrar de novo
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-h-dvh place-items-center bg-bg p-6">
@@ -116,7 +153,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
             className="grid h-14 place-items-center rounded-xl text-muted active:bg-surface-2"
             aria-label="Usar biometria"
           >
-            {biometricRegistered() ? <Fingerprint className="size-6" /> : null}
+            {hasBio ? <Fingerprint className="size-6" /> : null}
           </button>
           <button
             onClick={() => press("0")}
@@ -132,6 +169,10 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
             <Delete className="size-5" />
           </button>
         </div>
+
+        <button onClick={() => logout()} className="mt-5 text-xs text-muted hover:text-fg">
+          Esqueci o PIN — entrar de novo
+        </button>
       </div>
     </div>
   );
