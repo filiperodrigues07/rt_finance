@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/cn";
+import { QuickAddChips } from "@/components/QuickAddChips";
 import {
   Share2,
   TrendingUp,
@@ -160,6 +161,8 @@ export function DashboardPage() {
           </>
         }
       />
+
+      <QuickAddChips />
 
       {showFilters && (
         <div className="-mt-2 grid gap-2 rounded-xl border border-border bg-surface-2/40 p-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -654,7 +654,14 @@ describe("acerto do casal", () => {
 
 describe("metas com aporte automático", () => {
   it("runAutoContributions cria contribuição + transação e é idempotente no mês", async () => {
-    const day = Number(new Date().toISOString().slice(8, 10));
+    // dia no fuso do household (o serviço usa todayIso(tz), não UTC)
+    const spToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const day = Number(spToday.slice(8, 10));
     const goal = await http
       .post("/api/goals")
       .set(auth())

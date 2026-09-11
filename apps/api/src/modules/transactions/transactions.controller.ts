@@ -139,6 +139,13 @@ export class TransactionsController {
     return this.attachments.upload(householdId, params.id, upload, parsed.data.kind);
   }
 
+  /** OCR de uma foto sem persistir — pra pré-preencher o formulário de novo lançamento. */
+  @Post("scan-receipt")
+  async scanReceipt(@Req() req: FastifyRequest) {
+    const upload = await readUpload(req, { maxBytes: 5 * 1024 * 1024 });
+    return this.attachments.scanBuffer(upload.buffer, upload.mimetype, upload.filename);
+  }
+
   @Get("attachments/:attId/file")
   async attachmentFile(
     @CurrentHousehold() householdId: string,

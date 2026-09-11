@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import type { CreateTransactionBody } from "@rt-finance/shared";
 import { useAccounts, useCategories, useCreditCards, useTransactionMutations } from "@/lib/hooks";
 import { getPrefs } from "@/lib/preferences";
 import { useAuth } from "@/lib/auth";
 import { useHousehold } from "@/lib/hooks";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { centsToMasked } from "@/lib/format";
+import type { ReceiptScan } from "@rt-finance/shared";
 import { useToast } from "@/lib/toast";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
@@ -58,7 +59,40 @@ export function TransactionForm({
   const [when, setWhen] = useState<"paid" | "scheduled">("paid");
   const [dueDate, setDueDate] = useState(todayIso(APP_TZ));
   const [repeat, setRepeat] = useState("1");
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onReceiptPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setScanning(true);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const r = await api.upload<ReceiptScan>("/transactions/scan-receipt", form);
+      const got: string[] = [];
+      if (r.amountCents != null) {
+        setAmount(centsToMasked(r.amountCents));
+        got.push("valor");
+      }
+      if (r.date) {
+        setDate(r.date);
+        setDueDate(r.date);
+        got.push("data");
+      }
+      if (r.description && !description.trim()) {
+        setDescription(r.description);
+        got.push("descrição");
+      }
+      setError(got.length ? null : "Não consegui ler nada da foto");
+    } catch {
+      setError("Falha ao ler a foto");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -166,7 +200,27 @@ export function TransactionForm({
       <form id="tx-form" onSubmit={submit} className="space-y-4">
         {/* 1. Valor — o número mais importante */}
         <div>
-          <span className="label text-center">Valor</span>
+          <div className="flex items-center justify-between">
+            <span className="label">Valor</span>
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={scanning}
+                className="text-xs text-accent hover:underline disabled:opacity-50"
+              >
+                {scanning ? "lendo…" : "📷 ler recibo"}
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+            capture="environment"
+            className="hidden"
+            onChange={onReceiptPick}
+          />
           <MoneyInput
             value={amount}
             onChange={setAmount}

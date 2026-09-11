@@ -566,7 +566,7 @@ export function TransactionsPage() {
                 {quickTemplates.map((t, i) => (
                   <button
                     key={i}
-                    onClick={() => submitQuick(t.text)}
+                    onClick={() => void submitQuick(t.text)}
                     disabled={tx.quickAdd.isPending}
                     className="rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium hover:border-accent/50 hover:text-accent disabled:opacity-50"
                   >

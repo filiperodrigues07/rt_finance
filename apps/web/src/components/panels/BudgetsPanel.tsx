@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2, ShieldCheck } from "lucide-react";
 import { firstDayOfMonth, todayIso, APP_TZ, toCents } from "@rt-finance/shared";
-import { useBudgets, useBudgetMutations, useCategories } from "@/lib/hooks";
+import { useBudgets, useBudgetMutations, useCategories, useHousehold } from "@/lib/hooks";
 import { formatBRL, monthLabel } from "@/lib/format";
 import { useToast } from "@/lib/toast";
 import { ApiError, api } from "@/lib/api";
@@ -30,6 +30,8 @@ export function BudgetsPanel() {
   const { data: budgets, isLoading } = useBudgets(month);
   const { upsert, remove } = useBudgetMutations();
   const categories = useCategories();
+  const members = useHousehold().data?.members ?? [];
+  const nameOf = (id: string | null) => members.find((m) => m.id === id)?.displayName;
   const [formOpen, setFormOpen] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -84,6 +86,9 @@ export function BudgetsPanel() {
                 <div className="mb-1.5 flex items-center justify-between text-sm">
                   <span>
                     {b.categoryIcon} {b.categoryName}
+                    {b.memberId && (
+                      <span className="ml-1 text-xs text-muted">· {nameOf(b.memberId) ?? "pessoa"}</span>
+                    )}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="tnum text-muted">
@@ -141,6 +146,7 @@ export function BudgetsPanel() {
         <BudgetForm
           month={month}
           categories={(categories.data ?? []).filter((c) => c.kind !== "INCOME")}
+          members={members}
           onDone={() => setFormOpen(false)}
           upsert={upsert}
         />
@@ -152,11 +158,13 @@ export function BudgetsPanel() {
 function BudgetForm({
   month,
   categories,
+  members,
   onDone,
   upsert,
 }: {
   month: string;
   categories: { id: string; name: string; icon: string }[];
+  members: { id: string; displayName: string }[];
   onDone: () => void;
   upsert: { mutateAsync: (b: unknown) => Promise<unknown>; isPending: boolean };
 }) {
@@ -164,6 +172,7 @@ function BudgetForm({
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
   const [rollover, setRollover] = useState(false);
+  const [memberId, setMemberId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -176,7 +185,7 @@ function BudgetForm({
       return setError("Valor inválido");
     }
     try {
-      await upsert.mutateAsync({ categoryId, month, amountCents, rollover });
+      await upsert.mutateAsync({ categoryId, month, amountCents, rollover, memberId: memberId || null });
       toast.success("Orçamento salvo");
       onDone();
     } catch (err) {
@@ -196,9 +205,21 @@ function BudgetForm({
           ))}
         </Select>
       </Field>
-      <Field label="Limite mensal (R$)" error={error ?? undefined}>
-        <MoneyInput value={amount} onChange={setAmount} placeholder="1.500,00" autoFocus />
-      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Limite mensal (R$)" error={error ?? undefined}>
+          <MoneyInput value={amount} onChange={setAmount} placeholder="1.500,00" autoFocus />
+        </Field>
+        <Field label="Pessoa">
+          <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+            <option value="">Casal (todos)</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"

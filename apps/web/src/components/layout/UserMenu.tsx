@@ -4,6 +4,7 @@ import { LogOut, Moon, Sun, Monitor, UserCog } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
 import { useTheme, type ThemePref, type Hue } from "@/lib/theme";
+import { getPrefs, onPrefsChange } from "@/lib/preferences";
 import { Avatar } from "@/components/ui/Avatar";
 import { Segmented } from "@/components/ui/Segmented";
 
@@ -16,6 +17,8 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const { pref, setPref, hue, setHue } = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [nick, setNick] = useState(() => getPrefs().defaults.nickname ?? "");
+  useEffect(() => onPrefsChange(() => setNick(getPrefs().defaults.nickname ?? "")), []);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
         <Avatar name={user.displayName} src={user.avatarUrl} size={32} />
         {!collapsed && (
           <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-xs font-medium">{user.displayName}</div>
+            <div className="truncate text-xs font-medium">{nick || user.displayName}</div>
             <div className="truncate text-[10px] text-muted">{user.email}</div>
           </div>
         )}
@@ -70,7 +73,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
           <div className="flex items-center gap-2.5 px-2 py-2">
             <Avatar name={user.displayName} src={user.avatarUrl} size={36} />
             <div className="min-w-0 leading-tight">
-              <div className="truncate text-sm font-medium">{user.displayName}</div>
+              <div className="truncate text-sm font-medium">{nick || user.displayName}</div>
               <div className="truncate text-xs text-muted">{user.email}</div>
             </div>
           </div>

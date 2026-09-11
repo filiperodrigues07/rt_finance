@@ -184,7 +184,11 @@ export interface FinancialGoal {
   icon: string;
   color: string;
   status: "ACTIVE" | "ACHIEVED" | "ARCHIVED";
+  autoContributeCents: number | null;
+  autoContributeDay: number | null;
+  autoFromAccountId: string | null;
   contributions: GoalContribution[];
+  byMember: { memberId: string; displayName: string; cents: number }[];
 }
 
 export interface NotificationRow {

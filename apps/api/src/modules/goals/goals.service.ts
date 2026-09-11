@@ -20,18 +20,41 @@ export class GoalsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  list(householdId: string) {
-    return this.prisma.financialGoal.findMany({
-      where: { householdId },
-      include: {
-        contributions: {
-          orderBy: { date: "desc" },
-          take: 10,
-          include: { member: { select: { displayName: true } } },
+  async list(householdId: string) {
+    const [goals, members, byMember] = await Promise.all([
+      this.prisma.financialGoal.findMany({
+        where: { householdId },
+        include: {
+          contributions: {
+            orderBy: { date: "desc" },
+            take: 10,
+            include: { member: { select: { displayName: true } } },
+          },
         },
-      },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    });
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      }),
+      this.prisma.householdMember.findMany({
+        where: { householdId },
+        select: { id: true, displayName: true },
+      }),
+      this.prisma.goalContribution.groupBy({
+        by: ["goalId", "memberId"],
+        where: { goal: { householdId } },
+        _sum: { amountCents: true },
+      }),
+    ]);
+    const nameOf = new Map(members.map((m) => [m.id, m.displayName]));
+    return goals.map((g) => ({
+      ...g,
+      byMember: byMember
+        .filter((r) => r.goalId === g.id && (r._sum.amountCents ?? 0) > 0)
+        .map((r) => ({
+          memberId: r.memberId,
+          displayName: nameOf.get(r.memberId) ?? "?",
+          cents: r._sum.amountCents ?? 0,
+        }))
+        .sort((a, b) => b.cents - a.cents),
+    }));
   }
 
   async get(householdId: string, id: string) {

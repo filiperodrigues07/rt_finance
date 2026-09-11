@@ -114,6 +114,20 @@ export function GoalsPage() {
                     </span>
                   </div>
                   <Progress percent={pct} color={g.color} animateIn className="h-2.5" />
+                  {g.byMember.length > 1 && (
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                      {g.byMember.map((m) => (
+                        <span key={m.memberId}>
+                          {m.displayName} <span className="tnum text-fg">{formatBRL(m.cents)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {g.autoContributeCents ? (
+                    <div className="mt-1 text-[11px] text-accent">
+                      Aporte automático: {formatBRL(g.autoContributeCents)}/mês no dia {g.autoContributeDay}
+                    </div>
+                  ) : null}
                 </div>
 
                 {projection && (

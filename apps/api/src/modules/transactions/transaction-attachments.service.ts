@@ -40,17 +40,21 @@ export class TransactionAttachmentsService {
       select: { mimeType: true, fileName: true, data: true },
     });
     if (!att) throw new NotFoundError("Anexo");
-    const isImage = /^image\//.test(att.mimeType) || /\.(png|jpe?g)$/i.test(att.fileName);
-    if (!isImage) throw new DomainError("Só dá pra ler foto (PNG/JPG) — PDF não.");
+    return this.scanBuffer(att.data, att.mimeType, att.fileName);
+  }
 
+  /** OCR de um buffer de imagem (usado pelo scan de anexo e pelo scan avulso). */
+  async scanBuffer(data: Buffer, mimeType: string, fileName: string): Promise<ReceiptScan> {
+    const isImage = /^image\//.test(mimeType) || /\.(png|jpe?g)$/i.test(fileName);
+    if (!isImage) throw new DomainError("Só dá pra ler foto (PNG/JPG) — PDF não.");
     try {
       const text = await Promise.race([
-        extractImageText(att.data),
+        extractImageText(data),
         new Promise<string>((_, rej) => setTimeout(() => rej(new Error("timeout")), 25_000)),
       ]);
       return parseReceipt(text);
     } catch (err) {
-      this.logger.warn(`OCR do anexo falhou: ${(err as Error).message}`);
+      this.logger.warn(`OCR falhou: ${(err as Error).message}`);
       return { isBoleto: false };
     }
   }
