@@ -16,12 +16,14 @@ export interface ActivityActor {
 export interface ActivityItem {
   id: string;
   at: string;
-  kind: "comment" | "notification";
+  kind: "comment" | "notification" | "action";
   title: string;
   body: string;
   actor?: ActivityActor;
   link?: string;
   notificationType?: string;
+  /** só quando kind === "action" — ex.: "transaction_create", "invoice_pay". */
+  actionType?: string;
 }
 
 export interface ActivityPage {

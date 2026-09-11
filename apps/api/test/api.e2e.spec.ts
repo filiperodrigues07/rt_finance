@@ -1866,6 +1866,47 @@ describe("feed de atividade", () => {
       expect(second.body.items[0]?.id).not.toBe(first.body.items[0]?.id);
     }
   });
+
+  it("lançamento criado/pago/excluído e fatura paga viram itens 'action' com quem fez", async () => {
+    const created = await http
+      .post("/api/transactions")
+      .set(auth())
+      .send({ type: "EXPENSE", amountCents: 4321, description: "Feed padaria", date: "2026-09-11", accountId: seed.accountId });
+
+    const scheduled = await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 9900,
+      description: "Feed conta a pagar",
+      date: "2026-09-11",
+      dueDate: "2026-09-20",
+      accountId: seed.accountId,
+      status: "PENDING",
+    });
+    await http.post(`/api/transactions/${scheduled.body.id}/pay`).set(auth()).send({});
+    await http.delete(`/api/transactions/${created.body.id}`).set(auth());
+
+    const res = await http.get("/api/activity?limit=50").set(auth());
+    const items = res.body.items as {
+      kind: string;
+      actionType?: string;
+      title: string;
+      body: string;
+      actor?: { displayName: string };
+    }[];
+
+    // "criado" e "pago" apontam pra transação que continua existindo (scheduled) —
+    // dá pra enriquecer com os dados atuais dela.
+    const madeCreate = items.find((i) => i.actionType === "transactions_create" && i.body.includes("Feed conta a pagar"));
+    expect(madeCreate?.title).toMatch(/lançou uma despesa/i);
+    expect(madeCreate?.actor?.displayName).toBe("Owner");
+
+    const madePay = items.find((i) => i.actionType === "transactions_pay" && i.body.includes("Feed conta a pagar"));
+    expect(madePay?.title).toMatch(/marcou uma conta como paga/i);
+
+    const madeDelete = items.find((i) => i.actionType === "transactions_remove" && i.body.includes("Feed padaria"));
+    expect(madeDelete?.title).toMatch(/excluiu um lançamento/i);
+    expect(madeDelete?.body).toMatch(/43,21/); // valor veio do snapshot "antes" (a transação já foi apagada)
+  });
 });
 
 describe("compartilhar card visual", () => {

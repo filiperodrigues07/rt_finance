@@ -8,6 +8,11 @@ import {
   Target,
   Mail,
   Wallet,
+  ArrowLeftRight,
+  Trash2,
+  CheckCircle2,
+  Layers,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { useActivity } from "@/lib/hooks";
@@ -19,7 +24,18 @@ import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState, RowSkeleton } from "@/components/ui/misc";
 import type { ActivityItem } from "@rt-finance/shared";
 
-function iconFor(type?: string): LucideIcon {
+const ACTION_ICON: Record<string, LucideIcon> = {
+  transactions_create: ArrowLeftRight,
+  transactions_remove: Trash2,
+  transactions_pay: CheckCircle2,
+  invoices_pay: CreditCard,
+  installments_create: Layers,
+  imports_commit: Upload,
+};
+
+function iconFor(it: ActivityItem): LucideIcon {
+  if (it.kind === "action") return ACTION_ICON[it.actionType ?? ""] ?? Bell;
+  const type = it.notificationType;
   if (!type) return Bell;
   if (type.startsWith("BUDGET")) return PiggyBank;
   if (type.startsWith("INVOICE")) return CreditCard;
@@ -65,7 +81,7 @@ export function ActivityPage() {
     <div>
       <PageHeader
         title="Atividade"
-        subtitle="Comentários e alertas do casal, do mais recente ao mais antigo."
+        subtitle="O que o casal andou fazendo — lançamentos, pagamentos, comentários e alertas."
       />
 
       {isLoading ? (
@@ -77,7 +93,7 @@ export function ActivityPage() {
       ) : empty ? (
         <EmptyState
           title="Nada por aqui ainda"
-          description="Comentários em lançamentos e alertas de orçamento, fatura e metas aparecem aqui."
+          description="Lançamentos, pagamentos, comentários e alertas de orçamento, fatura e metas aparecem aqui."
         />
       ) : (
         <div className="space-y-6">
@@ -112,13 +128,13 @@ export function ActivityPage() {
 }
 
 function ActivityRow({ it, onOpen }: { it: ActivityItem; onOpen: () => void }) {
-  const Icon = iconFor(it.notificationType);
+  const Icon = iconFor(it);
   return (
     <div
       onClick={it.link ? onOpen : undefined}
       className={`flex gap-3 px-4 py-3 ${it.link ? "cursor-pointer hover:bg-surface-2/50" : ""}`}
     >
-      {it.kind === "comment" && it.actor ? (
+      {(it.kind === "comment" || it.kind === "action") && it.actor ? (
         <Avatar
           name={it.actor.displayName}
           src={it.actor.avatarUrl}
