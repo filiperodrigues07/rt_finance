@@ -101,7 +101,17 @@ export function LoginPage() {
 
           <footer className="mt-10 text-center text-[11px] leading-relaxed text-muted">
             <p>© {new Date().getFullYear()} RT Finance. Todos os direitos reservados.</p>
-            <p>Desenvolvido por Filipe Rodrigues</p>
+            <p>
+              Desenvolvido por{" "}
+              <a
+                href="https://www.linkedin.com/in/filipe-rodrigues07"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-fg underline decoration-border underline-offset-2 hover:text-accent"
+              >
+                Filipe Rodrigues
+              </a>
+            </p>
           </footer>
         </div>
       </main>

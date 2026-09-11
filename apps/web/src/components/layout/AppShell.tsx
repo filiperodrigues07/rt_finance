@@ -335,8 +335,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         </PullToRefresh>
 
         <footer className="mx-auto w-full max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-6 text-center text-[11px] leading-relaxed text-muted sm:px-6 lg:pb-6">
-          © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por
-          Filipe Rodrigues
+          © {new Date().getFullYear()} RT Finance. Todos os direitos reservados. · Desenvolvido por{" "}
+          <a
+            href="https://www.linkedin.com/in/filipe-rodrigues07"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-fg underline decoration-border underline-offset-2 hover:text-accent"
+          >
+            Filipe Rodrigues
+          </a>
         </footer>
 
         <CommandPalette />
