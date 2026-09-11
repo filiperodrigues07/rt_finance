@@ -106,7 +106,13 @@ export async function registerBiometric(): Promise<boolean> {
           { type: "public-key", alg: -7 },
           { type: "public-key", alg: -257 },
         ],
-        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        // residentKey "discouraged" evita o browser oferecer salvar isso como passkey
+        // sincronizável (Google/iCloud) — é só um Face ID/digital local, não uma "senha".
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "discouraged",
+        },
         timeout: 60000,
       },
     })) as PublicKeyCredential | null;
