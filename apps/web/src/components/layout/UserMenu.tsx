@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { LogOut, Moon, Sun, Monitor, UserCog } from "lucide-react";
+import { LogOut, Moon, Sun, Monitor, UserCog, ChevronsUpDown } from "lucide-react";
+import { ACCENTS, type Accent } from "@rt-finance/shared";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth";
-import { useTheme, type ThemePref, type Hue } from "@/lib/theme";
+import { useHousehold } from "@/lib/hooks";
+import { useTheme, type ThemePref } from "@/lib/theme";
 import { getPrefs, onPrefsChange } from "@/lib/preferences";
 import { Avatar } from "@/components/ui/Avatar";
 import { Segmented } from "@/components/ui/Segmented";
+import { UserDialog } from "@/pages/users/UserDialog";
+
+const ACCENT_DOT: Record<Accent, string> = {
+  blue: "#3b82f6",
+  pink: "#ec4899",
+  violet: "#8b5cf6",
+  emerald: "#10b981",
+  amber: "#f59e0b",
+  rose: "#f43f5e",
+  slate: "#64748b",
+};
 
 /**
  * Cartão do usuário na barra lateral: abre um popover ao clicar na foto, com
@@ -15,11 +27,13 @@ import { Segmented } from "@/components/ui/Segmented";
 export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const { user, logout } = useAuth();
   const { pref, setPref, hue, setHue } = useTheme();
-  const navigate = useNavigate();
+  const household = useHousehold();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [nick, setNick] = useState(() => getPrefs().defaults.nickname ?? "");
   useEffect(() => onPrefsChange(() => setNick(getPrefs().defaults.nickname ?? "")), []);
   const ref = useRef<HTMLDivElement>(null);
+  const selfMember = household.data?.members.find((m) => m.user.id === user?.id) ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -53,10 +67,13 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
       >
         <Avatar name={user.displayName} src={user.avatarUrl} size={32} />
         {!collapsed && (
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-xs font-medium">{nick || user.displayName}</div>
-            <div className="truncate text-[10px] text-muted">{user.email}</div>
-          </div>
+          <>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-xs font-medium">{nick || user.displayName}</div>
+              <div className="truncate text-[10px] text-muted">{user.email}</div>
+            </div>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted" />
+          </>
         )}
       </button>
 
@@ -95,25 +112,21 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
                 { value: "system", label: "Auto", icon: <Monitor className="size-3.5" /> },
               ]}
             />
-            <div className="mt-2">
-              <Segmented<Hue>
-                full
-                size="sm"
-                value={hue}
-                onChange={setHue}
-                options={[
-                  {
-                    value: "blue",
-                    label: "Azul",
-                    icon: <span className="block size-2.5 rounded-full bg-[#3B82F6] ring-1 ring-white/20" />,
-                  },
-                  {
-                    value: "pink",
-                    label: "Rosa",
-                    icon: <span className="block size-2.5 rounded-full bg-[#EC4899] ring-1 ring-white/20" />,
-                  },
-                ]}
-              />
+            <div className="mt-2 flex gap-1.5">
+              {ACCENTS.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  aria-label={a}
+                  aria-pressed={hue === a}
+                  onClick={() => setHue(a)}
+                  className={cn(
+                    "size-6 rounded-full ring-offset-2 ring-offset-elevated transition",
+                    hue === a ? "ring-2 ring-fg/60" : "ring-1 ring-border hover:ring-fg/30",
+                  )}
+                  style={{ background: ACCENT_DOT[a] }}
+                />
+              ))}
             </div>
           </div>
 
@@ -123,7 +136,7 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
             role="menuitem"
             onClick={() => {
               setOpen(false);
-              navigate("/usuarios");
+              setProfileOpen(true);
             }}
             className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-fg transition-colors hover:bg-surface-2"
           >
@@ -141,6 +154,12 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
           </button>
         </div>
       )}
+
+      <UserDialog
+        member={profileOpen ? selfMember : null}
+        onClose={() => setProfileOpen(false)}
+        isOwner={user.role === "OWNER"}
+      />
     </div>
   );
 }
