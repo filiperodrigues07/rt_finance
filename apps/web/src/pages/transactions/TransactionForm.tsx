@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Camera } from "lucide-react";
 import { toCents, todayIso, APP_TZ } from "@rt-finance/shared";
 import type { CreateTransactionBody } from "@rt-finance/shared";
 import { useAccounts, useCategories, useCreditCards, useTransactionMutations } from "@/lib/hooks";
@@ -200,17 +201,20 @@ export function TransactionForm({
       <form id="tx-form" onSubmit={submit} className="space-y-4">
         {/* 1. Valor — o número mais importante */}
         <div>
-          <div className="flex items-center justify-between">
-            <span className="label">Valor</span>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="label !mb-0">Valor</span>
             {!editing && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                loading={scanning}
                 onClick={() => fileRef.current?.click()}
-                disabled={scanning}
-                className="text-xs text-accent hover:underline disabled:opacity-50"
+                className="-my-1"
               >
-                {scanning ? "lendo…" : "📷 ler recibo"}
-              </button>
+                {!scanning && <Camera className="size-3.5" />}
+                Ler recibo
+              </Button>
             )}
           </div>
           <input
