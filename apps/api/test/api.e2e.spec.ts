@@ -327,6 +327,53 @@ describe("fatura: saldo inicial, conciliação e quitar anteriores", () => {
     expect(res.body.reconciledAt).toBeTruthy();
   });
 
+  it("saldo inicial da fatura sobe → tira do 'limite já utilizado' do cartão (não duplica dívida)", async () => {
+    const card = await http
+      .post("/api/credit-cards")
+      .set(auth())
+      .send({ name: "Dup Card", limitCents: 1_000_000, openingUsedCents: 90_000, closingDay: 10, dueDay: 17 });
+    const dupCardId = card.body.id;
+    await http.post("/api/transactions").set(auth()).send({
+      type: "EXPENSE",
+      amountCents: 5_000,
+      description: "compra dup",
+      date: "2026-09-05",
+      creditCardId: dupCardId,
+    });
+    const usedOf = async () => {
+      const res = await http.get("/api/credit-cards").set(auth());
+      return res.body.find((c: { id: string }) => c.id === dupCardId).limits.usedCents as number;
+    };
+    const openingUsedOf = async () =>
+      (await prisma.creditCard.findUnique({ where: { id: dupCardId } }))!.openingUsedCents;
+
+    expect(await usedOf()).toBe(95_000); // 90.000 (cartão) + 5.000 (lançamento)
+
+    const invs = await http.get(`/api/credit-cards/${dupCardId}/invoices`).set(auth());
+    const dupInvoiceId = invs.body[0].id;
+
+    // PATCH: sobe o saldo inicial da fatura em 30.000 → tira 30.000 do cartão
+    const p1 = await http
+      .patch(`/api/invoices/${dupInvoiceId}`)
+      .set(auth())
+      .send({ openingBalanceCents: 30_000 });
+    expect(p1.status).toBe(200);
+    expect(await openingUsedOf()).toBe(60_000); // 90.000 - 30.000
+    expect(await usedOf()).toBe(95_000); // NÃO duplicou: 60.000 + 5.000 + 30.000 = 95.000
+
+    // adjust "opening": sobe mais 70.000 no saldo inicial, mas só tem 60.000 no cartão pra tirar → zera lá (não fica negativo)
+    await http
+      .patch(`/api/invoices/${dupInvoiceId}`)
+      .set(auth())
+      .send({ statementTotalCents: 30_000 + 5_000 + 70_000 }); // diff = 70.000
+    const adj = await http.post(`/api/invoices/${dupInvoiceId}/adjust`).set(auth()).send({ mode: "opening" });
+    expect(adj.status).toBeLessThan(300);
+    expect(adj.body.openingBalanceCents).toBe(100_000); // 30.000 + 70.000
+    expect(adj.body.diffCents).toBe(0);
+    expect(await openingUsedOf()).toBe(0); // só tinha 60.000 pra tirar; nunca fica negativo
+    expect(await usedOf()).toBe(105_000); // 0 (cartão) + 5.000 (lançamento) + 100.000 (fatura) — nunca dobra os 90.000 originais
+  });
+
   it("parcelamento com alreadyPaidCount lança só as restantes", async () => {
     const c = await http
       .post("/api/credit-cards")

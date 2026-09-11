@@ -53,6 +53,8 @@ export interface InvoiceDetail {
   status: z.infer<typeof InvoiceStatus>;
   totalCents: number;
   openingBalanceCents: number;
+  /** "Limite já utilizado" do cartão (dívida geral, fora de qualquer fatura) — só pra exibir. */
+  cardOpeningUsedCents: number;
   itemizedCents: number; // lançamentos normais (sem ajustes), com sinal
   adjustmentsCents: number; // soma dos ajustes, com sinal
   statementTotalCents: number | null;

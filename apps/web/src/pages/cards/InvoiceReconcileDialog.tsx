@@ -122,7 +122,11 @@ export function InvoiceReconcileDialog({
           {/* saldo inicial */}
           <Field
             label="Saldo inicial"
-            hint="Valor que já estava nessa fatura e você não vai detalhar (parcelas antigas, compras anteriores ao app)."
+            hint={
+              d.cardOpeningUsedCents > 0
+                ? `Valor que já estava nessa fatura e você não vai detalhar. Ao aumentar, tira o mesmo tanto do "Limite já utilizado" do cartão automaticamente — não conta a dívida duas vezes.`
+                : "Valor que já estava nessa fatura e você não vai detalhar (parcelas antigas, compras anteriores ao app)."
+            }
           >
             <div className="flex gap-2">
               <MoneyInput value={opening} onChange={setOpening} />
@@ -136,6 +140,13 @@ export function InvoiceReconcileDialog({
               </Button>
             </div>
           </Field>
+
+          {d.cardOpeningUsedCents > 0 && (
+            <p className="-mt-3 text-xs text-muted">
+              O cartão também tem <strong className="text-fg">{formatBRL(d.cardOpeningUsedCents)}</strong> em
+              "Limite já utilizado" (dívida geral, fora das faturas) — editável em Cartões.
+            </p>
+          )}
 
           {/* conferência */}
           <Field label="Valor real da fatura" hint="O que veio no app/e-mail do banco. Deixe vazio se não for conferir.">

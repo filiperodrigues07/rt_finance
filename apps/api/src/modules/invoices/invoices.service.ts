@@ -93,22 +93,53 @@ export class InvoicesService {
     return totalCents;
   }
 
+  /**
+   * Quando o saldo inicial de UMA fatura sobe, essa dívida deixa de ser "geral" e passa a
+   * ser daquela fatura específica — então tira o mesmo tanto do "Limite já utilizado" do
+   * cartão (dívida geral, fora de qualquer fatura). Sem isso, a mesma dívida pré-existente
+   * conta duas vezes no limite usado (cartão inteiro + dentro da fatura).
+   */
+  private async shiftCardOpeningUsed(
+    creditCardId: string,
+    increaseCents: number,
+    db: Db = this.prisma,
+  ): Promise<void> {
+    if (increaseCents <= 0) return;
+    const card = await db.creditCard.findUnique({
+      where: { id: creditCardId },
+      select: { openingUsedCents: true },
+    });
+    if (!card || card.openingUsedCents <= 0) return;
+    const shift = Math.min(card.openingUsedCents, increaseCents);
+    if (shift <= 0) return;
+    await db.creditCard.update({
+      where: { id: creditCardId },
+      data: { openingUsedCents: { decrement: shift } },
+    });
+  }
+
   /** Ajusta saldo inicial (não detalhado) e/ou o valor real da fatura para conferência. */
   async patch(
     householdId: string,
     invoiceId: string,
     body: { openingBalanceCents?: number; statementTotalCents?: number | null },
   ): Promise<CreditCardInvoice> {
-    await this.get(householdId, invoiceId);
-    await this.prisma.creditCardInvoice.update({
-      where: { id: invoiceId },
-      data: {
-        openingBalanceCents: body.openingBalanceCents,
-        statementTotalCents:
-          body.statementTotalCents === undefined ? undefined : body.statementTotalCents,
-      },
+    const current = await this.get(householdId, invoiceId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.creditCardInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          openingBalanceCents: body.openingBalanceCents,
+          statementTotalCents:
+            body.statementTotalCents === undefined ? undefined : body.statementTotalCents,
+        },
+      });
+      if (body.openingBalanceCents !== undefined) {
+        const increase = body.openingBalanceCents - current.openingBalanceCents;
+        await this.shiftCardOpeningUsed(current.creditCardId, increase, tx);
+        await this.recalcTotal(invoiceId, tx);
+      }
     });
-    if (body.openingBalanceCents !== undefined) await this.recalcTotal(invoiceId);
     return this.get(householdId, invoiceId);
   }
 
@@ -309,6 +340,7 @@ export class InvoicesService {
     const invoice = await this.prisma.creditCardInvoice.findFirst({
       where: { id: invoiceId, creditCard: { householdId } },
       include: {
+        creditCard: { select: { openingUsedCents: true } },
         transactions: {
           where: { status: { not: "CANCELED" } },
           orderBy: { date: "asc" },
@@ -344,6 +376,7 @@ export class InvoicesService {
       status: invoice.status,
       totalCents,
       openingBalanceCents: invoice.openingBalanceCents,
+      cardOpeningUsedCents: invoice.creditCard.openingUsedCents,
       itemizedCents,
       adjustmentsCents,
       statementTotalCents: invoice.statementTotalCents,
@@ -373,11 +406,14 @@ export class InvoicesService {
 
     if (body.mode === "opening") {
       const next = Math.max(0, invoice.openingBalanceCents + amount);
-      await this.prisma.creditCardInvoice.update({
-        where: { id: invoiceId },
-        data: { openingBalanceCents: next },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.creditCardInvoice.update({
+          where: { id: invoiceId },
+          data: { openingBalanceCents: next },
+        });
+        await this.shiftCardOpeningUsed(invoice.creditCardId, next - invoice.openingBalanceCents, tx);
+        await this.recalcTotal(invoiceId, tx);
       });
-      await this.recalcTotal(invoiceId);
     } else {
       const tz = await this.timezone(householdId);
       await this.prisma.$transaction(async (tx) => {
