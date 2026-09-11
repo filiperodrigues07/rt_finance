@@ -348,7 +348,7 @@ export function DashboardPage() {
             id: "byCard",
             body: (
               <>
-                <CardHeader title="Gastos por cartão" />
+                <CardHeader title="Gastos por cartão" description="Fatura atual de cada cartão" />
                 {isLoading || !data ? <ChartSkeleton className="h-32" /> : <BreakdownBar data={data.byCard} />}
               </>
             ),

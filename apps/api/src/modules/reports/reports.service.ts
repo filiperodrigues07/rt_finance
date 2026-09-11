@@ -100,8 +100,7 @@ export class ReportsService {
       byCategoryRaw,
       incomeByCategoryRaw,
       byMemberRaw,
-      byCardRaw,
-      invoices,
+      cardInvoices,
       monthly,
       prevByType,
       prevByCategoryRaw,
@@ -139,14 +138,10 @@ export class ReportsService {
         where: { ...inRange, type: "EXPENSE", ...scope },
         _sum: { amountCents: true },
       }),
-      this.prisma.transaction.groupBy({
-        by: ["creditCardId"],
-        where: { ...inRange, type: "EXPENSE", creditCardId: { not: null }, ...scope },
-        _sum: { amountCents: true },
-      }),
       this.prisma.creditCardInvoice.findMany({
         where: { creditCard: { householdId }, status: { not: "PAID" } },
-        select: { totalCents: true, dueDate: true },
+        select: { creditCardId: true, totalCents: true, dueDate: true },
+        orderBy: { dueDate: "asc" },
       }),
       this.monthlyEvolution(householdId, months, tz),
       this.prisma.transaction.groupBy({
@@ -171,9 +166,9 @@ export class ReportsService {
     const balanceCents =
       openingTotal + sumType("INCOME", accountMoves) - sumType("EXPENSE", accountMoves);
 
-    const invoicesOpenCents = invoices.reduce((acc, i) => acc + i.totalCents, 0);
+    const invoicesOpenCents = cardInvoices.reduce((acc, i) => acc + i.totalCents, 0);
     const horizon = addDays(todayIso(tz), 15, tz);
-    const upcomingDueCents = invoices
+    const upcomingDueCents = cardInvoices
       .filter((i) => toIsoDate(i.dueDate) <= horizon)
       .reduce((acc, i) => acc + i.totalCents, 0);
 
@@ -226,20 +221,31 @@ export class ReportsService {
       }))
       .sort((a, b) => b.cents - a.cents);
 
-    // cartões
-    const cardIds = byCardRaw.map((r) => r.creditCardId).filter(Boolean) as string[];
+    // cartões — "gasto do cartão" = total da fatura atual (a de vencimento mais próximo
+    // ainda não paga), igual ao que aparece na Carteira. Não é filtrado pelo período do
+    // Dashboard: fatura tem ciclo próprio (fecha em dia fixo), não bate com mês calendário.
+    const currentInvoiceByCard = new Map<string, { totalCents: number }>();
+    for (const inv of cardInvoices) {
+      if (!inv.creditCardId || currentInvoiceByCard.has(inv.creditCardId)) continue;
+      currentInvoiceByCard.set(inv.creditCardId, { totalCents: inv.totalCents });
+    }
+    const cardIds = q.creditCardId
+      ? currentInvoiceByCard.has(q.creditCardId)
+        ? [q.creditCardId]
+        : []
+      : [...currentInvoiceByCard.keys()];
     const cards = await this.prisma.creditCard.findMany({
       where: { id: { in: cardIds } },
       select: { id: true, name: true, color: true, icon: true },
     });
     const cardMap = new Map(cards.map((c) => [c.id, c]));
-    const byCard = byCardRaw
-      .map((r) => ({
-        creditCardId: r.creditCardId as string,
-        name: cardMap.get(r.creditCardId as string)?.name ?? "?",
-        color: cardMap.get(r.creditCardId as string)?.color ?? "#8B5CF6",
-        icon: cardMap.get(r.creditCardId as string)?.icon ?? "💳",
-        cents: r._sum.amountCents ?? 0,
+    const byCard = cardIds
+      .map((id) => ({
+        creditCardId: id,
+        name: cardMap.get(id)?.name ?? "?",
+        color: cardMap.get(id)?.color ?? "#8B5CF6",
+        icon: cardMap.get(id)?.icon ?? "💳",
+        cents: currentInvoiceByCard.get(id)?.totalCents ?? 0,
       }))
       .sort((a, b) => b.cents - a.cents);
 
